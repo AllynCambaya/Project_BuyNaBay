@@ -1,12 +1,10 @@
 // App.js
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-import AddProductScreen from './screens/AddProductScreen'; // Add this import
-import HomeScreen from './screens/HomeScreen';
-import LoginScreen from './screens/LoginScreen';
-import RegisterScreen from './screens/RegisterScreen';
-import ResetPasswordScreen from './screens/ResetPasswordScreen';
+import LoginScreen from './screens/authentication/LoginScreen';
+import RegisterScreen from './screens/authentication/RegisterScreen';
+import ResetPasswordScreen from './screens/authentication/ResetPasswordScreen';
+import MainTabNavigator from './screens/tabs/MainTabNavigator';
 
 
 const Stack = createNativeStackNavigator();
@@ -18,9 +16,7 @@ export default function App() {
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-        <Stack.Screen name="AddProduct" component={AddProductScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
-        
+        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );

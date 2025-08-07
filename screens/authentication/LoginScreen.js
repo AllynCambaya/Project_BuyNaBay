@@ -1,8 +1,15 @@
 // screens/LoginScreen.js
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 import { useState } from 'react';
-import { Alert, Button, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { auth } from '../firebase/firebaseConfig';
+import {
+  Alert,
+  Button,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { auth } from '../../firebase/firebaseConfig';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -19,11 +26,26 @@ export default function LoginScreen({ navigation }) {
       const user = userCredential.user;
 
       if (!user.emailVerified) {
-        Alert.alert("Email Not Verified", "Please verify your email before logging in.");
+        Alert.alert(
+          "Email Not Verified",
+          "Please verify your email before logging in.",
+          [
+            {
+              text: "Resend Email",
+              onPress: async () => {
+                await sendEmailVerification(user);
+                Alert.alert("Verification Sent", "A new verification email has been sent.");
+              }
+            },
+            { text: "OK" }
+          ]
+        );
         return;
       }
 
-      navigation.replace("Home"); // Replace to avoid back button going to login
+      // ✅ Navigate to MainTabs after successful login & verification
+      navigation.replace("MainTabs");
+
     } catch (error) {
       Alert.alert("Login Error", error.message);
     }
@@ -32,7 +54,7 @@ export default function LoginScreen({ navigation }) {
   return (
     <View style={{ padding: 20 }}>
       <Text style={{ fontSize: 24, marginBottom: 20 }}>Login</Text>
-      
+
       <TextInput
         placeholder="Email"
         value={email}
