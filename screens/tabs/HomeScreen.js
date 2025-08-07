@@ -9,10 +9,11 @@ import { supabase } from '../../supabase/supabaseClient';
 export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const currentUser = auth.currentUser;
 
   const fetchProducts = async () => {
-    setLoading(true);
+    if (!refreshing) setLoading(true);
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -23,6 +24,7 @@ export default function HomeScreen({ navigation }) {
       setProducts(data);
     }
     setLoading(false);
+    setRefreshing(false);
   };
 
   const handleLogout = async () => {
@@ -53,7 +55,9 @@ export default function HomeScreen({ navigation }) {
     fetchProducts();
   }, []);
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 30 }} />;
+  if (loading && !refreshing) {
+    return <ActivityIndicator style={{ marginTop: 30 }} />;
+  }
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
@@ -63,6 +67,11 @@ export default function HomeScreen({ navigation }) {
       <FlatList
         data={products}
         keyExtractor={(item) => item.id.toString()}
+        onRefresh={() => {
+          setRefreshing(true);
+          fetchProducts();
+        }}
+        refreshing={refreshing}
         renderItem={({ item }) => (
           <ProductCard
             product={item}
