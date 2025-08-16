@@ -78,6 +78,11 @@ export default function HomeScreen({ navigation }) {
             canEdit={item.email === currentUser?.email}
             onEdit={() => navigation.navigate('EditProduct', { product: item })}
             onDelete={() => handleDelete(item.id)}
+            onMessageSeller={() => {
+              if (item.email !== currentUser?.email) {
+                navigation.navigate('Messaging', { receiverId: item.email });
+              }
+            }}
           />
         )}
       />
