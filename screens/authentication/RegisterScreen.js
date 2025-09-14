@@ -1,14 +1,15 @@
 // screens/RegisterScreen.js
-import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
-import { useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { auth } from '../../firebase/firebaseConfig';
+import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from "firebase/auth";
+import { useState } from "react";
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { auth } from "../../firebase/firebaseConfig";
+import { supabase } from "../../supabase/supabaseClient";
 
 export default function RegisterScreen({ navigation }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // 📝 Register new user
   const handleRegister = async () => {
@@ -23,6 +24,7 @@ export default function RegisterScreen({ navigation }) {
     }
 
     try {
+      // Create user in Firebase
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -31,6 +33,21 @@ export default function RegisterScreen({ navigation }) {
 
       // Send verification email
       await sendEmailVerification(user);
+
+      // Store user in Supabase table
+      const { error } = await supabase.from("users").insert([
+        {
+          id: user.uid,       // Firebase UID
+          name: name,
+          email: email,
+          is_verified: false, // we can update later once verified
+        },
+      ]);
+
+      if (error) {
+        console.error("Supabase Insert Error:", error);
+        Alert.alert("Error", "Account created but failed to save profile.");
+      }
 
       Alert.alert(
         "Verify Your Email",
@@ -44,13 +61,35 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20, backgroundColor: "#0d0b2d" }}>
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1,
+        justifyContent: "center",
+        padding: 20,
+        backgroundColor: "#0d0b2d",
+      }}
+    >
       <View>
         {/* Title */}
-        <Text style={{ fontSize: 26, fontWeight: "bold", marginBottom: 10, textAlign: "center", color: "white" }}>
+        <Text
+          style={{
+            fontSize: 26,
+            fontWeight: "bold",
+            marginBottom: 10,
+            textAlign: "center",
+            color: "white",
+          }}
+        >
           Sign up
         </Text>
-        <Text style={{ fontSize: 14, color: "#aaa", marginBottom: 20, textAlign: "center" }}>
+        <Text
+          style={{
+            fontSize: 14,
+            color: "#aaa",
+            marginBottom: 20,
+            textAlign: "center",
+          }}
+        >
           Create your account to continue shopping with BuyNaBay
         </Text>
 
