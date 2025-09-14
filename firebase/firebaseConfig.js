@@ -4,13 +4,13 @@ import { getFirestore } from "firebase/firestore";
 
 // Your Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyAEoTkkjwwjinmQPvWE7W0hqwD8BfUprLE",
-  authDomain: "buynabay-a6166.firebaseapp.com",
-  projectId: "buynabay-a6166",
-  storageBucket: "buynabay-a6166.appspot.com",
-  messagingSenderId: "589330031369",
-  appId: "1:589330031369:web:7214af3b39d840b78569d8",
-  measurementId: "G-P28N29T1QN"
+  apiKey: "AIzaSyA7aJDh7TmU1tVJA75F7eBRG0sWkLJoQjg",
+  authDomain: "buynabay-25781.firebaseapp.com",
+  projectId: "buynabay-25781",
+  storageBucket: "buynabay-25781.firebasestorage.app",
+  messagingSenderId: "106062612580",
+  appId: "1:106062612580:web:613adac9e61414d6ce7771",
+  measurementId: "G-WGLYN9HX66"
 };
 
 // Avoid reinitializing the app on hot reload

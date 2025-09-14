@@ -1,7 +1,7 @@
 // screens/CartScreen.js
 import { useEffect, useState } from "react";
 import { Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
-import { supabase } from "../supabase/supabase"; // adjust path to your config
+import { supabase } from '../../supabase/supabaseClient';
 
 export default function CartScreen({ route }) {
   const [cartItems, setCartItems] = useState([]);
