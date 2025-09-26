@@ -1,4 +1,5 @@
 // screens/CartScreen.js
+import ExpoCheckbox from "expo-checkbox";
 import { useEffect, useState } from "react";
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { auth } from "../../firebase/firebaseConfig";
@@ -7,6 +8,7 @@ import { supabase } from "../../supabase/supabaseClient";
 export default function CartScreen() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]); // array of selected cart item ids
   const user = auth.currentUser;
   const [buyerName, setBuyerName] = useState("");
 
@@ -24,24 +26,26 @@ export default function CartScreen() {
     fetchBuyerName();
   }, [user]);
 
-  // Fetch cart items for this buyer
-  const fetchCart = async () => {
-    if (!buyerName) return;
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("cart")
-      .select("*")
-      .eq("name", buyerName);
-
-    if (error) {
-      console.error(error);
-    } else {
-      setCartItems(data);
-    }
-    setLoading(false);
-  };
-
+  // Fetch cart items for this buyer whenever buyerName changes
   useEffect(() => {
+    const fetchCart = async () => {
+      if (!buyerName) return;
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("cart")
+        .select("*")
+        .eq("name", buyerName);
+
+      if (error) {
+        console.error(error);
+      } else {
+        setCartItems(data);
+        // reset selections when cart changes
+        setSelectedIds([]);
+      }
+      setLoading(false);
+    };
+
     if (buyerName) fetchCart();
   }, [buyerName]);
 
@@ -50,39 +54,95 @@ export default function CartScreen() {
     const { error } = await supabase.from("cart").delete().eq("id", id);
     if (!error) {
       setCartItems(cartItems.filter((item) => item.id !== id));
+      setSelectedIds(selectedIds.filter((sid) => sid !== id));
     }
   };
 
   // Checkout
   const handleCheckout = async () => {
-    if (cartItems.length === 0) {
-      Alert.alert("Cart Empty", "Please add items to your cart first.");
+    if (selectedIds.length === 0) {
+      Alert.alert("No items selected", "Please select items to checkout.");
       return;
     }
 
-    const { error } = await supabase
-      .from("cart")
-      .delete()
-      .eq("name", buyerName);
+    // find selected items from local state
+    const itemsToCheckout = cartItems.filter((item) => selectedIds.includes(item.id));
 
-    if (!error) {
-      setCartItems([]);
-      Alert.alert("Order Successful 🎉", "Thank you for shopping at BuyNaBay!");
+    // notify each seller via messages table
+    try {
+      const messagesPayload = itemsToCheckout.map((item) => ({
+        sender_id: user?.email || 'unknown',
+        receiver_id: item.seller_email || item.email || 'unknown',
+        text: `Your product \"${item.product_name}\" was just checked out by ${buyerName || user?.email || 'a buyer'}.`,
+      }));
+
+      // insert messages in bulk
+      const { error: msgError } = await supabase.from('messages').insert(messagesPayload);
+      if (msgError) {
+        console.error('Message insert error', msgError);
+      }
+
+      // delete only selected items from cart
+      const { error } = await supabase
+        .from("cart")
+        .delete()
+        .in("id", selectedIds);
+
+      if (!error) {
+        // remove selected items from local state
+        setCartItems(cartItems.filter((item) => !selectedIds.includes(item.id)));
+        setSelectedIds([]);
+        Alert.alert("Order Successful 🎉", "Thank you for shopping at BuyNaBay!");
+      } else {
+        console.error(error);
+        Alert.alert("Checkout Failed", "There was a problem processing your order.");
+      }
+    } catch (e) {
+      console.error('Checkout error', e);
+      Alert.alert('Checkout Failed', 'There was a problem processing your order.');
+    }
+  };
+
+  const toggleSelect = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((sid) => sid !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const allSelected = cartItems.length > 0 && selectedIds.length === cartItems.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(cartItems.map((c) => c.id));
     }
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <Text style={styles.productName}>{item.product_name}</Text>
-      <Text style={styles.price}>₱{item.price}</Text>
-      <Text style={styles.quantity}>Qty: {item.quantity}</Text>
+      <View style={styles.cardRow}>
+      <View style={styles.cardLeft}>
+        <ExpoCheckbox
+          value={selectedIds.includes(item.id)}
+          onValueChange={() => toggleSelect(item.id)}
+          color={selectedIds.includes(item.id) ? "#2e7d32" : undefined}
+        />
+      </View>
 
-      <TouchableOpacity
-        style={styles.removeBtn}
-        onPress={() => removeFromCart(item.id)}
-      >
-        <Text style={styles.removeText}>Remove</Text>
-      </TouchableOpacity>
+      <View style={styles.card}>
+        <Text style={styles.productName}>{item.product_name}</Text>
+        <Text style={styles.price}>₱{item.price}</Text>
+        <Text style={styles.quantity}>Qty: {item.quantity}</Text>
+
+        <TouchableOpacity
+          style={styles.removeBtn}
+          onPress={() => removeFromCart(item.id)}
+        >
+          <Text style={styles.removeText}>Remove</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -95,16 +155,31 @@ export default function CartScreen() {
       ) : cartItems.length === 0 ? (
         <Text style={styles.emptyText}>Your cart is empty</Text>
       ) : (
-        <FlatList
-          data={cartItems}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-        />
+        <>
+          <View style={styles.selectAllRow}>
+            <ExpoCheckbox
+              value={allSelected}
+              onValueChange={toggleSelectAll}
+              color={allSelected ? "#2e7d32" : undefined}
+            />
+            <Text style={styles.selectAllText}>Select All</Text>
+          </View>
+
+          <FlatList
+            data={cartItems}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+          />
+        </>
       )}
 
       {cartItems.length > 0 && (
-        <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout}>
-          <Text style={styles.checkoutText}>Checkout</Text>
+        <TouchableOpacity
+          style={[styles.checkoutBtn, selectedIds.length === 0 && styles.checkoutBtnDisabled]}
+          onPress={handleCheckout}
+          disabled={selectedIds.length === 0}
+        >
+          <Text style={styles.checkoutText}>Checkout ({selectedIds.length})</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -124,6 +199,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    flex: 1,
+    marginLeft: 8,
   },
   productName: { fontSize: 18, fontWeight: "600", marginBottom: 4 },
   price: { fontSize: 16, color: "#444", marginBottom: 4 },
@@ -142,4 +219,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   checkoutText: { color: "#fff", textAlign: "center", fontSize: 18, fontWeight: "700" },
+  cardRow: { flexDirection: "row", alignItems: "center" },
+  cardLeft: { width: 40, alignItems: "center", marginTop: 0 },
+  selectAllRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  selectAllText: { marginLeft: 8, fontSize: 16, fontWeight: "600" },
+  checkoutBtnDisabled: { backgroundColor: "#9e9e9e" },
 });

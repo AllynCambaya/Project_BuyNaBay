@@ -60,16 +60,46 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16, backgroundColor: '#f9f9f9' }}>
+    <View style={{ flex: 1, backgroundColor: '#f9f9f9' }}>
       {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#2e7d32' }}>BuyNaBay 🛍️</Text>
-        <TouchableOpacity onPress={handleLogout}>
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          backgroundColor: '#fff',
+          elevation: 3, // for Android shadow
+          shadowColor: '#000', // for iOS shadow
+          shadowOpacity: 0.1,
+          shadowRadius: 5,
+          shadowOffset: { width: 0, height: 2 },
+        }}
+      >
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#2e7d32' }}>
+          BuyNaBay 🛍️
+        </Text>
+
+        <TouchableOpacity
+          onPress={handleLogout}
+          style={{
+            padding: 6,
+            borderRadius: 20,
+            backgroundColor: '#957272ff',
+            elevation: 2,
+            shadowColor: '#000000ff',
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
           <Ionicons name="log-out-outline" size={28} color="tomato" />
         </TouchableOpacity>
       </View>
 
       <FlatList
+        contentContainerStyle={{ padding: 16 }}
         data={products}
         keyExtractor={(item) => item.id.toString()}
         onRefresh={() => {

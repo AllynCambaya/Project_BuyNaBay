@@ -1,6 +1,6 @@
-import { Picker } from '@react-native-picker/picker'; // make sure to install this
+import { Picker } from '@react-native-picker/picker';
 import { useState } from 'react';
-import { Alert, Button, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Button, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
@@ -9,8 +9,8 @@ export default function AddProductScreen({ navigation }) {
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('Electronics'); // default value
-  const [condition, setCondition] = useState('New'); // ✅ default condition is "New"
+  const [category, setCategory] = useState('Electronics');
+  const [condition, setCondition] = useState('New');
 
   const handleAddProduct = async () => {
     const user = auth.currentUser;
@@ -26,7 +26,7 @@ export default function AddProductScreen({ navigation }) {
     }
 
     try {
-      const { data, error } = await supabase.from('products').insert([
+      const { error } = await supabase.from('products').insert([
         {
           product_name: productName,
           description,
@@ -46,9 +46,7 @@ export default function AddProductScreen({ navigation }) {
       setQuantity('1');
       setPrice('');
       setCategory('Electronics');
-      setCondition('New'); // reset to default
-      navigation.goBack();
-
+      setCondition('New');
     } catch (error) {
       Alert.alert("Error", error.message);
     }
@@ -64,7 +62,6 @@ export default function AddProductScreen({ navigation }) {
     if (current > 1) setQuantity(String(current - 1));
   };
 
-  // ✅ Only allow numbers in manual quantity input
   const handleQuantityChange = (value) => {
     if (/^\d*$/.test(value)) {
       setQuantity(value);
@@ -72,14 +69,14 @@ export default function AddProductScreen({ navigation }) {
   };
 
   return (
-    <View style={{ padding: 20 }}>
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
       <Text style={{ fontSize: 24, marginBottom: 20 }}>Add Product</Text>
 
       <TextInput
         placeholder="Product Name"
         value={productName}
         onChangeText={setProductName}
-        style={{ borderWidth: 1, marginBottom: 15, padding: 10 }}
+        style={styles.input}
       />
 
       <TextInput
@@ -87,22 +84,12 @@ export default function AddProductScreen({ navigation }) {
         value={description}
         onChangeText={setDescription}
         multiline
-        style={{ borderWidth: 1, marginBottom: 15, padding: 10, height: 100 }}
+        style={[styles.input, { height: 100 }]}
       />
 
-      {/* Quantity with +, -, and numeric-only input */}
       <Text style={{ marginBottom: 5 }}>Quantity:</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-        <TouchableOpacity
-          onPress={decreaseQuantity}
-          style={{
-            borderWidth: 1,
-            borderRadius: 4,
-            padding: 10,
-            marginRight: 10,
-            backgroundColor: '#eee',
-          }}
-        >
+        <TouchableOpacity onPress={decreaseQuantity} style={styles.qtyBtn}>
           <Text style={{ fontSize: 20 }}>-</Text>
         </TouchableOpacity>
 
@@ -110,25 +97,10 @@ export default function AddProductScreen({ navigation }) {
           value={quantity}
           onChangeText={handleQuantityChange}
           keyboardType="numeric"
-          style={{
-            borderWidth: 1,
-            textAlign: 'center',
-            padding: 10,
-            width: 80,
-            marginRight: 10,
-            backgroundColor: '#f9f9f9',
-          }}
+          style={styles.qtyInput}
         />
 
-        <TouchableOpacity
-          onPress={increaseQuantity}
-          style={{
-            borderWidth: 1,
-            borderRadius: 4,
-            padding: 10,
-            backgroundColor: '#eee',
-          }}
-        >
+        <TouchableOpacity onPress={increaseQuantity} style={styles.qtyBtn}>
           <Text style={{ fontSize: 20 }}>+</Text>
         </TouchableOpacity>
       </View>
@@ -138,16 +110,12 @@ export default function AddProductScreen({ navigation }) {
         value={price}
         onChangeText={setPrice}
         keyboardType="decimal-pad"
-        style={{ borderWidth: 1, marginBottom: 15, padding: 10 }}
+        style={styles.input}
       />
 
-      {/* Category Dropdown */}
       <Text style={{ marginBottom: 5 }}>Category:</Text>
-      <View style={{ borderWidth: 1, marginBottom: 15 }}>
-        <Picker
-          selectedValue={category}
-          onValueChange={(itemValue) => setCategory(itemValue)}
-        >
+      <View style={styles.dropdown}>
+        <Picker selectedValue={category} onValueChange={(itemValue) => setCategory(itemValue)}>
           <Picker.Item label="Electronics" value="Electronics" />
           <Picker.Item label="Books" value="Books" />
           <Picker.Item label="Clothes" value="Clothes" />
@@ -160,20 +128,46 @@ export default function AddProductScreen({ navigation }) {
         </Picker>
       </View>
 
-      {/* ✅ Condition Dropdown */}
       <Text style={{ marginBottom: 5 }}>Condition:</Text>
-      <View style={{ borderWidth: 1, marginBottom: 15 }}>
-        <Picker
-          selectedValue={condition}
-          onValueChange={(itemValue) => setCondition(itemValue)}
-        >
+      <View style={styles.dropdown}>
+        <Picker selectedValue={condition} onValueChange={(itemValue) => setCondition(itemValue)}>
           <Picker.Item label="New" value="New" />
           <Picker.Item label="Pre-Loved" value="Pre-Loved" />
         </Picker>
       </View>
 
       <Button title="Add Product" onPress={handleAddProduct} />
-    </View>
+    </ScrollView>
   );
 }
 
+const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    padding: 20,
+  },
+  input: {
+    borderWidth: 1,
+    marginBottom: 15,
+    padding: 10,
+  },
+  qtyBtn: {
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 10,
+    marginRight: 10,
+    backgroundColor: '#eee',
+  },
+  qtyInput: {
+    borderWidth: 1,
+    textAlign: 'center',
+    padding: 10,
+    width: 80,
+    marginRight: 10,
+    backgroundColor: '#f9f9f9',
+  },
+  dropdown: {
+    borderWidth: 1,
+    marginBottom: 15,
+  },
+});
