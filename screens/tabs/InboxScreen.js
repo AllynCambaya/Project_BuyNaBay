@@ -5,25 +5,34 @@ import { supabase } from '../../supabase/supabaseClient';
 
 export default function InboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
+  const [userNames, setUserNames] = useState({});
   const user = auth.currentUser;
 
   useEffect(() => {
     const fetchConversations = async () => {
       if (!user) return;
-      // Get all messages where current user is the receiver
       const { data, error } = await supabase
         .from('messages')
         .select('sender_id, receiver_id')
         .or(`sender_id.eq.${user.email},receiver_id.eq.${user.email}`);
-
       if (error) return;
-
       const users = new Set();
       data.forEach(msg => {
         if (msg.sender_id !== user.email) users.add(msg.sender_id);
         if (msg.receiver_id !== user.email) users.add(msg.receiver_id);
       });
-      setConversations(Array.from(users));
+      const userList = Array.from(users);
+      setConversations(userList);
+      // Fetch names for all users
+      if (userList.length > 0) {
+        const { data: nameData } = await supabase
+          .from('users')
+          .select('email, name')
+          .in('email', userList);
+        const nameMap = {};
+        nameData?.forEach(u => { nameMap[u.email] = u.name; });
+        setUserNames(nameMap);
+      }
     };
     fetchConversations();
   }, [user]);
@@ -37,9 +46,9 @@ export default function InboxScreen({ navigation }) {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.item}
-            onPress={() => navigation.navigate('Messaging', { receiverId: item })}
+            onPress={() => navigation.navigate('Messaging', { receiverId: item, receiverName: userNames[item] })}
           >
-            <Text style={styles.text}>Chat with: {item}</Text>
+            <Text style={styles.text}>Chat with: {userNames[item] ? userNames[item] : item}</Text>
           </TouchableOpacity>
         )}
       />
