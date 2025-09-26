@@ -46,6 +46,7 @@ export default function MainTabNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Tabs" component={Tabs} />
       <Stack.Screen name="Messaging" component={MessagingScreen} />
+      <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
     </Stack.Navigator>
   );
 }

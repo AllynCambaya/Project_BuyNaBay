@@ -1,22 +1,37 @@
 // screens/CartScreen.js
 import { useEffect, useState } from "react";
-import { Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
-import { supabase } from '../../supabase/supabaseClient';
+import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { auth } from "../../firebase/firebaseConfig";
+import { supabase } from "../../supabase/supabaseClient";
 
-export default function CartScreen({ route }) {
+export default function CartScreen() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const user = auth.currentUser;
+  const [buyerName, setBuyerName] = useState("");
 
-  // Assume user email is passed from auth context or route params
-  const userEmail = route?.params?.email; 
+  // Fetch buyer name from users table
+  useEffect(() => {
+    const fetchBuyerName = async () => {
+      if (!user?.email) return;
+      const { data, error } = await supabase
+        .from("users")
+        .select("name")
+        .eq("email", user.email)
+        .single();
+      if (!error && data?.name) setBuyerName(data.name);
+    };
+    fetchBuyerName();
+  }, [user]);
 
-  // Fetch cart items for logged in user
+  // Fetch cart items for this buyer
   const fetchCart = async () => {
+    if (!buyerName) return;
     setLoading(true);
     const { data, error } = await supabase
       .from("cart")
       .select("*")
-      .eq("user_email", userEmail);
+      .eq("name", buyerName);
 
     if (error) {
       console.error(error);
@@ -27,8 +42,8 @@ export default function CartScreen({ route }) {
   };
 
   useEffect(() => {
-    fetchCart();
-  }, []);
+    if (buyerName) fetchCart();
+  }, [buyerName]);
 
   // Remove item from cart
   const removeFromCart = async (id) => {
@@ -45,11 +60,10 @@ export default function CartScreen({ route }) {
       return;
     }
 
-    // Simulate order success + clear cart
     const { error } = await supabase
       .from("cart")
       .delete()
-      .eq("user_email", userEmail);
+      .eq("name", buyerName);
 
     if (!error) {
       setCartItems([]);
@@ -58,27 +72,28 @@ export default function CartScreen({ route }) {
   };
 
   const renderItem = ({ item }) => (
-    <View className="bg-white p-4 m-2 rounded-2xl shadow">
-      <Text className="text-lg font-semibold">{item.item_name}</Text>
-      <Text className="text-gray-500">₱{item.price}</Text>
+    <View style={styles.card}>
+      <Text style={styles.productName}>{item.product_name}</Text>
+      <Text style={styles.price}>₱{item.price}</Text>
+      <Text style={styles.quantity}>Qty: {item.quantity}</Text>
 
       <TouchableOpacity
-        className="bg-red-500 p-2 rounded-xl mt-2"
+        style={styles.removeBtn}
         onPress={() => removeFromCart(item.id)}
       >
-        <Text className="text-white text-center">Remove</Text>
+        <Text style={styles.removeText}>Remove</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View className="flex-1 bg-gray-100 p-3">
-      <Text className="text-2xl font-bold mb-4 text-green-600">🛒 My Cart</Text>
+    <View style={styles.container}>
+      <Text style={styles.header}>🛒 My Cart</Text>
 
       {loading ? (
         <Text>Loading...</Text>
       ) : cartItems.length === 0 ? (
-        <Text className="text-center text-gray-500">Your cart is empty</Text>
+        <Text style={styles.emptyText}>Your cart is empty</Text>
       ) : (
         <FlatList
           data={cartItems}
@@ -88,15 +103,43 @@ export default function CartScreen({ route }) {
       )}
 
       {cartItems.length > 0 && (
-        <TouchableOpacity
-          className="bg-green-600 p-4 rounded-2xl mt-4"
-          onPress={handleCheckout}
-        >
-          <Text className="text-white text-center text-lg font-semibold">
-            Checkout
-          </Text>
+        <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout}>
+          <Text style={styles.checkoutText}>Checkout</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f5f5f5", padding: 12 },
+  header: { fontSize: 24, fontWeight: "bold", marginBottom: 16, color: "#2e7d32" },
+  emptyText: { textAlign: "center", color: "#777", marginTop: 20 },
+  card: {
+    backgroundColor: "#fff",
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  productName: { fontSize: 18, fontWeight: "600", marginBottom: 4 },
+  price: { fontSize: 16, color: "#444", marginBottom: 4 },
+  quantity: { fontSize: 14, color: "#555", marginBottom: 8 },
+  removeBtn: {
+    backgroundColor: "#e53935",
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 6,
+  },
+  removeText: { color: "#fff", textAlign: "center", fontWeight: "600" },
+  checkoutBtn: {
+    backgroundColor: "#2e7d32",
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  checkoutText: { color: "#fff", textAlign: "center", fontSize: 18, fontWeight: "700" },
+});

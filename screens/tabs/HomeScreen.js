@@ -1,7 +1,7 @@
-// screens/HomeScreen.js
+import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, FlatList, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Text, TouchableOpacity, View } from 'react-native';
 import ProductCard from '../../components/ProductCard';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -12,7 +12,7 @@ export default function HomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const currentUser = auth.currentUser;
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!refreshing) setLoading(true);
     const { data, error } = await supabase
       .from('products')
@@ -25,7 +25,7 @@ export default function HomeScreen({ navigation }) {
     }
     setLoading(false);
     setRefreshing(false);
-  };
+  }, [refreshing]);
 
   const handleLogout = async () => {
     try {
@@ -53,16 +53,21 @@ export default function HomeScreen({ navigation }) {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
   if (loading && !refreshing) {
     return <ActivityIndicator style={{ marginTop: 30 }} />;
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      <Button title="Add Product" onPress={() => navigation.navigate('AddProduct')} />
-      <Button title="Logout" onPress={handleLogout} color="tomato" />
+    <View style={{ flex: 1, padding: 16, backgroundColor: '#f9f9f9' }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#2e7d32' }}>BuyNaBay 🛍️</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={28} color="tomato" />
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         data={products}
@@ -83,6 +88,7 @@ export default function HomeScreen({ navigation }) {
                 navigation.navigate('Messaging', { receiverId: item.email });
               }
             }}
+            onPress={() => navigation.navigate('ProductDetails', { product: item })}
           />
         )}
       />
