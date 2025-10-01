@@ -70,8 +70,8 @@ export default function HomeScreen({ navigation }) {
           paddingHorizontal: 16,
           paddingVertical: 12,
           backgroundColor: '#fff',
-          elevation: 3, // for Android shadow
-          shadowColor: '#000', // for iOS shadow
+          elevation: 3, // Android shadow
+          shadowColor: '#000', // iOS shadow
           shadowOpacity: 0.1,
           shadowRadius: 5,
           shadowOffset: { width: 0, height: 2 },
@@ -81,21 +81,43 @@ export default function HomeScreen({ navigation }) {
           BuyNaBay 🛍️
         </Text>
 
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={{
-            padding: 6,
-            borderRadius: 20,
-            backgroundColor: '#957272ff',
-            elevation: 2,
-            shadowColor: '#000000ff',
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            shadowOffset: { width: 0, height: 2 },
-          }}
-        >
-          <Ionicons name="log-out-outline" size={28} color="tomato" />
-        </TouchableOpacity>
+        {/* Icons container */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {/* Notifications Button */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Notifications')}
+            style={{
+              padding: 6,
+              borderRadius: 20,
+              marginRight: 10,
+              backgroundColor: '#e0f2f1',
+              elevation: 2,
+              shadowColor: '#000000ff',
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              shadowOffset: { width: 0, height: 2 },
+            }}
+          >
+            <Ionicons name="notifications-outline" size={26} color="#2e7d32" />
+          </TouchableOpacity>
+
+          {/* Logout Button */}
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={{
+              padding: 6,
+              borderRadius: 20,
+              backgroundColor: '#957272ff',
+              elevation: 2,
+              shadowColor: '#000000ff',
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              shadowOffset: { width: 0, height: 2 },
+            }}
+          >
+            <Ionicons name="log-out-outline" size={28} color="tomato" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList

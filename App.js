@@ -5,6 +5,7 @@ import LoginScreen from './screens/authentication/LoginScreen';
 import RegisterScreen from './screens/authentication/RegisterScreen';
 import ResetPasswordScreen from './screens/authentication/ResetPasswordScreen';
 import MainTabNavigator from './screens/tabs/MainTabNavigator';
+import NotificationsScreen from './screens/tabs/NotificationScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -17,6 +18,7 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -8,11 +8,11 @@ import { supabase } from "../../supabase/supabaseClient";
 export default function CartScreen() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]); // array of selected cart item ids
+  const [selectedIds, setSelectedIds] = useState([]);
   const user = auth.currentUser;
   const [buyerName, setBuyerName] = useState("");
 
-  // Fetch buyer name from users table
+  // Fetch buyer name
   useEffect(() => {
     const fetchBuyerName = async () => {
       if (!user?.email) return;
@@ -20,13 +20,13 @@ export default function CartScreen() {
         .from("users")
         .select("name")
         .eq("email", user.email)
-        .single();
+        .maybeSingle();
       if (!error && data?.name) setBuyerName(data.name);
     };
     fetchBuyerName();
   }, [user]);
 
-  // Fetch cart items for this buyer whenever buyerName changes
+  // Fetch cart items
   useEffect(() => {
     const fetchCart = async () => {
       if (!buyerName) return;
@@ -36,12 +36,11 @@ export default function CartScreen() {
         .select("*")
         .eq("name", buyerName);
 
-      if (error) {
-        console.error(error);
-      } else {
+      if (!error) {
         setCartItems(data);
-        // reset selections when cart changes
         setSelectedIds([]);
+      } else {
+        console.error(error);
       }
       setLoading(false);
     };
@@ -49,7 +48,7 @@ export default function CartScreen() {
     if (buyerName) fetchCart();
   }, [buyerName]);
 
-  // Remove item from cart
+  // Remove item
   const removeFromCart = async (id) => {
     const { error } = await supabase.from("cart").delete().eq("id", id);
     if (!error) {
@@ -65,31 +64,43 @@ export default function CartScreen() {
       return;
     }
 
-    // find selected items from local state
     const itemsToCheckout = cartItems.filter((item) => selectedIds.includes(item.id));
 
-    // notify each seller via messages table
     try {
-      const messagesPayload = itemsToCheckout.map((item) => ({
-        sender_id: user?.email || 'unknown',
-        receiver_id: item.seller_email || item.email || 'unknown',
-        text: `Your product \"${item.product_name}\" was just checked out by ${buyerName || user?.email || 'a buyer'}.`,
-      }));
+     for (const item of itemsToCheckout) {
+  // Find the seller by product_name
+  const { data: seller, error: sellerError } = await supabase
+    .from("products")
+    .select("email")
+    .eq("product_name", item.product_name)
+    .maybeSingle();
 
-      // insert messages in bulk
-      const { error: msgError } = await supabase.from('messages').insert(messagesPayload);
-      if (msgError) {
-        console.error('Message insert error', msgError);
-      }
+  if (sellerError) {
+    console.error("Seller lookup failed:", sellerError.message);
+    continue;
+  }
 
-      // delete only selected items from cart
-      const { error } = await supabase
-        .from("cart")
-        .delete()
-        .in("id", selectedIds);
+  if (!seller) {
+    console.error("No seller found for product:", item.product_name);
+    continue;
+  }
 
+  // Insert notification
+  const { error: notifError } = await supabase.from("notifications").insert({
+    sender_id: buyerName || user?.email || "unknown", // buyer
+    receiver_id: seller.email, // seller
+    title: "Order Received 🎉",
+    message: `${buyerName || user?.email || "A buyer"} checked out your product \"${item.product_name}\".`,
+  });
+
+  if (notifError) {
+    console.error("Notification insert error", notifError);
+  }
+}
+
+      // 🗑️ Remove items from cart
+      const { error } = await supabase.from("cart").delete().in("id", selectedIds);
       if (!error) {
-        // remove selected items from local state
         setCartItems(cartItems.filter((item) => !selectedIds.includes(item.id)));
         setSelectedIds([]);
         Alert.alert("Order Successful 🎉", "Thank you for shopping at BuyNaBay!");
@@ -98,8 +109,8 @@ export default function CartScreen() {
         Alert.alert("Checkout Failed", "There was a problem processing your order.");
       }
     } catch (e) {
-      console.error('Checkout error', e);
-      Alert.alert('Checkout Failed', 'There was a problem processing your order.');
+      console.error("Checkout error", e);
+      Alert.alert("Checkout Failed", "There was a problem processing your order.");
     }
   };
 
@@ -122,7 +133,7 @@ export default function CartScreen() {
   };
 
   const renderItem = ({ item }) => (
-      <View style={styles.cardRow}>
+    <View style={styles.cardRow}>
       <View style={styles.cardLeft}>
         <ExpoCheckbox
           value={selectedIds.includes(item.id)}
@@ -130,16 +141,12 @@ export default function CartScreen() {
           color={selectedIds.includes(item.id) ? "#2e7d32" : undefined}
         />
       </View>
-
       <View style={styles.card}>
         <Text style={styles.productName}>{item.product_name}</Text>
         <Text style={styles.price}>₱{item.price}</Text>
         <Text style={styles.quantity}>Qty: {item.quantity}</Text>
 
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={() => removeFromCart(item.id)}
-        >
+        <TouchableOpacity style={styles.removeBtn} onPress={() => removeFromCart(item.id)}>
           <Text style={styles.removeText}>Remove</Text>
         </TouchableOpacity>
       </View>
