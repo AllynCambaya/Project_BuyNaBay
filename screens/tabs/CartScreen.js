@@ -5,7 +5,7 @@ import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
 
-export default function CartScreen() {
+export default function CartScreen({ navigation }) {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -67,38 +67,39 @@ export default function CartScreen() {
     const itemsToCheckout = cartItems.filter((item) => selectedIds.includes(item.id));
 
     try {
-     for (const item of itemsToCheckout) {
-  // Find the seller by product_name
-  const { data: seller, error: sellerError } = await supabase
-    .from("products")
-    .select("email")
-    .eq("product_name", item.product_name)
-    .maybeSingle();
+      for (const item of itemsToCheckout) {
+        // Find seller email from products table
+        const { data: seller, error: sellerError } = await supabase
+          .from("products")
+          .select("email")
+          .eq("product_name", item.product_name)
+          .maybeSingle();
 
-  if (sellerError) {
-    console.error("Seller lookup failed:", sellerError.message);
-    continue;
-  }
+        if (sellerError) {
+          console.error("Seller lookup failed:", sellerError.message);
+          continue;
+        }
 
-  if (!seller) {
-    console.error("No seller found for product:", item.product_name);
-    continue;
-  }
+        if (!seller) {
+          console.error("No seller found for product:", item.product_name);
+          continue;
+        }
 
-  // Insert notification
-  const { error: notifError } = await supabase.from("notifications").insert({
-    sender_id: buyerName || user?.email || "unknown", // buyer
-    receiver_id: seller.email, // seller
-    title: "Order Received 🎉",
-    message: `${buyerName || user?.email || "A buyer"} checked out your product \"${item.product_name}\".`,
-  });
+        // Insert notification for seller
+        const { error: notifError } = await supabase.from("notifications").insert({
+          sender_id: user?.email || "unknown", // buyer's email
+          receiver_id: seller.email, // seller's email
+          title: "Order Received 🎉",
+          message: `${buyerName || user?.email || "A buyer"} checked out your product "${item.product_name}".`,
+          read: false,
+        });
 
-  if (notifError) {
-    console.error("Notification insert error", notifError);
-  }
-}
+        if (notifError) {
+          console.error("Notification insert error", notifError);
+        }
+      }
 
-      // 🗑️ Remove items from cart
+      // Remove selected items from cart
       const { error } = await supabase.from("cart").delete().in("id", selectedIds);
       if (!error) {
         setCartItems(cartItems.filter((item) => !selectedIds.includes(item.id)));

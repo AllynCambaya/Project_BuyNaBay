@@ -1,14 +1,15 @@
+// screens/tabs/NotificationsScreen.js
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const user = auth.currentUser;
 
-  // Fetch initial notifications
+  // Fetch notifications
   const fetchNotifications = async () => {
     if (!user?.email) return;
     setLoading(true);
@@ -16,14 +17,12 @@ export default function NotificationsScreen() {
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
-      .eq("receiver_id", user.email) // ✅ seller sees only their notifications
+      .eq("receiver_id", user.email) // seller sees only their notifications
       .order("created_at", { ascending: false });
 
-    if (!error) {
-      setNotifications(data);
-    } else {
-      console.error("Error fetching notifications:", error);
-    }
+    if (!error) setNotifications(data);
+    else console.error("Error fetching notifications:", error);
+
     setLoading(false);
   };
 
@@ -32,7 +31,7 @@ export default function NotificationsScreen() {
 
     if (!user?.email) return;
 
-    // ✅ Real-time subscription
+    // Real-time subscription for new notifications
     const channel = supabase
       .channel("notifications-channel")
       .on(
@@ -41,11 +40,11 @@ export default function NotificationsScreen() {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `receiver_id=eq.${user.email}`, // only notifications for this seller
+          filter: `receiver_id=eq.${user.email}`,
         },
         (payload) => {
           console.log("New notification received:", payload.new);
-          setNotifications((prev) => [payload.new, ...prev]); // add to top
+          setNotifications((prev) => [payload.new, ...prev]);
         }
       )
       .subscribe();
@@ -55,9 +54,7 @@ export default function NotificationsScreen() {
     };
   }, [user]);
 
-  if (loading) {
-    return <ActivityIndicator style={{ marginTop: 20 }} />;
-  }
+  if (loading) return <ActivityIndicator style={{ marginTop: 20 }} />;
 
   if (notifications.length === 0) {
     return (
@@ -67,19 +64,28 @@ export default function NotificationsScreen() {
     );
   }
 
+  const handleNotificationPress = (notification) => {
+    // Navigate to existing MessagingScreen with the buyer
+    navigation.navigate("MessagingScreen", {
+      receiverId: notification.sender_id, // buyer's email
+    });
+  };
+
   return (
     <View style={styles.container}>
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.message}>{item.message}</Text>
-            <Text style={styles.date}>
-              {new Date(item.created_at).toLocaleString()}
-            </Text>
-          </View>
+          <TouchableOpacity onPress={() => handleNotificationPress(item)}>
+            <View style={styles.card}>
+              <Text style={styles.title}>{item.title}</Text>
+              <Text style={styles.message}>{item.message}</Text>
+              <Text style={styles.date}>
+                {new Date(item.created_at).toLocaleString()}
+              </Text>
+            </View>
+          </TouchableOpacity>
         )}
       />
     </View>
