@@ -22,6 +22,7 @@
     "@supabase/supabase-js": "^2.54.0",
     "expo": "~53.0.20",
     "expo-blur": "~14.1.5",
+    "expo-checkbox": "~4.1.4",
     "expo-constants": "~17.1.7",
     "expo-font": "~13.3.2",
     "expo-haptics": "~14.1.4",
@@ -49,8 +50,7 @@
     "react-native-vector-icons": "^10.3.0",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "uuid": "^11.1.0",
-    "expo-checkbox": "~4.1.4"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
