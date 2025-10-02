@@ -405,7 +405,7 @@ const darkTheme = {
 // Light theme colors (complementary palette)
 const lightTheme = {
   background: '#f5f7fa',
-  gradientBackground: '#d7dde4ff',
+  gradientBackground: '#e8ecf1',
   text: '#1a1a2e',
   textSecondary: '#4a4a6a',
   textTertiary: '#2c2c44',
