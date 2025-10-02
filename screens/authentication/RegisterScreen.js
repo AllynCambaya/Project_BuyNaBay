@@ -581,7 +581,7 @@ const createStyles = (theme) => StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingHorizontal: Math.max(width * 0.08, 30),
-    marginTop: Platform.OS === 'ios' ? 80 : 100,
+    marginTop: Platform.OS === 'ios' ? 80 : 120,
     marginBottom: 30,
     zIndex: 2,
   },
