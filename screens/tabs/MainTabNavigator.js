@@ -9,11 +9,13 @@ import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
 import MessagingScreen from './MessagingScreen';
 import ProfileScreen from './ProfileScreen';
+import AdminPanel from './AdminPanel';
+import GetVerifiedScreen from './GetVerifiedScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-function Tabs() {
+function Tabs({ showAdmin }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -25,8 +27,10 @@ function Tabs() {
             Add: 'add-circle',
             Inbox: 'chatbox',
             Profile: 'person',
+            Admin: 'shield-checkmark',
           };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          const name = icons[route.name] || 'ellipse';
+          return <Ionicons name={name} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#1976d2',
         tabBarInactiveTintColor: 'gray',
@@ -37,16 +41,29 @@ function Tabs() {
       <Tab.Screen name="Add" component={AddProductScreen} />
       <Tab.Screen name="Inbox" component={InboxScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
+      {showAdmin && (
+        <Tab.Screen name="Admin" component={AdminPanel} />
+      )}
     </Tab.Navigator>
   );
 }
 
-export default function MainTabNavigator() {
+export default function MainTabNavigator({ route }) {
+  // role is passed from LoginScreen via navigation.replace("MainTabs", { role })
+  const role = route?.params?.role ?? 'user';
+  const showAdmin = role === 'admin';
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Tabs" component={Tabs} />
+      <Stack.Screen
+        name="Tabs"
+        // pass showAdmin into Tabs via children prop
+        children={() => <Tabs showAdmin={showAdmin} />}
+      />
       <Stack.Screen name="Messaging" component={MessagingScreen} />
       <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
+      <Stack.Screen name="GetVerified" component={GetVerifiedScreen} /> 
+      <Stack.Screen name="VerificationStatus" component={require('./VerificationStatusScreen').default} />
     </Stack.Navigator>
   );
 }

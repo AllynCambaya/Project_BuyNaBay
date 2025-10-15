@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
+import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -145,7 +146,23 @@ const LoginScreen = () => {
         return;
       }
 
-      navigation.replace("MainTabs");
+      // Fetch role from Supabase 'users' table (by email)
+      let role = 'user';
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('email', user.email)
+          .single();
+
+        if (!error && data?.role) role = data.role;
+      } catch (supError) {
+        console.log('Supabase role lookup error:', supError?.message || supError);
+        // default to 'user' on error
+      }
+
+      // Pass role to MainTabs so MainTabNavigator can show/hide Admin tab
+      navigation.replace("MainTabs", { role });
 
     } catch (error) {
       let errorMessage = 'Login failed. Please try again.';

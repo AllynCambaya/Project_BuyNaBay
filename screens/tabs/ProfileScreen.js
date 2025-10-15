@@ -12,7 +12,6 @@ export default function ProfileScreen({ navigation }) {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // User's products and refreshing state
   const [myProducts, setMyProducts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -57,7 +56,6 @@ export default function ProfileScreen({ navigation }) {
     setRefreshing(false);
   }, []);
 
-  // Save changes to Supabase
   const handleSave = async () => {
     setLoading(true);
     const updates = { phone_number: phoneNumber, student_id: studentId };
@@ -72,7 +70,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  // Logout
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -80,6 +77,11 @@ export default function ProfileScreen({ navigation }) {
     } catch (error) {
       Alert.alert('Logout Error', error.message);
     }
+  };
+
+  // 👉 Navigate to Verification Page
+  const handleGetVerified = () => {
+    navigation.navigate('GetVerified');
   };
 
   return (
@@ -134,11 +136,15 @@ export default function ProfileScreen({ navigation }) {
         </TouchableOpacity>
       )}
 
+      {/* 👇 New Get Verified Button */}
+      <TouchableOpacity style={[styles.button, styles.verifyButton]} onPress={handleGetVerified}>
+        <Text style={styles.buttonText}>Get Verified</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout}>
         <Text style={styles.buttonText}>Logout</Text>
       </TouchableOpacity>
 
-      {/* User's Products List with pull-to-refresh */}
       <Text style={[styles.sectionTitle, { marginTop: 30 }]}>My Products</Text>
       <FlatList
         data={myProducts}
@@ -176,6 +182,7 @@ const styles = StyleSheet.create({
   button: { marginTop: 18, paddingVertical: 12, paddingHorizontal: 30, borderRadius: 8, alignItems: 'center' },
   editButton: { backgroundColor: '#1976d2' },
   saveButton: { backgroundColor: '#43a047' },
+  verifyButton: { backgroundColor: '#fbc02d' },
   logoutButton: { backgroundColor: '#d32f2f' },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
