@@ -10,6 +10,19 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const [adding, setAdding] = useState(false);
   const [sellerName, setSellerName] = useState('');
 
+  // Parse image URLs from JSON if multiple images
+  const imageUrls = product.product_image_url
+    ? Array.isArray(product.product_image_url)
+      ? product.product_image_url
+      : (() => {
+          try {
+            return JSON.parse(product.product_image_url);
+          } catch {
+            return [product.product_image_url];
+          }
+        })()
+    : [];
+
   // fetch seller name
   useEffect(() => {
     let mounted = true;
@@ -24,9 +37,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
       if (error) console.log('Seller fetch error', error.message || error);
     };
     fetchName();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [product]);
 
   if (!product) {
@@ -42,7 +53,6 @@ export default function ProductDetailsScreen({ route, navigation }) {
       Alert.alert('Please login', 'You need to be logged in to add items to cart.');
       return;
     }
-
     if (user.email === product.email) {
       Alert.alert('Not Allowed', 'You cannot add your own product to the cart.');
       return;
@@ -50,7 +60,6 @@ export default function ProductDetailsScreen({ route, navigation }) {
 
     setAdding(true);
 
-    // fetch buyer's name from users table
     const { data: userData, error: userError } = await supabase
       .from("users")
       .select("name")
@@ -65,10 +74,9 @@ export default function ProductDetailsScreen({ route, navigation }) {
 
     const buyerName = userData.name;
 
-    // insert into cart with correct schema
     const { error } = await supabase.from("cart").insert([
       {
-        name: buyerName, // buyer's name
+        name: buyerName,
         product_name: product.product_name,
         price: product.price,
         quantity: 1,
@@ -87,8 +95,17 @@ export default function ProductDetailsScreen({ route, navigation }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {product.image_url ? (
-        <Image source={{ uri: product.image_url }} style={styles.image} />
+      {/* Display multiple images */}
+      {imageUrls.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+          {imageUrls.map((uri, index) => (
+            <Image
+              key={index}
+              source={{ uri }}
+              style={styles.image}
+            />
+          ))}
+        </ScrollView>
       ) : (
         <View style={[styles.image, styles.noImage]}>
           <Text style={{ color: '#777' }}>No Image Available</Text>
@@ -137,26 +154,10 @@ export default function ProductDetailsScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  image: {
-    width: 280,
-    height: 280,
-    borderRadius: 12,
-    marginBottom: 16,
-    backgroundColor: '#f0f0f0',
-  },
-  noImage: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { padding: 16, alignItems: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  image: { width: 280, height: 280, borderRadius: 12, marginRight: 10, backgroundColor: '#f0f0f0' },
+  noImage: { justifyContent: 'center', alignItems: 'center' },
   card: {
     width: '100%',
     backgroundColor: '#fff',
@@ -169,55 +170,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: '#222',
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#2e7d32',
-    marginBottom: 12,
-  },
-  sectionHeader: {
-    fontWeight: '700',
-    fontSize: 16,
-    marginTop: 12,
-    marginBottom: 6,
-    color: '#333',
-  },
-  desc: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: '#555',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  label: {
-    fontWeight: '600',
-    marginRight: 6,
-    color: '#444',
-  },
-  value: {
-    color: '#555',
-  },
-  button: {
-    backgroundColor: '#2e7d32',
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    elevation: 2,
-    width: '90%',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  title: { fontSize: 22, fontWeight: '700', marginBottom: 6, color: '#222' },
+  price: { fontSize: 20, fontWeight: '600', color: '#2e7d32', marginBottom: 12 },
+  sectionHeader: { fontWeight: '700', fontSize: 16, marginTop: 12, marginBottom: 6, color: '#333' },
+  desc: { fontSize: 15, lineHeight: 20, color: '#555' },
+  infoRow: { flexDirection: 'row', marginBottom: 6 },
+  label: { fontWeight: '600', marginRight: 6, color: '#444' },
+  value: { color: '#555' },
+  button: { backgroundColor: '#2e7d32', paddingVertical: 14, paddingHorizontal: 30, borderRadius: 10, elevation: 2, width: '90%', alignItems: 'center', marginBottom: 20 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

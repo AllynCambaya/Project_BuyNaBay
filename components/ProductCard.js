@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../supabase/supabaseClient';
 
 const nameCache = {};
 
 export default function ProductCard({ product, canEdit, onEdit, onDelete, onMessageSeller, onPress }) {
   const [sellerName, setSellerName] = useState('');
+
+  // Parse image URLs from JSON if multiple images
+  const imageUrls = product.product_image_url
+    ? Array.isArray(product.product_image_url)
+      ? product.product_image_url
+      : (() => {
+          try {
+            return JSON.parse(product.product_image_url);
+          } catch {
+            return [product.product_image_url];
+          }
+        })()
+    : [];
 
   useEffect(() => {
     let mounted = true;
@@ -51,6 +64,25 @@ export default function ProductCard({ product, canEdit, onEdit, onDelete, onMess
         shadowRadius: 6,
         elevation: 3
       }}>
+        {/* Product Images */}
+        {imageUrls.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            {imageUrls.map((uri, index) => (
+              <Image
+                key={index}
+                source={{ uri }}
+                style={{
+                  width: 180,
+                  height: 180,
+                  borderRadius: 10,
+                  marginRight: 10,
+                  resizeMode: 'cover',
+                }}
+              />
+            ))}
+          </ScrollView>
+        )}
+
         {/* Product Info */}
         <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 4 }}>{product.product_name}</Text>
         <Text style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: 16 }}>₱{product.price}</Text>
