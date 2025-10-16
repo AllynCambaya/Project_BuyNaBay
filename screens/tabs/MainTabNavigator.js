@@ -11,11 +11,22 @@ import MessagingScreen from './MessagingScreen';
 import ProfileScreen from './ProfileScreen';
 import AdminPanel from './AdminPanel';
 import GetVerifiedScreen from './GetVerifiedScreen';
+import NotVerifiedScreen from './NotVerifiedScreen'; // <-- new
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-function Tabs({ showAdmin }) {
+function Tabs({ showAdmin, status }) {
+  // status values: 'approved', 'pending', 'rejected'
+  const isApproved = status === 'approved';
+  const isRejected = status === 'rejected';
+  const isPending = status === 'pending';
+
+  // helper to require approval for a screen but keep the tab visible
+  const requireApproved = (Component) => {
+    return (props) => (isApproved ? <Component {...props} /> : <NotVerifiedScreen {...props} />);
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -36,33 +47,45 @@ function Tabs({ showAdmin }) {
         tabBarInactiveTintColor: 'gray',
       })}
     >
+      {/* Home always available */}
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Cart" component={CartScreen} />
-      <Tab.Screen name="Add" component={AddProductScreen} />
-      <Tab.Screen name="Inbox" component={InboxScreen} />
+
+      {/* Cart tab visible but restricted to approved users */}
+      <Tab.Screen name="Cart" component={requireApproved(CartScreen)} />
+
+      {/* Add product tab visible but restricted to approved users */}
+      <Tab.Screen name="Add" component={requireApproved(AddProductScreen)} />
+
+      {/* Inbox tab visible but restricted to approved users */}
+      <Tab.Screen name="Inbox" component={requireApproved(InboxScreen)} />
+
+      {/* Profile: available for all (you previously wanted Profile for rejected/pending — keep visible and accessible) */}
       <Tab.Screen name="Profile" component={ProfileScreen} />
-      {showAdmin && (
-        <Tab.Screen name="Admin" component={AdminPanel} />
-      )}
+
+      {/* Admin: keep the admin tab visible only for admins AND approved */}
+      {showAdmin && isApproved && <Tab.Screen name="Admin" component={AdminPanel} />}
     </Tab.Navigator>
   );
 }
 
 export default function MainTabNavigator({ route }) {
-  // role is passed from LoginScreen via navigation.replace("MainTabs", { role })
+  // role and status are passed from LoginScreen via navigation.replace("MainTabs", { role, status })
   const role = route?.params?.role ?? 'user';
+  const status = route?.params?.status ?? 'approved';
   const showAdmin = role === 'admin';
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen
         name="Tabs"
-        // pass showAdmin into Tabs via children prop
-        children={() => <Tabs showAdmin={showAdmin} />}
+        // pass showAdmin and status into Tabs via children prop
+        children={() => <Tabs showAdmin={showAdmin} status={status} />}
       />
+      {/* Keep Messaging route registered (for navigations),
+          but MessagingScreen will also guard access itself based on verification status. */}
       <Stack.Screen name="Messaging" component={MessagingScreen} />
       <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
-      <Stack.Screen name="GetVerified" component={GetVerifiedScreen} /> 
+      <Stack.Screen name="GetVerified" component={GetVerifiedScreen} />
       <Stack.Screen name="VerificationStatus" component={require('./VerificationStatusScreen').default} />
     </Stack.Navigator>
   );

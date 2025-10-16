@@ -1,14 +1,52 @@
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 export default function MessagingScreen({ route }) {
+  const navigation = useNavigation();
   // Use email for sender/receiver
   const receiverId = route?.params?.receiverId || 'receiver_user_email';
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const user = auth.currentUser;
+
+  // NEW: block access for users who are not approved
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (!user) {
+        Alert.alert('Not Logged In', 'Please log in to access messaging.');
+        navigation.goBack();
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('verifications')
+          .select('status, created_at')
+          .eq('email', user.email)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data?.status && data.status !== 'approved') {
+          // pending or rejected -> block
+          Alert.alert(
+            'Access Restricted',
+            'Your account is not verified to use messaging. Please complete verification to access this feature.'
+          );
+          navigation.goBack();
+          return;
+        }
+      } catch (err) {
+        console.log('verification check error', err?.message || err);
+        // If check fails, be conservative and block access (optional). For now we allow fallback.
+      }
+    };
+
+    checkStatus();
+  }, [user, navigation]);
 
   // Fetch messages between current user and receiver
   useEffect(() => {
