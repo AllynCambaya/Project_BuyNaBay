@@ -1,7 +1,7 @@
-🛍️ BUY NA BAY: CAMPUS BUY-AND-SELL & RENTAL PLATFORM FOR USTP STUDENTS
+🛍️ BuyNaBay: A CAMPUS-BASED E-COMMERCE PLATFORM FOR USTP STUDENTS
 --------------------------------------------------------------
-A web application using Node.js as the backend and React with Flowbite for the frontend design and components.
-BuyNaBay provides a centralized platform where USTP students can buy, sell, or rent pre-loved items within their campus community — promoting convenience, sustainability, and student engagement.
+A web application using Node.js as the backend and React for the frontend design and components.
+BuyNaBay provides a centralized platform where USTP students can buy, sell, or rent pre-loved items within their campus community, promoting convenience, sustainability, and student engagement.
 
 📂 PROJECT STRUCTURE
 --------------------------------------------------------------
@@ -9,7 +9,7 @@ BuyNaBay provides a centralized platform where USTP students can buy, sell, or r
 BuyNaBay/
 │── backend/       # Node.js Backend (API & Database Integration)
 │
-│── frontend/      # React Frontend (User Interface built with Flowbite)
+│── frontend/      # React Frontend (User Interface built with React
 │
 │── README.md      # Project Overview
 ```
@@ -145,7 +145,7 @@ It aims to create a secure, organized, and user-friendly digital space where stu
 | Layer               | Technology                     | Description                                            |
 | ------------------- | ------------------------------ | ------------------------------------------------------ |
 | **Backend**         | Node.js (Express.js)           | Handles APIs, authentication, and Supabase integration |
-| **Frontend**        | React + Flowbite               | UI design, routing, and responsive components          |
+| **Frontend**        | React                          | UI design, routing, and responsive components          |
 | **Database**        | Supabase (PostgreSQL)          | Manages users, listings, messages, and rentals         |
 | **Authentication**  | Supabase/Firebase Auth         | Secure login and registration                          |
 | **Version Control** | Git / GitHub                   | Repository hosting and collaboration                   |
