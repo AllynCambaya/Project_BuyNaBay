@@ -58,8 +58,11 @@ node index.js
 ✅ The backend provides RESTful APIs for:
 
 -User authentication (login, register, verify)
+
 -Product listings (buying/selling)
+
 -Rental management
+
 -In-app messaging
 
 🎨🖥️ Frontend (React + Flowbite)
@@ -85,8 +88,11 @@ npm start
 ✅ The frontend allows:
 
 -Users to register/login securely through Supabase
+
 -Students to post and browse buy/sell/rent items
+
 -Real-time in-app messaging between buyers and sellers
+
 -Viewing of user profiles and item details
 
 🔐 CREDENTIALS
@@ -112,10 +118,12 @@ Password: buyer123
 🔧 TROUBLESHOOTING
 
 -Ensure Node.js and npm are properly installed.
+
 -If dependencies fail to load, delete the node_modules folder and re-run:
 
+```sh 
 npm install
-
+```
 -Check your Supabase URL and API key if backend requests fail.
 -If the React app fails to start, ensure ports 3000 (frontend) and 5000 (backend) are not in use.
 
@@ -125,8 +133,11 @@ BuyNaBay is a student-centered marketplace for the University of Science and Tec
 It aims to create a secure, organized, and user-friendly digital space where students can:
 
 -Buy and sell second-hand items
+
 -Rent materials or equipment for temporary use
+
 -Chat directly with other students through in-app messaging
+
 -Encourage sustainability through the reuse of goods within the campus
 
 💡 TECHNOLOGY STACK
