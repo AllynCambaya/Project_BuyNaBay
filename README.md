@@ -1,50 +1,127 @@
-# Welcome to your Expo app 👋
+🛍️ BUY NA BAY: CAMPUS BUY-AND-SELL & RENTAL PLATFORM FOR USTP STUDENTS
+--------------------------------------------------------------
+A web application using Node.js as the backend and React with Flowbite for the frontend design and components.
+BuyNaBay provides a centralized platform where USTP students can buy, sell, or rent pre-loved items within their campus community — promoting convenience, sustainability, and student engagement.
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
-
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+📂 PROJECT STRUCTURE
+--------------------------------------------------------------
+```
+BuyNaBay/
+│── backend/       # Node.js Backend (API & Database Integration)
+│
+│── frontend/      # React Frontend (User Interface built with Flowbite)
+│
+│── README.md      # Project Overview
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
 
-To learn more about developing your project with Expo, look at the following resources:
+🛠️ PRE-REQUISITES
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Before running this project, make sure you have the following installed:
 
-## Join the community
+Node.js (v14+ recommended): https://nodejs.org/
 
-Join our community of developers creating universal apps.
+Git (for version control): https://git-scm.com/downloads
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Supabase Account (for database & authentication): https://supabase.com/
+
+⚙️📦 Backend (Node.js + Supabase)
+
+📌 Navigate to the backend/ directory:
+
+cd backend
+
+
+📌 Install dependencies:
+
+npm install
+
+
+📌 Create an .env file inside backend/ and add your Supabase credentials:
+
+SUPABASE_URL=https://ktezclohitsiegzhhhgo.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0ZXpjbG9oaXRzaWVnemhoaGdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMwMjkxNDIsImV4cCI6MjA0ODYwNTE0Mn0.iAMC6qmEzBO-ybtLj9lQLxkrWMddippN6vsGYfmMAjQ
+
+
+📌 Run the server:
+
+node index.js
+
+
+✅ The backend provides RESTful APIs for:
+
+User authentication (login, register, verify)
+
+Product listings (buying/selling)
+
+Rental management
+
+In-app messaging
+
+🎨🖥️ Frontend (React + Flowbite)
+
+📌 Navigate to the frontend/ directory:
+
+cd frontend
+
+
+📌 Install dependencies:
+
+npm install
+
+
+📌 Start the React app:
+
+npm start
+
+
+✅ The frontend allows:
+
+Users to register/login securely through Supabase
+
+Students to post and browse buy/sell/rent items
+
+Real-time in-app messaging between buyers and sellers
+
+Viewing of user profiles and item details
+
+🔐 DEFAULT TEST ACCOUNTS
+Admin Account:
+Email: admin@buynabay.com
+Password: admin123
+
+Student Seller Account:
+Email: seller@gmail.com
+Password: seller123
+
+Student Buyer Account:
+Email: buyer@gmail.com
+Password: buyer123
+
+🔧 TROUBLESHOOTING
+
+Ensure Node.js and npm are properly installed.
+
+If dependencies fail to load, delete the node_modules folder and re-run:
+
+npm install
+
+
+Check your Supabase URL and API key if backend requests fail.
+
+If the React app fails to start, ensure ports 3000 (frontend) and 5000 (backend) are not in use.
+
+🧠 ABOUT BUYNABAY
+
+BuyNaBay is a student-centered marketplace for the University of Science and Technology of Southern Philippines (USTP).
+It aims to create a secure, organized, and user-friendly digital space where students can:
+
+Buy and sell second-hand items
+
+Rent materials or equipment for temporary use
+
+Chat directly with other students through in-app messaging
+
+Encourage sustainability through the reuse of goods within the campus
