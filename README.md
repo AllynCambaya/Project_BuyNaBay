@@ -142,6 +142,7 @@ Password: buyer123
 npm install
 ```
 -Check your Supabase URL and API key if backend requests fail.
+
 -If the React app fails to start, ensure ports 3000 (frontend) and 5000 (backend) are not in use.
 
 🧠 **ABOUT BUYNABAY**
