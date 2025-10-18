@@ -30,8 +30,8 @@ Before running this project, make sure you have the following installed:
 
 - **Node.js** (v14+ recommended): [https://nodejs.org/](https://nodejs.org/)  
 - **Git** (for version control): [https://git-scm.com/downloads](https://git-scm.com/downloads)  
-- **Supabase Account** (for database & authentication): [https://supabase.com/](https://supabase.com/)
-
+- **Supabase Account** (for database): [https://supabase.com/](https://supabase.com/)
+- **Firebase Account** (for authentication): https://firebase.google.com/
 ---
 
 ## ⚙️📦 Backend (Node.js + Supabase)
@@ -70,7 +70,7 @@ node index.js
 
 -In-app messaging
 
-🎨🖥️ Frontend (React + Flowbite)
+🎨🖥️ **Frontend (React + Flowbite)**
 
 📌 Navigate to the frontend/ directory:
 
@@ -100,7 +100,7 @@ npm start
 
 -Viewing of user profiles and item details
 
-🔐 CREDENTIALS
+🔐 **CREDENTIALS**
 
 ```sh 
 Admin Account:
@@ -120,7 +120,7 @@ Email: buyer@gmail.com
 Password: buyer123
 ```
 
-💬 CORE FEATURES 
+💬 **CORE FEATURES** 
 
 | Feature                       | Description                                                                           |
 | ----------------------------- | ------------------------------------------------------------------------------------- |
@@ -132,7 +132,7 @@ Password: buyer123
 | ☁️ **Data Storage**           | Images and item info stored securely using Supabase Storage.                          |
 
 
-🔧 TROUBLESHOOTING
+🔧 **TROUBLESHOOTING**
 
 -Ensure Node.js and npm are properly installed.
 
@@ -144,7 +144,7 @@ npm install
 -Check your Supabase URL and API key if backend requests fail.
 -If the React app fails to start, ensure ports 3000 (frontend) and 5000 (backend) are not in use.
 
-🧠 ABOUT BUYNABAY
+🧠 **ABOUT BUYNABAY**
 
 BuyNaBay is a student-centered marketplace for the University of Science and Technology of Southern Philippines (USTP).
 It aims to create a secure, organized, and user-friendly digital space where students can:
@@ -157,7 +157,7 @@ It aims to create a secure, organized, and user-friendly digital space where stu
 
 -Encourage sustainability through the reuse of goods within the campus
 
-💡 TECHNOLOGY STACK
+💡 **TECHNOLOGY STACK**
 
 | Layer               | Technology                     | Description                                            |
 | ------------------- | ------------------------------ | ------------------------------------------------------ |
