@@ -7,11 +7,16 @@ BuyNaBay provides a centralized platform where USTP students can buy, sell, or r
 --------------------------------------------------------------
 ```
 BuyNaBay/
-│── backend/       # Node.js Backend (API & Database Integration)
+│── src/ # React Native Source Files
+│ ├── screens/                 # App Screens (Login, Register, Profile, Add Item, etc.)
+│ ├── components/              # Reusable UI Components
+│ ├── supabase/                # Supabase Client Setup
+│ ├── firebase/                # Firebase Authentication Config
 │
-│── frontend/      # React Frontend (User Interface built with React
-│
-│── README.md      # Project Overview
+│── assets/                    # Images and Icons
+│── App.js                     # Main Application Entry
+│── package.json               # Project Dependencies
+│── README.md                  # Project Overview
 ```
 
 ---
@@ -115,6 +120,18 @@ Email: buyer@gmail.com
 Password: buyer123
 ```
 
+💬 CORE FEATURES 
+
+| Feature                       | Description                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| 🛒 **Marketplace**            | Users can list pre-loved items for sale and browse others’ listings.                  |
+| 🔄 **Renting System**         | Buyers can rent items from other users directly within the app.                       |
+| 💬 **In-App Chat**            | Real-time communication between buyers and sellers using Supabase messages table.     |
+| 👤 **User Profiles**          | Each user has a profile (editable avatar, name, school ID, etc.).                     |
+| 🔐 **Custom Verification**    | Email verification with code confirmation via Firebase before activating the account. |
+| ☁️ **Data Storage**           | Images and item info stored securely using Supabase Storage.                          |
+
+
 🔧 TROUBLESHOOTING
 
 -Ensure Node.js and npm are properly installed.
@@ -147,7 +164,7 @@ It aims to create a secure, organized, and user-friendly digital space where stu
 | **Backend**         | Node.js (Express.js)           | Handles APIs, authentication, and Supabase integration |
 | **Frontend**        | React                          | UI design, routing, and responsive components          |
 | **Database**        | Supabase (PostgreSQL)          | Manages users, listings, messages, and rentals         |
-| **Authentication**  | Supabase/Firebase Auth         | Secure login and registration                          |
+| **Authentication**  | Firebase Auth                  | Secure login and registration                          |
 | **Version Control** | Git / GitHub                   | Repository hosting and collaboration                   |
     
 ---
