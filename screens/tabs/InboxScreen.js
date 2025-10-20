@@ -7,33 +7,43 @@ export default function InboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
   const [userNames, setUserNames] = useState({});
   const [lastMessages, setLastMessages] = useState({});
+  const [unreadMessages, setUnreadMessages] = useState({});
   const [refreshing, setRefreshing] = useState(false);
   const user = auth.currentUser;
 
+  // --- Fetch all conversations ---
   const fetchConversations = async () => {
     if (!user) return;
 
     const { data: messages, error } = await supabase
       .from('messages')
-      .select('sender_id, receiver_id, text, created_at')
+      .select('id, sender_id, receiver_id, text, created_at, read')
       .or(`sender_id.eq.${user.email},receiver_id.eq.${user.email}`);
     if (error) return console.log('Fetch messages error:', error);
 
     const usersSet = new Set();
     const lastMsgs = {};
+    const unreadCount = {};
 
     messages.forEach(msg => {
       const otherUser = msg.sender_id === user.email ? msg.receiver_id : msg.sender_id;
       usersSet.add(otherUser);
 
+      // Track last message
       if (!lastMsgs[otherUser] || new Date(msg.created_at) > new Date(lastMsgs[otherUser].created_at)) {
-        lastMsgs[otherUser] = { text: msg.text, created_at: msg.created_at };
+        lastMsgs[otherUser] = { id: msg.id, text: msg.text, created_at: msg.created_at, sender_id: msg.sender_id };
+      }
+
+      // Track unread messages (sent by other user)
+      if (msg.sender_id !== user.email && !msg.read) {
+        if (!unreadCount[otherUser]) unreadCount[otherUser] = 0;
+        unreadCount[otherUser] += 1;
       }
     });
 
     const userList = Array.from(usersSet);
 
-    // Sort users based on latest message timestamp (descending)
+    // Sort users by latest message timestamp descending
     userList.sort((a, b) => {
       const timeA = new Date(lastMsgs[a]?.created_at || 0).getTime();
       const timeB = new Date(lastMsgs[b]?.created_at || 0).getTime();
@@ -42,6 +52,7 @@ export default function InboxScreen({ navigation }) {
 
     setConversations(userList);
     setLastMessages(lastMsgs);
+    setUnreadMessages(unreadCount);
 
     if (userList.length > 0) {
       const { data: usersData } = await supabase
@@ -57,13 +68,8 @@ export default function InboxScreen({ navigation }) {
 
   useEffect(() => {
     fetchConversations();
-
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(() => {
-      fetchConversations();
-    }, 5000);
-
-    return () => clearInterval(interval); // Clean up on unmount
+    const interval = setInterval(fetchConversations, 5000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const onRefresh = useCallback(async () => {
@@ -71,6 +77,23 @@ export default function InboxScreen({ navigation }) {
     await fetchConversations();
     setRefreshing(false);
   }, [user]);
+
+  // --- Clear unread messages for a conversation ---
+  const clearUnread = async (otherUser) => {
+    const conversation = conversations.find(c => c === otherUser);
+    if (!conversation) return;
+
+    // Update locally
+    setUnreadMessages((prev) => ({ ...prev, [otherUser]: 0 }));
+
+    // Update in Supabase: mark messages as read
+    await supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('receiver_id', user.email)
+      .eq('sender_id', otherUser)
+      .is('read', false);
+  };
 
   return (
     <View style={styles.container}>
@@ -82,18 +105,20 @@ export default function InboxScreen({ navigation }) {
         renderItem={({ item }) => {
           const userData = userNames[item];
           const lastMsgData = lastMessages[item];
-          const formattedTime = lastMsgData ? new Date(lastMsgData.created_at).toLocaleString() : 'Now';
+          const unreadCount = unreadMessages[item] || 0;
+          const formattedTime = lastMsgData ? new Date(lastMsgData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now';
           const lastText = lastMsgData?.text || 'No messages yet';
 
           return (
             <TouchableOpacity
-              style={styles.chatCard}
-              onPress={() =>
+              style={[styles.chatCard, unreadCount > 0 && styles.unreadCard]}
+              onPress={() => {
                 navigation.navigate('Messaging', {
                   receiverId: item,
                   receiverName: userData?.name || item,
-                })
-              }
+                });
+                clearUnread(item); // clear unread count when opening chat
+              }}
             >
               <Image
                 source={{
@@ -109,7 +134,14 @@ export default function InboxScreen({ navigation }) {
                   {lastText}
                 </Text>
               </View>
-              <Text style={styles.timeText}>{formattedTime}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.timeText}>{formattedTime}</Text>
+                {unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.badgeText}>{unreadCount}</Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           );
         }}
@@ -127,9 +159,20 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 3,
   },
+  unreadCard: { backgroundColor: '#E0F2FE' },
   avatar: { width: 52, height: 52, borderRadius: 26, marginRight: 14 },
   chatInfo: { flex: 1 },
   chatName: { fontSize: 17, fontWeight: '600', color: '#111827' },
   lastMessage: { fontSize: 14, color: '#6B7280', marginTop: 2 },
   timeText: { fontSize: 12, color: '#9CA3AF' },
+  unreadBadge: {
+    marginTop: 4,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
 });
