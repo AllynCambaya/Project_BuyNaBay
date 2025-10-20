@@ -161,27 +161,8 @@ const LoginScreen = () => {
         // default to 'user' on error
       }
 
-      // --- NEW: Fetch latest verification status (most recent record)
-      let status = 'approved'; // default fallback
-      try {
-        const { data: vData, error: vError } = await supabase
-          .from('verifications')
-          .select('status, created_at')
-          .eq('email', user.email)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (!vError && vData?.status) {
-          status = vData.status; // expected values: 'pending' | 'approved' | 'rejected'
-        }
-      } catch (vErr) {
-        console.log('Supabase verification lookup error:', vErr?.message || vErr);
-        // keep default
-      }
-
-      // Pass role and status to MainTabs so MainTabNavigator can show/hide tabs
-      navigation.replace("MainTabs", { role, status });
+      // Pass role to MainTabs so MainTabNavigator can show/hide Admin tab
+      navigation.replace("MainTabs", { role });
 
     } catch (error) {
       let errorMessage = 'Login failed. Please try again.';

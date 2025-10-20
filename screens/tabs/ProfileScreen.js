@@ -56,7 +56,6 @@ export default function ProfileScreen({ navigation }) {
       setStudentId(data.student_id || '');
       setProfilePhoto(data.profile_photo || null);
 
-      // Format joined date
       if (data.created_at) {
         const date = new Date(data.created_at);
         const formatted = `Joined ${date.toLocaleString('default', {
@@ -66,7 +65,6 @@ export default function ProfileScreen({ navigation }) {
         setJoinedDate(formatted);
       }
 
-      // Fetch verification status
       const { data: verificationData, error: verificationError } = await supabase
         .from('verifications')
         .select('status')
@@ -179,7 +177,6 @@ export default function ProfileScreen({ navigation }) {
     setModalVisible(true);
   };
 
-  // 🧩 Product Card
   const renderProduct = ({ item }) => {
     let imageArray = [];
     if (item.product_image_url) {
@@ -215,100 +212,103 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // 🧩 Profile Header
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <Text style={styles.title}>Profile</Text>
 
-      {profileLoading ? (
-        <ActivityIndicator size="large" color="#1976d2" />
-      ) : (
-        <>
-          <TouchableOpacity onPress={handleImagePick}>
-            <Image source={getAvatarSource()} style={styles.avatar} />
-          </TouchableOpacity>
-          <Text style={styles.changePhotoText}>Tap to change photo</Text>
+      <TouchableOpacity onPress={handleImagePick}>
+        <Image source={getAvatarSource()} style={styles.avatar} />
+      </TouchableOpacity>
+      <Text style={styles.changePhotoText}>Tap to change photo</Text>
 
-          <View style={styles.nameContainer}>
-            <Text style={styles.value}>{name || 'N/A'}</Text>
-            {verified && (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="white" />
-                <Text style={styles.verifiedText}>Verified</Text>
-              </View>
-            )}
+      <View style={styles.nameContainer}>
+        <Text style={styles.value}>{name || 'N/A'}</Text>
+        {verified && (
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={16} color="white" />
+            <Text style={styles.verifiedText}>Verified</Text>
           </View>
+        )}
+      </View>
 
-          {joinedDate ? <Text style={styles.joinedText}>{joinedDate}</Text> : null}
+      {joinedDate ? <Text style={styles.joinedText}>{joinedDate}</Text> : null}
 
-          <Text style={styles.label}>Email:</Text>
-          <Text style={styles.value}>{email || 'N/A'}</Text>
+      <Text style={styles.label}>Email:</Text>
+      <Text style={styles.value}>{email || 'N/A'}</Text>
 
-          <Text style={styles.label}>Phone Number:</Text>
-          {editMode ? (
-            <TextInput
-              style={styles.input}
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder="Enter phone number"
-              keyboardType="phone-pad"
-            />
-          ) : (
-            <Text style={styles.value}>{phoneNumber || 'N/A'}</Text>
-          )}
-
-          <Text style={styles.label}>Student ID:</Text>
-          {editMode ? (
-            <TextInput
-              style={styles.input}
-              value={studentId}
-              onChangeText={setStudentId}
-              placeholder="Enter student ID"
-            />
-          ) : (
-            <Text style={styles.value}>{studentId || 'N/A'}</Text>
-          )}
-
-          {editMode ? (
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
-              onPress={handleSave}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Saving...' : 'Save Changes'}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, styles.editButton]}
-              onPress={() => setEditMode(true)}
-            >
-              <Text style={styles.buttonText}>Edit Profile</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.button, styles.verifyButton]}
-            onPress={handleGetVerified}
-          >
-            <Text style={styles.buttonText}>Get Verified</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.logoutButton]}
-            onPress={handleLogout}
-          >
-            <Text style={styles.buttonText}>Logout</Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.sectionTitle, { marginTop: 30 }]}>
-            My Products
-          </Text>
-        </>
+      <Text style={styles.label}>Phone Number:</Text>
+      {editMode ? (
+        <TextInput
+          style={styles.input}
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          placeholder="Enter phone number"
+          keyboardType="phone-pad"
+        />
+      ) : (
+        <Text style={styles.value}>{phoneNumber || 'N/A'}</Text>
       )}
+
+      <Text style={styles.label}>Student ID:</Text>
+      {editMode ? (
+        <TextInput
+          style={styles.input}
+          value={studentId}
+          onChangeText={setStudentId}
+          placeholder="Enter student ID"
+        />
+      ) : (
+        <Text style={styles.value}>{studentId || 'N/A'}</Text>
+      )}
+
+      {editMode ? (
+        <TouchableOpacity
+          style={[styles.button, styles.saveButton]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.button, styles.editButton]}
+          onPress={() => setEditMode(true)}
+        >
+          <Text style={styles.buttonText}>Edit Profile</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={[styles.button, styles.verifyButton]}
+        onPress={handleGetVerified}
+      >
+        <Text style={styles.buttonText}>Get Verified</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.logoutButton]}
+        onPress={handleLogout}
+      >
+        <Text style={styles.buttonText}>Logout</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.sectionTitle, { marginTop: 30 }]}>
+        My Products
+      </Text>
     </View>
   );
+
+  // 🌀 FULL-SCREEN LOADING OVERLAY
+  if (profileLoading) {
+    return (
+      <View style={styles.loadingOverlay}>
+        <ActivityIndicator size="large" color="#1976d2" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -440,4 +440,18 @@ const styles = StyleSheet.create({
   modalContent: { width: '100%', height: '70%' },
   modalImage: { width: 350, height: '100%', marginHorizontal: 5 },
   closeButton: { position: 'absolute', top: 30, right: 20 },
+
+  // 🌀 New full-screen loading overlay
+  loadingOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '500',
+  },
 });
