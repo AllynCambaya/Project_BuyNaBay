@@ -1,9 +1,8 @@
-// screens/tabs/MainTabNavigator.js
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 import AddProductScreen from './AddProductScreen';
@@ -14,75 +13,32 @@ import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
 import MessagingScreen from './MessagingScreen';
 import NotVerifiedScreen from './NotVerifiedScreen';
-import ProductDetailsScreen from './ProductDetailsScreen';
 import ProfileScreen from './ProfileScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// ✅ Route guard HOC
-const withAccessGuard = (Component, canAccess) => (props) => {
-  if (canAccess) return <Component {...props} />;
-  return <NotVerifiedScreen {...props} />;
-};
+function Tabs({ showAdmin, userStatus }) {
+  // Handle tab restrictions based on status
+  const handleTabPress = (e, navigation, tabName) => {
+    if (userStatus === 'approved') return; // allow access
 
-function Tabs({ role, userId }) {
-  const [status, setStatus] = useState('not_requested');
-  const [loading, setLoading] = useState(true);
+    e.preventDefault();
 
-  const isAdmin = role === 'admin';
+    const parent = navigation.getParent ? navigation.getParent() : null;
 
-  // Fetch user status and refresh every 3 seconds
-  useEffect(() => {
-    if (!userId) {
-      setLoading(false);
-      return;
+    // If pending → go to VerificationStatusScreen
+    if (userStatus === 'pending') {
+      if (parent && parent.navigate) parent.navigate('VerificationStatus');
+      else navigation.navigate('VerificationStatus');
+    } 
+    // If not_requested → go to NotVerifiedScreen
+    else {
+      if (parent && parent.navigate) parent.navigate('NotVerified');
+      else navigation.navigate('NotVerified');
     }
-
-    let isMounted = true;
-
-    const fetchStatus = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('status')
-          .eq('id', userId)
-          .single();
-
-        if (!error && data?.status) {
-          const normalized = data.status.trim().toLowerCase();
-          if (isMounted) setStatus(normalized);
-        } else {
-          if (isMounted) setStatus('not_requested');
-        }
-      } catch (err) {
-        console.error('Error fetching status:', err);
-        if (isMounted) setStatus('not_requested');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 3000); // refresh every 3s
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [userId]);
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#1976d2" />
-        <Text style={{ marginTop: 10 }}>Loading...</Text>
-      </View>
-    );
-  }
-
-  const canAccess = status === 'approved' || isAdmin;
+  };
 
   return (
     <Tab.Navigator
@@ -97,42 +53,96 @@ function Tabs({ role, userId }) {
             Profile: 'person',
             Admin: 'shield-checkmark',
           };
-          return <Ionicons name={icons[route.name] || 'ellipse'} size={size} color={color} />;
+          const name = icons[route.name] || 'ellipse';
+          return <Ionicons name={name} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#1976d2',
         tabBarInactiveTintColor: 'gray',
       })}
     >
-      {/* Always visible */}
       <Tab.Screen name="Home" component={HomeScreen} />
 
-      {/* Restricted screens wrapped in access guard */}
-      <Tab.Screen name="Cart" component={withAccessGuard(CartScreen, canAccess)} />
-      <Tab.Screen name="Add" component={withAccessGuard(AddProductScreen, canAccess)} />
-      <Tab.Screen name="Inbox" component={withAccessGuard(InboxScreen, canAccess)} />
+      <Tab.Screen
+        name="Cart"
+        component={CartScreen}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => handleTabPress(e, navigation, 'Cart'),
+        })}
+      />
 
-      {/* Profile tab */}
+      <Tab.Screen
+        name="Add"
+        component={AddProductScreen}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => handleTabPress(e, navigation, 'Add'),
+        })}
+      />
+
+      <Tab.Screen
+        name="Inbox"
+        component={InboxScreen}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => handleTabPress(e, navigation, 'Inbox'),
+        })}
+      />
+
       <Tab.Screen name="Profile" component={ProfileScreen} />
 
-      {/* Admin-only tab */}
-      {isAdmin && <Tab.Screen name="Admin" component={AdminPanel} />}
+      {showAdmin && (
+        <Tab.Screen name="Admin" component={AdminPanel} />
+      )}
     </Tab.Navigator>
   );
 }
 
 export default function MainTabNavigator({ route }) {
   const role = route?.params?.role ?? 'user';
-  const userId = route?.params?.userId;
+  const showAdmin = role === 'admin';
+
+  const [userStatus, setUserStatus] = useState(null); // 'approved' | 'pending' | 'not_requested'
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user?.email) {
+          setUserStatus('not_requested');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', user.email)
+          .maybeSingle();
+
+        if (error || !data?.status) {
+          setUserStatus('not_requested');
+        } else {
+          setUserStatus(data.status);
+        }
+      } catch (err) {
+        console.error('Error fetching verification status:', err);
+        setUserStatus('not_requested');
+      }
+    };
+
+    fetchStatus();
+  }, []);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Tabs">
-        {() => <Tabs role={role} userId={userId} />}
-      </Stack.Screen>
+      <Stack.Screen
+        name="Tabs"
+        children={() => (
+          <Tabs showAdmin={showAdmin} userStatus={userStatus} />
+        )}
+      />
       <Stack.Screen name="Messaging" component={MessagingScreen} />
-      <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+      <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
       <Stack.Screen name="GetVerified" component={GetVerifiedScreen} />
       <Stack.Screen name="VerificationStatus" component={VerificationStatusScreen} />
+      <Stack.Screen name="NotVerified" component={NotVerifiedScreen} />
     </Stack.Navigator>
   );
 }

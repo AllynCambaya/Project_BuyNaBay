@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../../supabase/supabaseClient';
+import { useEffect, useState } from 'react';
+import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth } from '../../firebase/firebaseConfig';
+import { supabase } from '../../supabase/supabaseClient';
 
 export default function GetVerifiedScreen({ navigation }) {
   const user = auth.currentUser;
@@ -11,6 +11,25 @@ export default function GetVerifiedScreen({ navigation }) {
   const [idImage, setIdImage] = useState(null);
   const [corImage, setCorImage] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [rejected, setRejected] = useState(false);
+
+  useEffect(() => {
+    const checkPreviousStatus = async () => {
+      if (!user?.email) return;
+
+      const { data, error } = await supabase
+        .from('verifications')
+        .select('status')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (!error && data?.status === 'rejected') {
+        setRejected(true);
+      }
+    };
+
+    checkPreviousStatus();
+  }, []);
 
   const pickImage = async (type) => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -54,30 +73,40 @@ export default function GetVerifiedScreen({ navigation }) {
     setUploading(true);
 
     try {
-      // ✅ Step 1: Check if the user's email already exists in the verifications table
+      // ✅ Step 1: Check if a request already exists
       const { data: existingRequest, error: checkError } = await supabase
         .from('verifications')
-        .select('id')
+        .select('id, status')
         .eq('email', user.email)
         .maybeSingle();
 
       if (checkError) throw checkError;
 
-      // ✅ Step 2: Prevent duplicate submissions
+      // ✅ Step 2: Handle based on current status
       if (existingRequest) {
-        Alert.alert(
-          'Already Submitted',
-          'You have already submitted a verification request. Please wait for approval.'
-        );
-        setUploading(false);
-        return;
+        if (existingRequest.status === 'pending') {
+          Alert.alert('Already Submitted', 'Your verification is still pending. Please wait for approval.');
+          setUploading(false);
+          return;
+        }
+
+        if (existingRequest.status === 'approved') {
+          Alert.alert('Already Verified', 'Your account is already verified.');
+          setUploading(false);
+          return;
+        }
+
+        if (existingRequest.status === 'rejected') {
+          // Delete the old rejected request to allow re-submission
+          await supabase.from('verifications').delete().eq('id', existingRequest.id);
+        }
       }
 
-      // ✅ Step 3: Upload each file to its correct bucket
+      // ✅ Step 3: Upload files to Supabase storage
       const idUrl = await uploadFile(idImage, 'student-ids', `${user.uid}-id.jpg`);
       const corUrl = await uploadFile(corImage, 'cor-images', `${user.uid}-cor.jpg`);
 
-      // ✅ Step 4: Insert verification record into Supabase table
+      // ✅ Step 4: Insert new verification record
       const { error: insertError } = await supabase.from('verifications').insert([
         {
           user_id: user.uid,
@@ -92,7 +121,7 @@ export default function GetVerifiedScreen({ navigation }) {
 
       if (insertError) throw insertError;
 
-      Alert.alert('Submitted', 'Your verification request has been submitted!');
+      Alert.alert('Submitted', 'Your new verification request has been submitted!');
       navigation.replace('VerificationStatus');
     } catch (err) {
       console.error('Error submitting verification request:', err.message);
@@ -104,6 +133,16 @@ export default function GetVerifiedScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* ✅ Banner for rejected users */}
+      {rejected && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerTitle}>Verification Rejected</Text>
+          <Text style={styles.bannerText}>
+            Your previous verification was rejected. Please review your details and resubmit your request below.
+          </Text>
+        </View>
+      )}
+
       <Text style={styles.title}>Get Verified</Text>
       <TextInput
         style={styles.input}
@@ -174,4 +213,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  // ✅ Banner styling
+  banner: {
+    backgroundColor: '#ffebee',
+    borderLeftWidth: 5,
+    borderLeftColor: '#d32f2f',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  bannerTitle: {
+    fontWeight: 'bold',
+    color: '#b71c1c',
+    fontSize: 16,
+    marginBottom: 5,
+  },
+  bannerText: {
+    color: '#333',
+    fontSize: 14,
+  },
 });
