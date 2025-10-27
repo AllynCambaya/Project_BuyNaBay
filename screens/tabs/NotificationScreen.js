@@ -11,18 +11,55 @@ export default function NotificationsScreen({ navigation }) {
 
   // Fetch notifications
   const fetchNotifications = async () => {
-    if (!user?.email) return;
+    if (!user?.email) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
+    // Get notifications for this user
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("receiver_id", user.email) // seller sees only their notifications
       .order("created_at", { ascending: false });
 
-    if (!error) setNotifications(data);
-    else console.error("Error fetching notifications:", error);
+    if (error) {
+      console.error("Error fetching notifications:", error);
+      setLoading(false);
+      return;
+    }
 
+    const notificationsData = data || [];
+
+    // Collect unique sender emails to fetch their display names in one query
+    const uniqueSenders = Array.from(new Set(notificationsData.map(n => n.sender_id).filter(Boolean)));
+
+    let senderMap = {};
+    if (uniqueSenders.length > 0) {
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('email,name')
+        .in('email', uniqueSenders);
+
+      if (usersError) {
+        console.warn('Error fetching sender names:', usersError);
+      } else if (usersData) {
+        senderMap = usersData.reduce((acc, u) => {
+          acc[u.email] = u.name;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Attach sender_name to each notification
+    const annotated = notificationsData.map(n => ({
+      ...n,
+      sender_name: senderMap[n.sender_id] || null,
+    }));
+
+    setNotifications(annotated);
     setLoading(false);
   };
 
@@ -64,11 +101,57 @@ export default function NotificationsScreen({ navigation }) {
     );
   }
 
-  const handleNotificationPress = (notification) => {
-    // Navigate to existing MessagingScreen with the buyer
-    navigation.navigate("MessagingScreen", {
-      receiverId: notification.sender_id, // buyer's email
-    });
+  const navigateToMessaging = (params) => {
+    // Try current navigator, then parent, then grandparent — whichever has the route registered.
+    // This avoids "action not handled by any navigator" when this screen is nested.
+    try {
+      // Try current navigator first
+      navigation.navigate('Messaging', params);
+      return;
+    } catch (e) {
+      // ignore and try parent
+    }
+
+    const parent = navigation.getParent && navigation.getParent();
+    if (parent && parent.navigate) {
+      parent.navigate('Messaging', params);
+      return;
+    }
+
+    const grandParent = parent && parent.getParent && parent.getParent();
+    if (grandParent && grandParent.navigate) {
+      grandParent.navigate('Messaging', params);
+      return;
+    }
+
+    // Last resort: attempt to navigate to Tabs -> Messaging if app uses nested tabs
+    try {
+      navigation.navigate('Tabs', { screen: 'Messaging', params });
+    } catch (err) {
+      console.error('Failed to navigate to Messaging via any navigator:', err);
+    }
+  };
+
+  const handleNotificationPress = async (notification) => {
+    // Navigate to messaging with sender (renter/checkout user).
+    // Try to resolve the sender's display name from users.name to pass to Messaging.
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('name')
+        .eq('email', notification.sender_id)
+        .maybeSingle();
+
+      if (userError) console.warn('Error fetching sender name:', userError);
+
+      const receiverName = userData?.name || null;
+
+      navigateToMessaging({ receiverId: notification.sender_id, receiverName });
+    } catch (err) {
+      console.error('Error navigating from notification:', err);
+      // Fallback: still navigate with receiverId only
+      navigateToMessaging({ receiverId: notification.sender_id });
+    }
   };
 
   return (
@@ -76,17 +159,26 @@ export default function NotificationsScreen({ navigation }) {
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleNotificationPress(item)}>
-            <View style={styles.card}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.message}>{item.message}</Text>
-              <Text style={styles.date}>
-                {new Date(item.created_at).toLocaleString()}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          // Prefer sender_name (from users.name) when showing the message; replace email in message text if present
+          const senderDisplay = item.sender_name || item.sender_id;
+          let displayMessage = item.message || '';
+          if (item.sender_id && displayMessage.includes(item.sender_id)) {
+            displayMessage = displayMessage.replace(item.sender_id, senderDisplay);
+          }
+
+          return (
+            <TouchableOpacity onPress={() => handleNotificationPress(item)}>
+              <View style={styles.card}>
+                <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.message}>{displayMessage}</Text>
+                <Text style={styles.date}>
+                  {new Date(item.created_at).toLocaleString()}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
       />
     </View>
   );

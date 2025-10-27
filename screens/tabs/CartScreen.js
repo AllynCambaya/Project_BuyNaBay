@@ -1,4 +1,5 @@
 // screens/CartScreen.js
+import { Ionicons } from '@expo/vector-icons';
 import ExpoCheckbox from "expo-checkbox";
 import { useEffect, useState } from "react";
 import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -86,6 +87,22 @@ export default function CartScreen({ navigation }) {
     const itemsToCheckout = cartItems.filter((item) => selectedIds.includes(item.id));
 
     try {
+      // Add items to checkout history
+      const checkoutHistoryItems = itemsToCheckout.map(item => ({
+        buyer_email: user?.email,
+        product_name: item.product_name,
+        price: item.price,
+        quantity: item.quantity,
+        seller_name: item.productData?.seller_name,
+        checkout_date: new Date().toISOString(),
+      }));
+
+      const { error: historyError } = await supabase
+        .from("checkout_history")
+        .insert(checkoutHistoryItems);
+
+      if (historyError) throw historyError;
+
       for (const item of itemsToCheckout) {
         const { data: seller, error: sellerError } = await supabase
           .from("products")
@@ -172,7 +189,16 @@ export default function CartScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>🛒 My Cart</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>🛒 My Cart</Text>
+        <TouchableOpacity 
+          style={styles.historyButton}
+          onPress={() => navigation.navigate('CheckoutScreen')}
+        >
+          <Ionicons name="receipt-outline" size={24} color="#2e7d32" />
+          <Text style={styles.historyButtonText}>History</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <Text>Loading...</Text>
@@ -239,4 +265,23 @@ const styles = StyleSheet.create({
   selectAllRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   selectAllText: { marginLeft: 8, fontSize: 16, fontWeight: "600" },
   checkoutBtnDisabled: { backgroundColor: "#9e9e9e" },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  historyButtonText: {
+    color: '#2e7d32',
+    marginLeft: 4,
+    fontWeight: '600',
+  },
 });

@@ -8,12 +8,16 @@ import { supabase } from '../../supabase/supabaseClient';
 import AddProductScreen from './AddProductScreen';
 import AdminPanel from './AdminPanel';
 import CartScreen from './CartScreen';
+import CheckoutScreen from './CheckoutScreen';
 import GetVerifiedScreen from './GetVerifiedScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
 import MessagingScreen from './MessagingScreen';
 import NotVerifiedScreen from './NotVerifiedScreen';
 import ProfileScreen from './ProfileScreen';
+import RentalScreen from './RentalScreen';
+import RentItemScreen from './RentItemScreen';
+import ReportScreen from './ReportScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
 
 const Tab = createBottomTabNavigator();
@@ -48,6 +52,7 @@ function Tabs({ showAdmin, userStatus }) {
           const icons = {
             Home: 'home',
             Cart: 'cart',
+            Rentals: 'layers',
             Add: 'add-circle',
             Inbox: 'chatbox',
             Profile: 'person',
@@ -85,6 +90,8 @@ function Tabs({ showAdmin, userStatus }) {
           tabPress: (e) => handleTabPress(e, navigation, 'Inbox'),
         })}
       />
+
+      <Tab.Screen name="Rentals" component={RentalScreen} />
 
       <Tab.Screen name="Profile" component={ProfileScreen} />
 
@@ -138,11 +145,17 @@ export default function MainTabNavigator({ route }) {
           <Tabs showAdmin={showAdmin} userStatus={userStatus} />
         )}
       />
+      <Stack.Screen name="Notifications" component={require('./NotificationScreen').default} />
       <Stack.Screen name="Messaging" component={MessagingScreen} />
+      <Stack.Screen name="ReportScreen" component={ReportScreen} />
+    <Stack.Screen name="Rental" component={RentalScreen} />
+    <Stack.Screen name="RentItemScreen" component={RentItemScreen} />
       <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
+      <Stack.Screen name="RentalDetails" component={require('./RentalDetailsScreen').default} />
       <Stack.Screen name="GetVerified" component={GetVerifiedScreen} />
       <Stack.Screen name="VerificationStatus" component={VerificationStatusScreen} />
       <Stack.Screen name="NotVerified" component={NotVerifiedScreen} />
+      <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
     </Stack.Navigator>
   );
 }

@@ -11,9 +11,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -25,8 +24,6 @@ export default function ProfileScreen({ navigation }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [studentId, setStudentId] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
-  const [editMode, setEditMode] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [myProducts, setMyProducts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,8 +40,8 @@ export default function ProfileScreen({ navigation }) {
       const { data, error } = await supabase
         .from('users')
         .select('name, phone_number, student_id, profile_photo, created_at')
-        .eq('id', user.uid)
-        .single();
+        .eq('email', user.email)
+        .maybeSingle();
 
       if (error) {
         console.log('Fetch error:', error.message);
@@ -100,6 +97,29 @@ export default function ProfileScreen({ navigation }) {
     fetchMyProducts();
   }, [user]);
 
+  // Listen for verification status changes so the profile updates when admin approves
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const channel = supabase
+      .channel(`verifications-${user.email}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'verifications', filter: `email=eq.${user.email}` },
+        (payload) => {
+          const status = payload.new?.status;
+          setVerified(status === 'approved');
+          // Re-fetch profile to get phone number and student id after approval
+          fetchProfile();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchProfile();
@@ -115,19 +135,6 @@ export default function ProfileScreen({ navigation }) {
       navigation.replace('Login');
     } catch (error) {
       Alert.alert('Logout Error', error.message);
-    }
-  };
-
-  const handleSave = async () => {
-    setLoading(true);
-    const updates = { phone_number: phoneNumber, student_id: studentId };
-    const { error } = await supabase.from('users').update(updates).eq('id', user.uid);
-    setLoading(false);
-    if (error) {
-      Alert.alert('Error', 'Failed to update profile.');
-    } else {
-      Alert.alert('Success', 'Profile updated successfully.');
-      setEditMode(false);
     }
   };
 
@@ -236,48 +243,15 @@ export default function ProfileScreen({ navigation }) {
       <Text style={styles.label}>Email:</Text>
       <Text style={styles.value}>{email || 'N/A'}</Text>
 
-      <Text style={styles.label}>Phone Number:</Text>
-      {editMode ? (
-        <TextInput
-          style={styles.input}
-          value={phoneNumber}
-          onChangeText={setPhoneNumber}
-          placeholder="Enter phone number"
-          keyboardType="phone-pad"
-        />
-      ) : (
-        <Text style={styles.value}>{phoneNumber || 'N/A'}</Text>
-      )}
+      {/* Phone number and student ID are only shown after verification */}
+      {verified && (
+        <>
+          <Text style={styles.label}>Phone Number:</Text>
+          <Text style={styles.value}>{phoneNumber || 'N/A'}</Text>
 
-      <Text style={styles.label}>Student ID:</Text>
-      {editMode ? (
-        <TextInput
-          style={styles.input}
-          value={studentId}
-          onChangeText={setStudentId}
-          placeholder="Enter student ID"
-        />
-      ) : (
-        <Text style={styles.value}>{studentId || 'N/A'}</Text>
-      )}
-
-      {editMode ? (
-        <TouchableOpacity
-          style={[styles.button, styles.saveButton]}
-          onPress={handleSave}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Saving...' : 'Save Changes'}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={[styles.button, styles.editButton]}
-          onPress={() => setEditMode(true)}
-        >
-          <Text style={styles.buttonText}>Edit Profile</Text>
-        </TouchableOpacity>
+          <Text style={styles.label}>Student ID:</Text>
+          <Text style={styles.value}>{studentId || 'N/A'}</Text>
+        </>
       )}
 
       <TouchableOpacity

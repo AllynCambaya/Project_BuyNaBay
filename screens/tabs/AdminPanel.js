@@ -1,24 +1,25 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Alert,
-  Modal,
-  TextInput,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { supabase } from '../../supabase/supabaseClient';
 
 export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, totalUsers: 0 });
+  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, totalUsers: 0, reports: 0 });
   const [selectedStatus, setSelectedStatus] = useState('Pending');
   const [requests, setRequests] = useState([]);
+  const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [menuVisible, setMenuVisible] = useState(null);
   const [suspendModalVisible, setSuspendModalVisible] = useState(false);
@@ -35,11 +36,17 @@ export default function AdminPanel() {
         .from('users')
         .select('*', { count: 'exact' });
 
+      const { data: reportsData } = await supabase
+        .from('reports')
+        .select('id, reporter_name, reporter_student_id, reported_student_id, reported_name, reason, details, created_at')
+        .order('created_at', { ascending: false });
+
       setStats({
         pending: pending?.length || 0,
         approved: approved?.length || 0,
         rejected: rejected?.length || 0,
         totalUsers: totalUsers || 0,
+        reports: reportsData?.length || 0,
       });
 
       const { data: allRequests } = await supabase
@@ -48,6 +55,7 @@ export default function AdminPanel() {
         .order('created_at', { ascending: false });
 
       setRequests(allRequests || []);
+      setReports(reportsData || []);
       setUsers(usersData || []);
     } catch (err) {
       console.error('Error fetching admin data:', err.message);
@@ -62,11 +70,47 @@ export default function AdminPanel() {
 
   const handleAction = async (id, newStatus) => {
     try {
+      // Read the verification record first so we can copy fields into users when approved
+      const { data: verRecord, error: fetchErr } = await supabase
+        .from('verifications')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+
       const { error } = await supabase.from('verifications').update({ status: newStatus }).eq('id', id);
       if (error) throw error;
+
+      // If approved, copy phone_number and student_id into the users table for that email
+      if (newStatus === 'approved' && verRecord?.email) {
+        const updates = {};
+        if (verRecord.phone_number) updates.phone_number = verRecord.phone_number;
+        if (verRecord.student_id) updates.student_id = verRecord.student_id;
+
+        if (Object.keys(updates).length > 0) {
+          // Try updating existing user row by email
+          const { data: updatedUsers, error: updateErr } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('email', verRecord.email);
+
+          if (updateErr) {
+            console.warn('Failed to update users row, attempting upsert:', updateErr.message || updateErr);
+            // As a fallback try upsert (useful if users row doesn't exist or different primary key)
+            try {
+              await supabase.from('users').upsert({ email: verRecord.email, ...updates });
+            } catch (upsertErr) {
+              console.error('Upsert to users failed:', upsertErr);
+            }
+          }
+        }
+      }
+
       Alert.alert('Success', `Request has been ${newStatus}.`);
       fetchStatsAndRequests();
     } catch (err) {
+      console.error('Error updating verification status:', err);
       Alert.alert('Error', 'Failed to update status.');
     }
   };
@@ -158,6 +202,20 @@ export default function AdminPanel() {
       ));
     }
 
+    if (selectedStatus === 'reports') {
+      if (reports.length === 0) return <Text>No reports found.</Text>;
+
+      return reports.map((r) => (
+        <View key={r.id} style={styles.requestCard}>
+          <Text style={styles.requestEmail}>Reported: {r.reported_name} ({r.reported_student_id || 'N/A'})</Text>
+          <Text>Reporter: {r.reporter_name} ({r.reporter_student_id || 'N/A'})</Text>
+          <Text>Reason: {r.reason}</Text>
+          {r.details ? <Text>Details: {r.details}</Text> : null}
+          <Text style={{ marginTop: 6, color: '#666' }}>Reported at: {new Date(r.created_at).toLocaleString()}</Text>
+        </View>
+      ));
+    }
+
     const filtered = selectedStatus
       ? requests.filter((r) => r.status.toLowerCase() === selectedStatus.toLowerCase())
       : requests;
@@ -240,12 +298,20 @@ export default function AdminPanel() {
           <Text style={styles.cardCount}>{stats.totalUsers}</Text>
           <Text style={styles.cardLabel}>Total Users</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.card, { backgroundColor: '#FFE0B2' }]} onPress={() => setSelectedStatus('reports')}>
+          <Ionicons name="warning" size={24} color="#F57C00" />
+          <Text style={styles.cardCount}>{stats.reports}</Text>
+          <Text style={styles.cardLabel}>Reports</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.contentBox}>
         <Text style={styles.sectionTitle}>
           {selectedStatus === 'users'
             ? 'USER MANAGEMENT'
+            : selectedStatus === 'reports'
+            ? 'REPORTS'
             : `${selectedStatus.toUpperCase()} REQUESTS`}
         </Text>
         {renderRequests()}

@@ -291,6 +291,18 @@ export default function MessagingScreen({ route }) {
           <Text style={styles.headerName}>{receiverName}</Text>
           <Text style={styles.headerStatus}>Active now</Text>
         </View>
+        {/* Report button - navigates to ReportScreen with reported user info */}
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate('ReportScreen', {
+              reported_student_id: receiverId,
+              reported_name: receiverName,
+            })
+          }
+          style={{ padding: 6 }}
+        >
+          <Ionicons name="flag" size={24} color="#D32F2F" />
+        </TouchableOpacity>
       </View>
 
       {/* Messages */}
