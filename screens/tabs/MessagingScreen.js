@@ -24,13 +24,14 @@ import { Swipeable } from 'react-native-gesture-handler';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { handleDirectCheckout } from './CartScreen';
 
 const { width, height } = Dimensions.get('window');
 
 export default function MessagingScreen({ route }) {
   const navigation = useNavigation();
   const receiverId = route?.params?.receiverId || 'receiver_user_email';
-  const receiverName = route?.params?.receiverName || 'User';
+  const { receiverName, productToSend } = route?.params || {};
   const user = auth.currentUser;
 
   const [messages, setMessages] = useState([]);
@@ -41,6 +42,8 @@ export default function MessagingScreen({ route }) {
 
   const [receiverAvatar, setReceiverAvatar] = useState(null);
   const [userAvatar, setUserAvatar] = useState(null);
+  const [activeProduct, setActiveProduct] = useState(productToSend || null);
+  const [buyerName, setBuyerName] = useState('');
 
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -57,6 +60,19 @@ export default function MessagingScreen({ route }) {
   const styles = createStyles(theme);
 
   const flatListRef = useRef(null);
+
+  useEffect(() => {
+    const fetchBuyerName = async () => {
+      if (!user?.email) return;
+      const { data, error } = await supabase
+        .from("users")
+        .select("name")
+        .eq("email", user.email)
+        .single();
+      if (!error && data) setBuyerName(data.name);
+    };
+    fetchBuyerName();
+  }, [user]);
 
   const showMessageOptions = (message) => {
     setSelectedMessage(message);
@@ -103,21 +119,36 @@ export default function MessagingScreen({ route }) {
   useEffect(() => {
     if (!user) return;
 
+    // 1. Define the function to fetch messages
     const fetchMessages = async () => {
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select('*, product_context')
         .or(
           `and(sender_id.eq.${user.email},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${user.email})`
         )
         .order('created_at', { ascending: true });
 
-      if (!error) setMessages(data || []);
+      if (!error) {
+        setMessages(data || []);
+      } else {
+        console.error("Error fetching messages:", error);
+      }
     };
 
+    // 2. Fetch messages when the screen loads
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
+
+    // 3. Set up the real-time subscription
+    const channel = supabase
+      .channel(`messages-${user.email}-${receiverId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchMessages)
+      .subscribe();
+
+    // 4. Return a cleanup function to remove the channel subscription when the component unmounts
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, receiverId]);
 
   // Auto-scroll to bottom when messages change
@@ -143,9 +174,6 @@ export default function MessagingScreen({ route }) {
       quality: 0.8,
     });
 
-    if (!result.canceled) {
-      setImages(prev => [...prev, ...result.assets.map(a => a.uri)]);
-    }
   };
 
   // --- Upload images ---
@@ -199,6 +227,7 @@ export default function MessagingScreen({ route }) {
         sender_id: user.email,
         receiver_id: receiverId,
         text: input.trim() || null,
+        product_context: null, // Ensure normal messages don't have product context
         messages_image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         reply_to: replyTo ? replyTo.id : null,
       },
@@ -213,10 +242,40 @@ export default function MessagingScreen({ route }) {
     }
   };
 
+  const onProductCheckout = async (product) => {
+    Alert.alert(
+      "Confirm Checkout",
+      `Do you want to buy "${product.product_name}" for ₱${product.price}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Checkout",
+          onPress: async () => {
+            const success = await handleDirectCheckout(product, user, buyerName);
+            if (success) {
+              Alert.alert("Success!", "Your order has been placed.");
+              // Optionally send a confirmation message in chat
+              await supabase.from('messages').insert({
+                sender_id: user.email,
+                receiver_id: receiverId,
+                text: `I have successfully purchased "${product.product_name}".`,
+              });
+            }
+            // handleDirectCheckout already shows an alert on failure
+          },
+        },
+      ]
+    );
+  };
+
   // --- Render item with swipe & animated movement ---
   const renderItem = ({ item }) => {
     const isMine = item.sender_id === user.email;
     const avatarSource = isMine ? userAvatar : receiverAvatar;
+    const isProductMessage = !!item.product_context;
+
+    // Don't render empty messages unless they are product messages
+    if (!item.text && !item.messages_image_url && !isProductMessage) return null;
 
     let imageUrls = [];
     if (item.messages_image_url) {
@@ -339,7 +398,7 @@ export default function MessagingScreen({ route }) {
                 <Image source={{ uri: receiverAvatar }} style={styles.headerAvatar} />
               )}
               <View style={styles.headerInfo}>
-                <Text style={styles.headerName}>{receiverName}</Text>
+                <Text style={styles.headerName}>{receiverName || 'User'}</Text>
                 <View style={styles.statusContainer}>
                   <View style={styles.activeIndicator} />
                   <Text style={styles.headerStatus}>Active now</Text>
@@ -360,6 +419,50 @@ export default function MessagingScreen({ route }) {
               <Ionicons name="flag" size={22} color={theme.error} />
             </TouchableOpacity>
           </View>
+
+          {/* FLOATING PRODUCT CARD */}
+          {activeProduct && (
+            <View style={styles.floatingProductContainer}>
+              <TouchableOpacity 
+                style={styles.floatingProductClose}
+                onPress={() => setActiveProduct(null)}
+              >
+                <Ionicons name="close-circle" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+              <Image
+                source={{
+                  uri: (() => {
+                    const imageUrl = activeProduct.product_image_url || activeProduct.rental_item_image;
+                    if (!imageUrl) return null;
+                    if (typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+                      // It's a single URL string
+                      return imageUrl;
+                    }
+                    // It's likely a JSON string array
+                    return JSON.parse(imageUrl || '[]')[0];
+                  })(),
+                }}
+                style={styles.floatingProductImage}
+              />
+              <View style={styles.floatingProductDetails}>
+                <Text style={styles.floatingProductName} numberOfLines={1}>{activeProduct.product_name || activeProduct.item_name}</Text>
+                <Text style={styles.floatingProductPrice}>
+                  ₱{activeProduct.price}
+                  {activeProduct.rental_duration && <Text style={styles.rentalDurationText}> / {activeProduct.rental_duration}</Text>}
+                </Text>
+              </View>
+              {/* Only show checkout for products, not rentals */}
+              {!activeProduct.rental_duration && user.email !== activeProduct.email && (
+                <TouchableOpacity 
+                  style={styles.floatingCheckoutButton}
+                  onPress={() => onProductCheckout(activeProduct)}
+                >
+                  <Icon name="shopping-cart" size={16} color="#fff" />
+                  <Text style={styles.floatingCheckoutText}>Checkout</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* Messages */}
           <FlatList
@@ -985,5 +1088,112 @@ const createStyles = (theme) => StyleSheet.create({
       android: 'Poppins-SemiBold',
       default: 'Poppins-Medium',
     }),
+  },
+  floatingProductContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: theme.cardBackground,
+    borderBottomWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  floatingProductImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  floatingProductDetails: {
+    flex: 1,
+  },
+  floatingProductName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.text,
+    fontFamily: Platform.select({
+      ios: 'Poppins-SemiBold',
+      android: 'Poppins-Bold',
+      default: 'Poppins-SemiBold',
+    }),
+  },
+  floatingProductPrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.accent,
+    marginTop: 2,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Bold',
+      android: 'Poppins-ExtraBold',
+      default: 'Poppins-Bold',
+    }),
+  },
+  rentalDurationText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: '500',
+  },
+  floatingCheckoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.historyColor,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  floatingCheckoutText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  floatingProductClose: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    padding: 8,
+    zIndex: 1,
+    backgroundColor: theme.cardBackground,
+    borderRadius: 16,
+  },
+  productMessageContainer: {
+    backgroundColor: theme.cardBackgroundAlt,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  productMessageImage: {
+    width: '100%',
+    height: 120,
+  },
+  productMessageDetails: {
+    padding: 12,
+  },
+  productMessageName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 4,
+  },
+  productMessagePrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.accent,
+  },
+  checkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.historyColor,
+    paddingVertical: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    gap: 8,
+  },
+  checkoutButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 })

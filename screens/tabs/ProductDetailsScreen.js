@@ -305,10 +305,20 @@ export default function ProductDetailsScreen({ route, navigation }) {
                   <View style={styles.sellerAvatar}>
                     <Icon name="user-circle" size={40} color={theme.accent} />
                   </View>
-                  <View style={styles.sellerInfo}>
-                    <Text style={styles.sellerName}>{sellerName || 'Seller'}</Text>
-                    <Text style={styles.sellerEmail}>{product.email}</Text>
+                  <View style={styles.sellerInfoWrapper}>
+                    <View style={styles.sellerInfo}>
+                      <Text style={styles.sellerName}>{sellerName || 'Seller'}</Text>
+                      <Text style={styles.sellerEmail}>{product.email}</Text>
+                    </View>
                   </View>
+                  <TouchableOpacity
+                    style={styles.viewStoreButton} // This button was being pushed out of view
+                    onPress={() => navigation.navigate('UserProfile', { userId: product.email })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.viewStoreButtonText}>View Store</Text>
+                    <Icon name="chevron-right" size={12} color={theme.accent} />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -653,6 +663,9 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.borderColor,
+  },
+  sellerInfoWrapper: {
+    flex: 1,
   },
   sellerAvatar: {
     marginRight: 16,

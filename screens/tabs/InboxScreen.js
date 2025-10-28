@@ -206,7 +206,9 @@ export default function InboxScreen({ navigation }) {
         }) 
       : 'Now';
     
-    const lastText = lastMsgData?.text || 'No messages yet';
+    const lastText = lastMsgData?.text 
+      ? lastMsgData.text 
+      : lastMsgData ? '[Product Inquiry]' : 'No messages yet';
     const isUnread = unreadCount > 0;
     const isSentByMe = lastMsgData?.sender_id === user.email;
 
