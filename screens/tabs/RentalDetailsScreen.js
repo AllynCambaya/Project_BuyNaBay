@@ -1,9 +1,7 @@
-// screens/ProductDetailsScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Image,
@@ -23,13 +21,10 @@ import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
-export default function ProductDetailsScreen({ route, navigation }) {
-  const product = route?.params?.product;
-  const user = auth.currentUser;
-  const [adding, setAdding] = useState(false);
-  const [sellerName, setSellerName] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+export default function RentalDetailsScreen({ route, navigation }) {
+  const { rentalItem } = route.params;
+  const [loading, setLoading] = useState(false);
+  const currentUser = auth.currentUser;
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
@@ -43,138 +38,60 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
-  // Parse image URLs from JSON if multiple images
-  const imageUrls = product?.product_image_url
-    ? Array.isArray(product.product_image_url)
-      ? product.product_image_url
-      : (() => {
-          try {
-            return JSON.parse(product.product_image_url);
-          } catch {
-            return [product.product_image_url];
-          }
-        })()
-    : [];
-
-  // Fetch seller name
   useEffect(() => {
-    let mounted = true;
-    const fetchName = async () => {
-      if (!product?.email) {
-        setLoading(false);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('users')
-        .select('name')
-        .eq('email', product.email)
-        .single();
-      
-      if (!error && data?.name && mounted) setSellerName(data.name);
-      if (error) console.log('Seller fetch error', error.message || error);
-      
-      if (mounted) {
-        setLoading(false);
-        // Trigger animations
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-          Animated.spring(slideAnim, {
-            toValue: 0,
-            tension: 50,
-            friction: 7,
-            useNativeDriver: true,
-          }),
-          Animated.spring(scaleAnim, {
-            toValue: 1,
-            tension: 50,
-            friction: 7,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }
-    };
-    fetchName();
-    return () => { mounted = false; };
-  }, [product]);
+    // Trigger animations on mount
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
-  const handleAddToCart = async () => {
-    if (!user) {
-      Alert.alert('Please login', 'You need to be logged in to add items to cart.');
-      return;
+  const handleRentItem = async () => {
+    if (rentalItem.owner_email === currentUser?.email) {
+      return; // Don't allow renting own item
     }
-    if (user.email === product.email) {
-      Alert.alert('Not Allowed', 'You cannot add your own product to the cart.');
-      return;
-    }
+    
+    setLoading(true);
+    try {
+      // Create a notification for the seller
+      const { error: notificationError } = await supabase.from('notifications').insert({
+        sender_id: currentUser?.email,
+        receiver_id: rentalItem.owner_email,
+        title: 'New Rental Request',
+        message: `${currentUser?.email} wants to rent your ${rentalItem.item_name}!`,
+        created_at: new Date().toISOString()
+      });
 
-    setAdding(true);
+      if (notificationError) throw notificationError;
 
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("name")
-      .eq("email", user.email)
-      .single();
-
-    if (userError || !userData?.name) {
-      setAdding(false);
-      Alert.alert("Error", "Could not fetch your account name.");
-      return;
-    }
-
-    const buyerName = userData.name;
-
-    const { error } = await supabase.from("cart").insert([
-      {
-        name: buyerName,
-        product_name: product.product_name,
-        price: product.price,
-        quantity: 1,
-      },
-    ]);
-
-    setAdding(false);
-
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
-      Alert.alert("Added", "Product added to cart.");
-      navigation.navigate("Tabs", { screen: "Cart" });
+      // Navigate to messaging screen after sending notification
+      navigation.navigate('Messaging', { 
+        receiverId: rentalItem.owner_email,
+        receiverName: rentalItem.seller_name
+      });
+    } catch (err) {
+      console.error('Error processing rental request:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const styles = createStyles(theme);
-
-  if (!product) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <Icon name="exclamation-triangle" size={64} color={theme.textSecondary} />
-          <Text style={styles.errorText}>No product specified.</Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.85}
-          >
-            <Icon name="arrow-left" size={16} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.loadingOverlay}>
-        <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={styles.loadingText}>Loading product details...</Text>
-      </View>
-    );
-  }
 
   return (
     <>
@@ -198,7 +115,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
             >
               <Ionicons name="arrow-back" size={24} color={theme.text} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Product Details</Text>
+            <Text style={styles.headerTitle}>Rental Details</Text>
             <View style={styles.headerButton} />
           </View>
 
@@ -208,44 +125,14 @@ export default function ProductDetailsScreen({ route, navigation }) {
               transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             }}
           >
-            {/* Image Gallery */}
-            {imageUrls.length > 0 ? (
+            {/* Image Section */}
+            {rentalItem.rental_item_image ? (
               <View style={styles.imageSection}>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onMomentumScrollEnd={(e) => {
-                    const index = Math.round(e.nativeEvent.contentOffset.x / (width - 32));
-                    setActiveImageIndex(index);
-                  }}
-                  style={styles.imageScroll}
-                >
-                  {imageUrls.map((uri, index) => (
-                    <View key={index} style={styles.imageContainer}>
-                      <Image
-                        source={{ uri }}
-                        style={styles.image}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  ))}
-                </ScrollView>
-                
-                {/* Image indicators */}
-                {imageUrls.length > 1 && (
-                  <View style={styles.indicatorContainer}>
-                    {imageUrls.map((_, index) => (
-                      <View
-                        key={index}
-                        style={[
-                          styles.indicator,
-                          activeImageIndex === index && styles.indicatorActive,
-                        ]}
-                      />
-                    ))}
-                  </View>
-                )}
+                <Image 
+                  source={{ uri: rentalItem.rental_item_image }} 
+                  style={styles.image}
+                  resizeMode="cover"
+                />
               </View>
             ) : (
               <View style={styles.noImageContainer}>
@@ -254,14 +141,35 @@ export default function ProductDetailsScreen({ route, navigation }) {
               </View>
             )}
 
-            {/* Product Info Card */}
+            {/* Content Card */}
             <View style={styles.card}>
-              {/* Title and Price */}
+              {/* Title Section */}
               <View style={styles.titleSection}>
-                <Text style={styles.title}>{product.product_name}</Text>
-                <View style={styles.priceContainer}>
+                <Text style={styles.title}>{rentalItem.item_name}</Text>
+                
+                {/* Seller Badge */}
+                <View style={styles.sellerBadge}>
+                  <Icon name="user-circle" size={16} color={theme.accent} />
+                  <Text style={styles.sellerText}> Posted by: {rentalItem.seller_name}</Text>
+                </View>
+              </View>
+
+              {/* Price and Duration Section */}
+              <View style={styles.priceSection}>
+                <View style={styles.priceCard}>
                   <Icon name="tag" size={20} color={theme.accent} />
-                  <Text style={styles.price}> ₱{product.price}</Text>
+                  <View style={styles.priceInfo}>
+                    <Text style={styles.priceLabel}>Rental Price</Text>
+                    <Text style={styles.price}>₱{rentalItem.price}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.durationCard}>
+                  <Icon name="clock-o" size={20} color={theme.historyColor} />
+                  <View style={styles.durationInfo}>
+                    <Text style={styles.durationLabel}>Duration</Text>
+                    <Text style={styles.duration}>{rentalItem.rental_duration}</Text>
+                  </View>
                 </View>
               </View>
 
@@ -270,19 +178,19 @@ export default function ProductDetailsScreen({ route, navigation }) {
                 <View style={styles.quickInfoCard}>
                   <Icon name="folder-open" size={18} color={theme.accent} />
                   <Text style={styles.quickInfoLabel}>Category</Text>
-                  <Text style={styles.quickInfoValue}>{product.category || 'N/A'}</Text>
+                  <Text style={styles.quickInfoValue}>{rentalItem.category}</Text>
                 </View>
                 
                 <View style={styles.quickInfoCard}>
                   <Icon name="certificate" size={18} color={theme.historyColor} />
                   <Text style={styles.quickInfoLabel}>Condition</Text>
-                  <Text style={styles.quickInfoValue}>{product.condition || 'N/A'}</Text>
+                  <Text style={styles.quickInfoValue}>{rentalItem.condition}</Text>
                 </View>
                 
                 <View style={styles.quickInfoCard}>
                   <Icon name="cubes" size={18} color="#3a7bd5" />
-                  <Text style={styles.quickInfoLabel}>In Stock</Text>
-                  <Text style={styles.quickInfoValue}>{product.quantity ?? 'N/A'}</Text>
+                  <Text style={styles.quickInfoLabel}>Available</Text>
+                  <Text style={styles.quickInfoValue}>{rentalItem.quantity}</Text>
                 </View>
               </View>
 
@@ -292,50 +200,41 @@ export default function ProductDetailsScreen({ route, navigation }) {
                   <Icon name="align-left" size={18} color={theme.text} />
                   <Text style={styles.sectionTitle}> Description</Text>
                 </View>
-                <Text style={styles.desc}>{product.description}</Text>
+                <Text style={styles.description}>{rentalItem.description}</Text>
               </View>
 
-              {/* Seller Info */}
-              <View style={styles.sellerSection}>
-                <View style={styles.sellerHeader}>
-                  <Icon name="user" size={18} color={theme.text} />
-                  <Text style={styles.sellerTitle}> Seller Information</Text>
-                </View>
-                <View style={styles.sellerCard}>
-                  <View style={styles.sellerAvatar}>
-                    <Icon name="user-circle" size={40} color={theme.accent} />
-                  </View>
-                  <View style={styles.sellerInfo}>
-                    <Text style={styles.sellerName}>{sellerName || 'Seller'}</Text>
-                    <Text style={styles.sellerEmail}>{product.email}</Text>
-                  </View>
-                </View>
+              {/* Rental Info Banner */}
+              <View style={styles.infoBanner}>
+                <Icon name="info-circle" size={20} color={theme.accent} />
+                <Text style={styles.infoBannerText}>
+                  Contact the owner to arrange pickup and rental terms
+                </Text>
               </View>
             </View>
           </Animated.View>
         </ScrollView>
 
         {/* Fixed Bottom Button */}
-        {user?.email !== product.email && (
+        {currentUser?.email !== rentalItem.owner_email && (
           <View style={styles.bottomContainer}>
             <TouchableOpacity
               style={[
-                styles.addToCartButton,
-                adding && styles.addToCartButtonDisabled,
+                styles.rentButton,
+                loading && styles.rentButtonDisabled,
               ]}
-              onPress={handleAddToCart}
-              disabled={adding}
+              onPress={handleRentItem}
+              disabled={loading}
               activeOpacity={0.85}
             >
-              {adding ? (
+              {loading ? (
                 <View style={styles.buttonLoadingContainer}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.addToCartButtonText, { marginLeft: 10 }]}>Adding...</Text>
+                  <Text style={[styles.rentButtonText, { marginLeft: 10 }]}>Processing...</Text>
                 </View>
               ) : (
                 <>
-                  <Icon name="shopping-cart" size={20} color="#fff" style={{ marginRight: 10 }} />
-                  <Text style={styles.addToCartButtonText}>Add to Cart</Text>
+                  <Icon name="comments" size={20} color="#fff" style={{ marginRight: 10 }} />
+                  <Text style={styles.rentButtonText}>Contact Owner</Text>
                   <Icon name="arrow-right" size={16} color="#fff" style={{ marginLeft: 10 }} />
                 </>
               )}
@@ -364,7 +263,7 @@ const darkTheme = {
   shadowColor: '#000',
   borderColor: '#2a2a4a',
   buttonDisabled: '#555',
-  indicatorInactive: '#444',
+  infoBannerBg: '#2a2a55',
 };
 
 // Light theme colors (matching CartScreen)
@@ -384,7 +283,7 @@ const lightTheme = {
   shadowColor: '#000',
   borderColor: '#e0e0ea',
   buttonDisabled: '#ccc',
-  indicatorInactive: '#ddd',
+  infoBannerBg: '#fffbf0',
 };
 
 const createStyles = (theme) => StyleSheet.create({
@@ -436,70 +335,23 @@ const createStyles = (theme) => StyleSheet.create({
       default: 'Poppins-SemiBold',
     }),
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  errorText: {
-    fontSize: 18,
-    color: theme.textSecondary,
-    marginTop: 20,
-    marginBottom: 30,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
   imageSection: {
     marginBottom: 20,
   },
-  imageScroll: {
-    height: width - 32,
-  },
-  imageContainer: {
-    width: width - 32,
-    height: width - 32,
-    marginHorizontal: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
+  image: {
+    width: width,
+    height: width * 0.8,
     backgroundColor: theme.cardBackgroundAlt,
   },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  indicatorContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-    gap: 8,
-  },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.indicatorInactive,
-  },
-  indicatorActive: {
-    width: 24,
-    backgroundColor: theme.accent,
-  },
   noImageContainer: {
-    width: width - 32,
-    height: width - 32,
-    marginHorizontal: 16,
-    borderRadius: 20,
+    width: width,
+    height: width * 0.8,
     backgroundColor: theme.cardBackgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    borderWidth: 2,
-    borderColor: theme.borderColor,
-    borderStyle: 'dashed',
+    borderBottomWidth: 2,
+    borderBottomColor: theme.borderColor,
   },
   noImageText: {
     marginTop: 12,
@@ -531,7 +383,7 @@ const createStyles = (theme) => StyleSheet.create({
     }),
   },
   titleSection: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 26,
@@ -545,18 +397,100 @@ const createStyles = (theme) => StyleSheet.create({
       default: 'Poppins-ExtraBold',
     }),
   },
-  priceContainer: {
+  sellerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: theme.quickInfoBackground,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  sellerText: {
+    fontSize: 14,
+    color: theme.text,
+    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Medium',
+      android: 'Poppins-SemiBold',
+      default: 'Poppins-Medium',
+    }),
+  },
+  priceSection: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  priceCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.quickInfoBackground,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  priceInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 4,
+    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
   },
   price: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.accent,
     fontFamily: Platform.select({
       ios: 'Poppins-Bold',
       android: 'Poppins-ExtraBold',
       default: 'Poppins-Bold',
+    }),
+  },
+  durationCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.quickInfoBackground,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  durationInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  durationLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 4,
+    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
+  },
+  duration: {
+    fontSize: 16,
+    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    color: theme.text,
+    fontFamily: Platform.select({
+      ios: 'Poppins-SemiBold',
+      android: 'Poppins-Bold',
+      default: 'Poppins-SemiBold',
     }),
   },
   quickInfoGrid: {
@@ -598,7 +532,7 @@ const createStyles = (theme) => StyleSheet.create({
     }),
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -615,7 +549,7 @@ const createStyles = (theme) => StyleSheet.create({
       default: 'Poppins-Bold',
     }),
   },
-  desc: {
+  description: {
     fontSize: 15,
     lineHeight: 24,
     color: theme.textSecondary,
@@ -625,55 +559,21 @@ const createStyles = (theme) => StyleSheet.create({
       default: 'Poppins-Regular',
     }),
   },
-  sellerSection: {
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.borderColor,
-  },
-  sellerHeader: {
+  infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  sellerTitle: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
-  },
-  sellerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.quickInfoBackground,
+    backgroundColor: theme.infoBannerBg,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.borderColor,
   },
-  sellerAvatar: {
-    marginRight: 16,
-  },
-  sellerInfo: {
+  infoBannerText: {
     flex: 1,
-  },
-  sellerName: {
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    color: theme.text,
-    marginBottom: 4,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
-  },
-  sellerEmail: {
+    marginLeft: 12,
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.text,
+    lineHeight: 20,
     fontFamily: Platform.select({
       ios: 'Poppins-Regular',
       android: 'Poppins-Medium',
@@ -703,7 +603,7 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  addToCartButton: {
+  rentButton: {
     backgroundColor: theme.accent,
     paddingVertical: Platform.OS === 'ios' ? 18 : 16,
     borderRadius: 16,
@@ -722,7 +622,7 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  addToCartButtonDisabled: {
+  rentButtonDisabled: {
     backgroundColor: theme.buttonDisabled,
     ...Platform.select({
       ios: {
@@ -734,7 +634,7 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  addToCartButtonText: {
+  rentButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
@@ -747,50 +647,5 @@ const createStyles = (theme) => StyleSheet.create({
   buttonLoadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: theme.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
-  backButton: {
-    backgroundColor: theme.accent,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
 });
