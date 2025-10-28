@@ -302,9 +302,10 @@ const RegisterScreen = () => {
                 )}
               </View>
               {errors.name && (
-                <Animated.Text style={styles.errorText}>
-                  <Icon name="exclamation-circle" size={12} color={theme.error} /> {errors.name}
-                </Animated.Text>
+                <View style={styles.errorRow}>
+                  <Icon name="exclamation-circle" size={12} color={theme.error} />
+                  <Text style={styles.errorText}>{errors.name}</Text>
+                </View>
               )}
             </View>
 
@@ -335,9 +336,10 @@ const RegisterScreen = () => {
                 )}
               </View>
               {errors.email && (
-                <Animated.Text style={styles.errorText}>
-                  <Icon name="exclamation-circle" size={12} color={theme.error} /> {errors.email}
-                </Animated.Text>
+                <View style={styles.errorRow}>
+                  <Icon name="exclamation-circle" size={12} color={theme.error} />
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                </View>
               )}
             </View>
 
@@ -374,9 +376,10 @@ const RegisterScreen = () => {
                 </TouchableOpacity>
               </View>
               {errors.password && (
-                <Animated.Text style={styles.errorText}>
-                  <Icon name="exclamation-circle" size={12} color={theme.error} /> {errors.password}
-                </Animated.Text>
+                <View style={styles.errorRow}>
+                  <Icon name="exclamation-circle" size={12} color={theme.error} />
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                </View>
               )}
             </View>
 
@@ -413,9 +416,10 @@ const RegisterScreen = () => {
                 </TouchableOpacity>
               </View>
               {errors.confirmPassword && (
-                <Animated.Text style={styles.errorText}>
-                  <Icon name="exclamation-circle" size={12} color={theme.error} /> {errors.confirmPassword}
-                </Animated.Text>
+                <View style={styles.errorRow}>
+                  <Icon name="exclamation-circle" size={12} color={theme.error} />
+                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                </View>
               )}
             </View>
 
@@ -703,6 +707,11 @@ const createStyles = (theme) => StyleSheet.create({
       android: 'Poppins-Medium',
       default: 'Poppins-Regular',
     }),
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
   },
   button: {
     paddingVertical: Platform.OS === 'ios' ? 18 : 16,

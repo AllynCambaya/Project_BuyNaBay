@@ -77,6 +77,8 @@ export default function HomeScreen({ navigation }) {
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .eq('is_visible', true)
+      .gt('quantity', 0)
       .order('id', { ascending: false });
     if (error) {
       Alert.alert('Error', error.message);

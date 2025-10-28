@@ -154,18 +154,37 @@ export default function CartScreen({ navigation }) {
 
       if (historyError) throw historyError;
 
+      // Update product quantities and remove if sold out
       for (const item of itemsToCheckout) {
-        const { data: seller, error: sellerError } = await supabase
+        // Get current product data
+        const { data: product, error: productError } = await supabase
           .from("products")
-          .select("email")
+          .select("*")
           .eq("product_name", item.product_name)
           .maybeSingle();
 
-        if (sellerError || !seller) continue;
+        if (productError || !product) continue;
 
+        const newQuantity = product.quantity - item.quantity;
+        
+        // Update product quantity
+        const { error: updateError } = await supabase
+          .from("products")
+          .update({ 
+            quantity: newQuantity,
+            is_available: newQuantity > 0 // Automatically set availability based on quantity
+          })
+          .eq("id", product.id);
+
+        if (updateError) {
+          console.error("Error updating product quantity:", updateError);
+          continue;
+        }
+
+        // Send notification to seller
         await supabase.from("notifications").insert({
           sender_id: user?.email || "unknown",
-          receiver_id: seller.email,
+          receiver_id: product.email,
           title: "Order Received 🎉",
           message: `${buyerName || user?.email || "A buyer"} checked out your product "${item.product_name}".`,
           read: false,

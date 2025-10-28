@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +15,9 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
@@ -26,6 +28,10 @@ import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
+const SALE_CATEGORIES = ['All', 'Electronics', 'Books', 'Clothes', 'Food', 'Beauty and Personal Care', 'Toys and Games', 'Automotive', 'Sports', 'Others'];
+const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party&Events', 'Sports&outdoors', 'Apparel', 'Vehicles', 'Other'];
+
+
 export default function ProfileScreen({ navigation }) {
   const user = auth.currentUser;
   const [name, setName] = useState(user?.displayName || '');
@@ -34,27 +40,308 @@ export default function ProfileScreen({ navigation }) {
   const [studentId, setStudentId] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [myProducts, setMyProducts] = useState([]);
+  const [saleProducts, setSaleProducts] = useState([]);
+  const [rentalProducts, setRentalProducts] = useState([]);
+  const [activeTab, setActiveTab] = useState('sale');
   const [refreshing, setRefreshing] = useState(false);
   const [verified, setVerified] = useState(false);
   const [joinedDate, setJoinedDate] = useState('');
   const [selectedImages, setSelectedImages] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [quantityModalVisible, setQuantityModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Automatically detect system theme
+
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   
-  // Animation values
+ 
+  const theme = isDarkMode ? darkTheme : lightTheme;
+
+  const filteredSaleProducts = useMemo(() => {
+    return saleProducts.filter(product => {
+      const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [saleProducts, searchQuery, selectedCategory]);
+
+  const filteredRentalProducts = useMemo(() => {
+    return rentalProducts.filter(product => {
+      const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [rentalProducts, searchQuery, selectedCategory]);
+
+  const fetchMyProducts = useCallback(async () => {
+    if (!user?.email) return;
+    let transformedRentalData = [];
+    try {
+      const { data: saleData, error: saleError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('email', user.email)
+        .order('created_at', { ascending: false });
+
+      if (saleError) throw saleError;
+      setSaleProducts(saleData || []);
+      
+      const { data: rentalData, error: rentalError } = await supabase
+        .from('rental_items')
+        .select('*')
+        .eq('owner_email', user.email)
+        .order('id', { ascending: false });
+
+      if (rentalError) throw rentalError;
+      
+      transformedRentalData = rentalData?.map(item => ({
+        id: item.id,
+        product_name: item.item_name,
+        description: item.description,
+        product_image_url: item.rental_item_image, 
+        image: item.rental_item_image, 
+        quantity: item.quantity,
+        price: item.price,
+        category: item.category,
+        condition: item.condition,
+        rental_duration: item.rental_duration,
+        is_visible: item.is_visible ?? true
+      })) || [];
+      setRentalProducts(transformedRentalData);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      Alert.alert('Error', 'Failed to load your products');
+    }
+  }, [user?.email]);
+
+  const handleToggleVisibility = async (product) => {
+    try {
+      const tableName = activeTab === 'sale' ? 'products' : 'rental_items';
+      const idField = 'id';
+      const currentVisibility = product.is_visible ?? true;
+      
+      const { error } = await supabase
+        .from(tableName)
+        .update({ is_visible: !currentVisibility })
+        .eq(idField, product.id);
+
+      if (error) throw error;
+      await fetchMyProducts();
+      Alert.alert(
+        'Success', 
+        `${activeTab === 'sale' ? 'Product' : 'Rental item'} is now ${!currentVisibility ? 'visible' : 'hidden'} in listings`
+      );
+    } catch (error) {
+      console.error('Error updating visibility:', error);
+      Alert.alert('Error', 'Failed to update visibility');
+    }
+  };
+
+  const handleQuantityChange = async (product, change) => {
+    const newQuantity = Math.max(0, product.quantity + change);
+    try {
+      const tableName = activeTab === 'sale' ? 'products' : 'rental_items';
+      const { error } = await supabase
+        .from(tableName)
+        .update({ 
+          quantity: newQuantity,
+          is_visible: newQuantity > 0 && product.is_visible
+        })
+        .eq('id', product.id);
+
+      if (error) throw error;
+      await fetchMyProducts();
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      Alert.alert('Error', `Failed to update ${activeTab === 'sale' ? 'product' : 'rental item'} quantity`);
+    }
+  };
+
+  const renderTabs = () => (
+    <View style={styles.tabContainer}>
+      <TouchableOpacity
+        style={[styles.tab, activeTab === 'sale' && styles.activeTab]}
+        onPress={() => {
+          setActiveTab('sale');
+          setSelectedCategory('All');
+          setSearchQuery('');
+        }}
+      >
+        <Text style={[styles.tabText, activeTab === 'sale' && styles.activeTabText]}>
+          For Sale
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.tab, activeTab === 'rent' && styles.activeTab]}
+        onPress={() => {
+          setActiveTab('rent');
+          setSelectedCategory('All');
+          setSearchQuery('');
+        }}
+      >
+        <Text style={[styles.tabText, activeTab === 'rent' && styles.activeTabText]}>
+          For Rent
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderCategoryFilters = () => {
+    const categories = activeTab === 'sale' ? SALE_CATEGORIES : RENTAL_CATEGORIES;
+    if (categories.length <= 1) return null;
+
+    return (
+      <View style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+          {categories.map(category => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.filterChip,
+                selectedCategory === category && styles.activeFilterChip
+              ]}
+              onPress={() => setSelectedCategory(category)}
+            >
+              <Text style={[
+                styles.filterChipText,
+                selectedCategory === category && styles.activeFilterChipText
+              ]}>{category}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderProduct = ({ item: product }) => {
+    const isRental = activeTab === 'rent';
+    let imageUrl = isRental ? product.image : product.product_image_url;
+    if (typeof imageUrl === 'string' && imageUrl.startsWith('[')) {
+      try {
+        const images = JSON.parse(imageUrl);
+        imageUrl = images[0];
+      } catch (e) {
+        console.log('Error parsing image URL:', e);
+      }
+    }
+
+    return (
+      <View style={styles.productCard}>
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.productImage}
+          resizeMode="cover"
+        />
+          <View style={styles.productInfo}>
+            <Text style={styles.productName}>{product.product_name}</Text>
+            
+            <View style={styles.productMetaRow}>
+              <View style={styles.priceContainer}>
+                <Text style={styles.priceLabel}>Price</Text>
+                <Text style={styles.productPrice}>
+                  <Text>₱{product.price}</Text>
+                  {isRental && product.rental_duration && (
+                    <Text style={styles.rentalDuration}> /{product.rental_duration}</Text>
+                  )}
+                </Text>
+              </View>
+              <View style={styles.quantityContainer}>
+                <TouchableOpacity 
+                  style={styles.quantityButton}
+                  onPress={() => handleQuantityChange(product, -1)}
+                  disabled={product.quantity <= 0}
+                >
+                  <Icon name="minus" size={16} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.quantityText}>{product.quantity}</Text>
+                <TouchableOpacity 
+                  style={styles.quantityButton}
+                  onPress={() => handleQuantityChange(product, 1)}
+                >
+                  <Icon name="plus" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {isRental ? (
+              <View style={[styles.categoryRow, { marginTop: 8 }]}>
+                {product.category && (
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText}>{product.category}</Text>
+                  </View>
+                )}
+                {product.condition && (
+                  <View style={styles.conditionBadge}>
+                    <Text style={styles.conditionText}>{product.condition}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={[styles.categoryRow, { marginTop: 8 }]}>
+                {product.category && (
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText}>{product.category}</Text>
+                  </View>
+                )}
+                {product.condition && (
+                  <View style={styles.conditionBadge}>
+                    <Text style={styles.conditionText}>{product.condition}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            <View style={styles.availabilityContainer}>
+              <Text style={styles.availabilityLabel}>Show in listings:</Text>
+              <Switch
+                value={product.is_visible ?? true}
+                onValueChange={() => handleToggleVisibility(product)}
+                trackColor={{ false: theme.buttonDisabled, true: theme.accent }}
+                thumbColor="#fff"
+              />
+            </View>
+        </View>
+      </View>
+    );
+  };
+
+
+
+  const handleUpdateQuantity = async (product, newQuantity) => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ 
+          quantity: newQuantity,
+          is_available: newQuantity > 0 
+        })
+        .eq('id', product.id);
+
+      if (error) throw error;
+      
+      setQuantityModalVisible(false);
+      setEditingProduct(null);
+      fetchMyProducts();
+      Alert.alert('Success', 'Product quantity updated');
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      Alert.alert('Error', 'Failed to update product quantity');
+    }
+  };
+
+  useEffect(() => {
+    fetchMyProducts();
+  }, [fetchMyProducts]);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
 
-  // Get current theme colors based on system settings
-  const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Initial animations
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -130,24 +417,13 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const fetchMyProducts = async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('email', user.email)
-      .order('id', { ascending: false });
 
-    if (error) console.log('Fetch products error:', error.message);
-    else setMyProducts(data);
-  };
 
   useEffect(() => {
     fetchProfile();
     fetchMyProducts();
   }, [user]);
 
-  // Listen for verification status changes so the profile updates when admin approves
   useEffect(() => {
     if (!user?.email) return;
 
@@ -159,7 +435,6 @@ export default function ProfileScreen({ navigation }) {
         (payload) => {
           const status = payload.new?.status;
           setVerified(status === 'approved');
-          // Re-fetch profile to get phone number and student id after approval
           fetchProfile();
         }
       )
@@ -247,72 +522,11 @@ export default function ProfileScreen({ navigation }) {
     setModalVisible(true);
   };
 
-  const renderProduct = ({ item }) => {
-    let imageArray = [];
-    if (item.product_image_url) {
-      try {
-        imageArray = JSON.parse(item.product_image_url);
-      } catch {
-        imageArray = [item.product_image_url];
-      }
-    }
 
-    return (
-      <Animated.View 
-        style={[
-          styles.productCard,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }]
-          }
-        ]}
-      >
-        {imageArray.length > 0 && (
-          <TouchableOpacity onPress={() => openImageModal(imageArray)}>
-            <Image
-              source={{ uri: imageArray[0] }}
-              style={styles.productImage}
-              resizeMode="cover"
-            />
-            {imageArray.length > 1 && (
-              <View style={styles.imageCountBadge}>
-                <Icon name="images" size={12} color="#fff" />
-                <Text style={styles.imageCountText}>{imageArray.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-        <View style={styles.productInfo}>
-          <Text style={styles.productName} numberOfLines={2}>{item.product_name}</Text>
-          <Text style={styles.productDesc} numberOfLines={2}>{item.description}</Text>
-          <View style={styles.productMetaRow}>
-            <View style={styles.priceContainer}>
-              <Text style={styles.productPrice}>₱{item.price}</Text>
-            </View>
-            <View style={styles.quantityContainer}>
-              <Icon name="cube" size={12} color={theme.textSecondary} />
-              <Text style={styles.productQuantity}> {item.quantity}</Text>
-            </View>
-          </View>
-          <View style={styles.categoryRow}>
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{item.category}</Text>
-            </View>
-            <View style={styles.conditionBadge}>
-              <Text style={styles.conditionText}>{item.condition}</Text>
-            </View>
-          </View>
-        </View>
-      </Animated.View>
-    );
-  };
 
   const renderHeader = () => (
     <View style={styles.headerContentContainer}>
-      {/* Background gradient effect */}
       <View style={styles.backgroundGradient} />
-      
-      {/* Animated header */}
       <Animated.View 
         style={[
           styles.profileHeader, 
@@ -347,7 +561,6 @@ export default function ProfileScreen({ navigation }) {
         ) : null}
       </Animated.View>
 
-      {/* Animated info cards */}
       <Animated.View
         style={[
           styles.infoSection,
@@ -357,7 +570,6 @@ export default function ProfileScreen({ navigation }) {
           }
         ]}
       >
-        {/* Email Card */}
         <View style={styles.infoCard}>
           <View style={styles.infoIconContainer}>
             <Icon name="envelope" size={16} color={theme.accent} />
@@ -368,7 +580,6 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Phone number and student ID are only shown after verification */}
         {verified && (
           <>
             <View style={styles.infoCard}>
@@ -393,7 +604,6 @@ export default function ProfileScreen({ navigation }) {
           </>
         )}
 
-        {/* Action Buttons */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.button, styles.verifyButton]}
@@ -415,20 +625,38 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </Animated.View>
 
-      {/* Products Section Header */}
       <View style={styles.sectionHeader}>
         <Icon name="shopping-bag" size={20} color={theme.text} />
         <Text style={styles.sectionTitle}> My Products</Text>
         <View style={styles.productCountBadge}>
-          <Text style={styles.productCountText}>{myProducts.length}</Text>
+          <Text style={styles.productCountText}>
+            {activeTab === 'sale' ? filteredSaleProducts.length : filteredRentalProducts.length}
+          </Text>
         </View>
       </View>
+
+      {renderTabs()}
+
+      <View style={styles.searchContainer}>
+        <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={`Search in your ${activeTab === 'sale' ? 'products' : 'rentals'}...`}
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}><Ionicons name="close-circle" size={20} color={theme.textSecondary} /></TouchableOpacity>
+        )}
+      </View>
+
+      {renderCategoryFilters()}
     </View>
   );
 
   const styles = createStyles(theme);
 
-  // Full-screen loading overlay
   if (profileLoading) {
     return (
       <View style={styles.loadingOverlay}>
@@ -447,10 +675,14 @@ export default function ProfileScreen({ navigation }) {
       />
       <SafeAreaView style={styles.safeArea}>
         <FlatList
-          data={myProducts}
+          data={activeTab === 'sale' ? filteredSaleProducts : filteredRentalProducts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderProduct}
           ListHeaderComponent={renderHeader}
+          // Sticky header to keep tabs and search bar visible
+          stickyHeaderIndices={[0]}
+          // The actual header is now part of the scroll view, so we don't need a separate component for it
+          // but we need to wrap it to make it sticky
           refreshControl={
             <RefreshControl 
               refreshing={refreshing} 
@@ -462,15 +694,27 @@ export default function ProfileScreen({ navigation }) {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="inbox" size={48} color={theme.textSecondary} />
-              <Text style={styles.emptyText}>No products added yet</Text>
-              <Text style={styles.emptySubtext}>Start selling by adding your first product</Text>
+              <Text style={styles.emptyText}>
+                No {activeTab === 'sale' ? 'products' : 'rentals'} added yet
+              </Text>
+              <Text style={styles.emptySubtext}>
+                Start {activeTab === 'sale' ? 'selling' : 'renting'} by adding your first item
+              </Text>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: theme.accent }]}
+                onPress={() => navigation.navigate(activeTab === 'sale' ? 'AddProduct' : 'RentItem')}
+              >
+                <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
+                <Text style={styles.buttonText}>
+                  Add {activeTab === 'sale' ? 'Product' : 'Rental Item'}
+                </Text>
+              </TouchableOpacity>
             </View>
           }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
 
-        {/* Modal for multiple images */}
         <Modal visible={modalVisible} transparent={true} animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -509,7 +753,6 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-// Dark theme colors
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
@@ -534,7 +777,6 @@ const darkTheme = {
   shadowColor: '#000',
 };
 
-// Light theme colors
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
@@ -560,12 +802,141 @@ const lightTheme = {
 };
 
 const createStyles = (theme) => StyleSheet.create({
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    borderRadius: 12,
+    backgroundColor: theme.cardBackgroundAlt,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: theme.accent,
+  },
+  tabText: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Medium',
+      android: 'Poppins-SemiBold',
+      default: 'Poppins-Medium',
+    }),
+  },
+  activeTabText: {
+    color: '#fff',
+    fontWeight: Platform.OS === 'android' ? '700' : '600',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    color: theme.text,
+    fontSize: 15,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
+  },
+  clearIcon: {
+    padding: 4,
+  },
+  filterContainer: {
+    paddingBottom: 16,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 0,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  activeFilterChip: {
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
+  },
+  filterChipText: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Medium',
+      android: 'Poppins-SemiBold',
+      default: 'Poppins-Medium',
+    }),
+  },
+  activeFilterChipText: {
+    color: '#fff',
+    fontWeight: Platform.OS === 'android' ? '700' : '600',
+  },
+  productControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.borderColor,
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackgroundAlt,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  quantityButton: {
+    padding: 8,
+    backgroundColor: theme.accent,
+  },
+  quantityText: {
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: theme.text,
+    fontWeight: Platform.OS === 'android' ? '600' : '500',
+  },
+  availabilityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  availabilityLabel: {
+    marginRight: 8,
+    fontSize: 14,
+    color: theme.textSecondary,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
   },
   listContent: {
     paddingBottom: 20,
+  },
+  productSectionContainer: {
+    paddingHorizontal: Math.max(width * 0.05, 20),
+    marginBottom: 16,
   },
   backgroundGradient: {
     position: 'absolute',
@@ -882,6 +1253,34 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
+  priceLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 2,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackgroundAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  metaText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
+  },
   productPrice: {
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
@@ -891,6 +1290,11 @@ const createStyles = (theme) => StyleSheet.create({
       android: 'Poppins-ExtraBold',
       default: 'Poppins-Bold',
     }),
+  },
+  rentalDuration: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: Platform.OS === 'android' ? '600' : '500',
   },
   quantityContainer: {
     flexDirection: 'row',
@@ -946,6 +1350,29 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    color: theme.text,
+    marginTop: 16,
+    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontFamily: Platform.select({
+      ios: 'Poppins-SemiBold',
+      android: 'Poppins-Bold',
+      default: 'Poppins-SemiBold',
+    }),
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
   },
   emptyText: {
     fontSize: 18,

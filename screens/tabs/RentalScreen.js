@@ -46,7 +46,10 @@ export default function RentalScreen({ navigation }) {
       // First get rental items
       const { data: rentalData, error: rentalError } = await supabase
         .from('rental_items')
-        .select('*')
+        .select(
+          'id, owner_email, item_name, price, rental_duration, description, category, condition, quantity, rental_item_image, is_visible, created_at'
+        )
+        .eq('is_visible', true)
         .order('created_at', { ascending: false });
 
       if (rentalError) throw rentalError;
