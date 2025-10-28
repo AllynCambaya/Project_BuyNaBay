@@ -216,6 +216,15 @@ export default function NotificationsScreen({ navigation }) {
       {/* Background gradient effect */}
       <View style={styles.backgroundGradient} />
 
+      {/* Back Button - upper left */}
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.backButton}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="arrow-back" size={22} color={theme.text} />
+      </TouchableOpacity>
+
       {/* Branded logo - upper left */}
       <View style={styles.brandedLogoContainer}>
         <Image
@@ -472,13 +481,33 @@ const createStyles = (theme) => StyleSheet.create({
     paddingBottom: 20,
     zIndex: 1,
   },
-  brandedLogoContainer: {
+  backButton: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 10 : 20,
     left: 20,
-    flexDirection: 'row',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.cardBackground,
+    justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  brandedLogoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 60,
   },
   brandedLogoImage: {
     width: 32,

@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { signOut } from 'firebase/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,8 +17,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import ProductCard from '../../components/ProductCard';
 import { auth } from '../../firebase/firebaseConfig';
@@ -27,7 +27,25 @@ import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
-const SALE_CATEGORIES = ['All', 'Electronics', 'Books', 'Clothes', 'Food', 'Beauty and Personal Care', 'Toys and Games', 'Automotive', 'Sports', 'Others'];
+const SALE_CATEGORIES = [
+  'All',
+  'Electronics',
+  'Books',
+  'Clothes',
+  'Food',
+  'Beauty & Care',
+  'Toys & Games',
+  'Automotive',
+  'Sports',
+  'Others'
+];
+
+const SORT_OPTIONS = [
+  { label: 'Latest', value: 'latest', icon: 'clock-o' },
+  { label: 'Price: Low to High', value: 'price_asc', icon: 'sort-amount-asc' },
+  { label: 'Price: High to Low', value: 'price_desc', icon: 'sort-amount-desc' },
+  { label: 'Name: A-Z', value: 'name_asc', icon: 'sort-alpha-asc' },
+];
 
 export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
@@ -36,6 +54,9 @@ export default function HomeScreen({ navigation }) {
   const currentUser = auth.currentUser;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('latest');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
@@ -46,17 +67,42 @@ export default function HomeScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const filterModalAnim = useRef(new Animated.Value(0)).current;
 
   // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  const filteredProducts = useMemo(() => {
-    return products.filter(product => {
-      const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
+  // Get safe area insets for better positioning
+  const insets = useSafeAreaInsets();
+
+  // Filter and sort products
+  const filteredAndSortedProducts = useMemo(() => {
+    let filtered = products.filter(product => {
+      const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           product.description?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [products, searchQuery, selectedCategory]);
+
+    // Sort products
+    switch (sortBy) {
+      case 'price_asc':
+        filtered.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+        break;
+      case 'price_desc':
+        filtered.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+        break;
+      case 'name_asc':
+        filtered.sort((a, b) => a.product_name.localeCompare(b.product_name));
+        break;
+      case 'latest':
+      default:
+        // Already sorted by id descending from fetch
+        break;
+    }
+
+    return filtered;
+  }, [products, searchQuery, selectedCategory, sortBy]);
 
   const uniqueSellersCount = useMemo(() => {
     const sellerEmails = new Set(products.map(p => p.email));
@@ -104,6 +150,7 @@ export default function HomeScreen({ navigation }) {
       .eq('is_visible', true)
       .gt('quantity', 0)
       .order('id', { ascending: false });
+    
     if (error) {
       Alert.alert('Error', error.message);
     } else {
@@ -131,28 +178,6 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   }, [refreshing]);
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut(auth);
-              navigation.replace('Login');
-            } catch (error) {
-              Alert.alert('Logout Failed', error.message);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const handleDelete = async (id) => {
     Alert.alert('Delete Product', 'Are you sure you want to delete this product?', [
       { text: 'Cancel', style: 'cancel' },
@@ -171,11 +196,33 @@ export default function HomeScreen({ navigation }) {
     ]);
   };
 
+  const toggleFilterModal = () => {
+    if (showFilterModal) {
+      Animated.timing(filterModalAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShowFilterModal(false));
+    } else {
+      setShowFilterModal(true);
+      Animated.timing(filterModalAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
+  const handleSortSelect = (value) => {
+    setSortBy(value);
+    toggleFilterModal();
+  };
+
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
-
-  const styles = createStyles(theme);
+  
+  const styles = createStyles(theme, insets);
 
   const renderHeader = () => (
     <Animated.View
@@ -209,91 +256,120 @@ export default function HomeScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <Ionicons name="notifications-outline" size={22} color="#fff" />
-          {/* Optional: Add notification badge */}
-          {/* <View style={styles.notificationBadge}>
-            <Text style={styles.notificationBadgeText}>3</Text>
-          </View> */}
-        </TouchableOpacity>
-
-        {/* Logout Button */}
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={[styles.actionButton, styles.logoutButton]}
-          activeOpacity={0.85}
-        >
-          <Icon name="sign-out" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
 
       {/* Welcome Section */}
       <View style={styles.welcomeSection}>
         <Text style={styles.welcomeText}>Welcome back,</Text>
-        <Text style={styles.userName}>{currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Shopper'}</Text>
+        <Text style={styles.userName}>
+          {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Shopper'}
+        </Text>
         <Text style={styles.subtitle}>Discover amazing deals today</Text>
       </View>
 
       {/* Stats Section */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Icon name="shopping-bag" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{filteredProducts.length}</Text>
+          <View style={styles.statIconContainer}>
+            <Icon name="shopping-bag" size={20} color={theme.accent} />
+          </View>
+          <Text style={styles.statValue}>{filteredAndSortedProducts.length}</Text>
           <Text style={styles.statLabel}>Products</Text>
         </View>
         <View style={styles.statCard}>
-          <Icon name="tags" size={20} color={theme.accent} />
+          <View style={styles.statIconContainer}>
+            <Icon name="tags" size={20} color={theme.accent} />
+          </View>
           <Text style={styles.statValue}>{uniqueCategoriesCount}</Text>
           <Text style={styles.statLabel}>Categories</Text>
         </View>
         <View style={styles.statCard}>
-          <Icon name="users" size={20} color={theme.accent} />
+          <View style={styles.statIconContainer}>
+            <Icon name="users" size={20} color={theme.accent} />
+          </View>
           <Text style={styles.statValue}>{uniqueSellersCount}</Text>
           <Text style={styles.statLabel}>Sellers</Text>
         </View>
       </View>
 
-      {/* Section Title */}
-      <View style={styles.sectionTitleContainer}>
-        <Icon name="th-large" size={18} color={theme.text} />
-        <Text style={styles.sectionTitle}> All Products</Text>
-        <View style={styles.productCountBadge}>
-          <Text style={styles.productCountText}>
-            {filteredProducts.length}
-          </Text>
-        </View>
-      </View>
-
+      {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
+        <Icon name="search" size={18} color={theme.inputIcon} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search products..."
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={theme.placeholder}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          returnKeyType="search"
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}><Ionicons name="close-circle" size={20} color={theme.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setSearchQuery('')} 
+            style={styles.clearButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close-circle" size={20} color={theme.inputIcon} />
+          </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
-          {SALE_CATEGORIES.map(category => (
+      {/* Section Header with Sort and View Mode */}
+      <View style={styles.sectionHeaderContainer}>
+        <View style={styles.sectionTitleContainer}>
+          <Icon name="th-large" size={18} color={theme.text} />
+          <Text style={styles.sectionTitle}> Products</Text>
+          <View style={styles.productCountBadge}>
+            <Text style={styles.productCountText}>
+              {filteredAndSortedProducts.length}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.controlsContainer}>
+          {/* View Mode Toggle */}
+          <View style={styles.viewModeContainer}>
             <TouchableOpacity
-              key={category}
               style={[
-                styles.filterChip,
-                selectedCategory === category && styles.activeFilterChip
+                styles.viewModeButton,
+                viewMode === 'grid' && styles.activeViewMode
               ]}
-              onPress={() => setSelectedCategory(category)}
+              onPress={() => setViewMode('grid')}
+              activeOpacity={0.7}
             >
-              <Text style={[
-                styles.filterChipText,
-                selectedCategory === category && styles.activeFilterChipText
-              ]}>{category}</Text>
+              <Icon 
+                name="th" 
+                size={16} 
+                color={viewMode === 'grid' ? '#fff' : theme.textSecondary} 
+              />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+            <TouchableOpacity
+              style={[
+                styles.viewModeButton,
+                viewMode === 'list' && styles.activeViewMode
+              ]}
+              onPress={() => setViewMode('list')}
+              activeOpacity={0.7}
+            >
+              <Icon 
+                name="list" 
+                size={16} 
+                color={viewMode === 'list' ? '#fff' : theme.textSecondary} 
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Filter Button */}
+          <TouchableOpacity
+            style={styles.sortButton}
+            onPress={toggleFilterModal}
+            activeOpacity={0.85}
+          >
+            <Icon name="filter" size={16} color="#fff" />
+            <Text style={styles.sortButtonText}>Filter</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Animated.View>
   );
@@ -321,14 +397,15 @@ export default function HomeScreen({ navigation }) {
           onDelete={() => handleDelete(item.id)}
           onMessageSeller={() => {
             if (item.email !== currentUser?.email) {
-              navigation.navigate('Messaging', { 
+              navigation.navigate('Messaging', {
                 receiverId: item.email,
-                receiverName: item.seller_name, // Pass seller name for a better UX
-                productToSend: item, // Pass the product object
+                receiverName: item.seller_name,
+                productToSend: item,
               });
             }
           }}
           onPress={() => navigation.navigate('ProductDetails', { product: item })}
+          viewMode={viewMode}
         />
       </Animated.View>
     );
@@ -344,27 +421,130 @@ export default function HomeScreen({ navigation }) {
         },
       ]}
     >
-      <Icon name="inbox" size={64} color={theme.textSecondary} />
-      <Text style={styles.emptyTitle}>No Products Yet</Text>
-      {searchQuery || selectedCategory !== 'All' ? (
-        <Text style={styles.emptySubtext}>
-          No products match your search criteria.
-        </Text>
-      ) : (
-        <Text style={styles.emptySubtext}>
-          Be the first to add a product and start selling!
-        </Text>
+      <View style={styles.emptyIconContainer}>
+        <Icon name="inbox" size={64} color={theme.textSecondary} />
+      </View>
+      <Text style={styles.emptyTitle}>
+        {searchQuery || selectedCategory !== 'All' ? 'No Results Found' : 'No Products Yet'}
+      </Text>
+      <Text style={styles.emptySubtext}>
+        {searchQuery || selectedCategory !== 'All'
+          ? 'Try adjusting your search or filters to find what you\'re looking for.'
+          : 'Be the first to add a product and start selling!'}
+      </Text>
+      {(!searchQuery && selectedCategory === 'All') && (
+        <TouchableOpacity
+          style={styles.addProductButton}
+          onPress={() => navigation.navigate('AddProduct')}
+          activeOpacity={0.85}
+        >
+          <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
+          <Text style={styles.addProductButtonText}>Add Product</Text>
+        </TouchableOpacity>
       )}
-      <TouchableOpacity
-        style={styles.addProductButton}
-        onPress={() => navigation.navigate('AddProduct')}
-        activeOpacity={0.85}
-      >
-        <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
-        <Text style={styles.addProductButtonText}>Add Product</Text>
-      </TouchableOpacity>
     </Animated.View>
   );
+
+  // Filter & Sort Modal
+  const renderFilterModal = () => {
+    if (!showFilterModal) return null;
+
+    return (
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={toggleFilterModal}
+      >
+        <Animated.View
+          style={[
+            styles.sortModalContainer,
+            {
+              opacity: filterModalAnim,
+              transform: [
+                {
+                  translateY: filterModalAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+          // Prevent modal from closing when pressing inside it
+          onStartShouldSetResponder={() => true}
+        >
+          <View style={styles.sortModalHeader}>
+            <Text style={styles.sortModalTitle}>Filter & Sort</Text>
+            <TouchableOpacity onPress={toggleFilterModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="times" size={20} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Category Filter Section */}
+          <View style={styles.modalSection}>
+            <Text style={styles.modalSectionTitle}>Filter by Category</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryChipContainer}
+            >
+                {SALE_CATEGORIES.map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.filterChip,
+                      selectedCategory === category && styles.activeFilterChip
+                    ]}
+                    onPress={() => setSelectedCategory(category)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.filterChipText,
+                      selectedCategory === category && styles.activeFilterChipText
+                    ]}>{category}</Text>
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+          </View>
+
+          {/* Sort By Section */}
+          <View style={styles.modalSection}>
+            <Text style={styles.modalSectionTitle}>Sort By</Text>
+            {SORT_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.sortOption,
+                  sortBy === option.value && styles.activeSortOption,
+                ]}
+                onPress={() => setSortBy(option.value)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.sortOptionLeft}>
+                  <Icon 
+                    name={option.icon} 
+                    size={18} 
+                    color={sortBy === option.value ? theme.accent : theme.textSecondary} 
+                  />
+                  <Text
+                    style={[
+                      styles.sortOptionText,
+                      sortBy === option.value && styles.activeSortOptionText,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </View>
+                {sortBy === option.value && (
+                  <Icon name="check" size={18} color={theme.accent} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
 
   // Full-screen loading overlay
   if (loading && !refreshing) {
@@ -385,13 +565,16 @@ export default function HomeScreen({ navigation }) {
       />
       <SafeAreaView style={styles.safeArea}>
         <FlatList
-          data={filteredProducts}
+          data={filteredAndSortedProducts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderProduct}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyState}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          key={viewMode} // Force re-render when view mode changes
+          numColumns={viewMode === 'grid' ? 2 : 1}
+          columnWrapperStyle={viewMode === 'grid' ? styles.columnWrapper : null}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -404,6 +587,7 @@ export default function HomeScreen({ navigation }) {
             />
           }
         />
+        {renderFilterModal()}
       </SafeAreaView>
     </>
   );
@@ -418,12 +602,17 @@ const darkTheme = {
   textTertiary: '#ccc',
   cardBackground: '#1e1e3f',
   cardBackgroundAlt: '#252550',
+  inputBackground: '#252550',
+  inputIcon: '#888',
+  placeholder: '#666',
   accent: '#FDAD00',
   accentSecondary: '#e8ecf1',
   notificationColor: '#4CAF50',
   logoutColor: '#d32f2f',
   shadowColor: '#000',
   borderColor: '#2a2a4a',
+  modalBackground: '#1e1e3f',
+  overlayBackground: 'rgba(0, 0, 0, 0.7)',
 };
 
 // Light theme colors
@@ -435,15 +624,20 @@ const lightTheme = {
   textTertiary: '#2c2c44',
   cardBackground: '#ffffff',
   cardBackgroundAlt: '#f9f9fc',
+  inputBackground: '#ffffff',
+  inputIcon: '#7a7a9a',
+  placeholder: '#9a9ab0',
   accent: '#f39c12',
   accentSecondary: '#e67e22',
   notificationColor: '#27ae60',
   logoutColor: '#e74c3c',
   shadowColor: '#000',
   borderColor: '#e0e0ea',
+  modalBackground: '#ffffff',
+  overlayBackground: 'rgba(0, 0, 0, 0.5)',
 };
 
-const createStyles = (theme) =>
+const createStyles = (theme, insets) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -452,27 +646,31 @@ const createStyles = (theme) =>
     listContent: {
       paddingBottom: 20,
     },
+    columnWrapper: {
+      justifyContent: 'space-between',
+      paddingHorizontal: Math.max(width * 0.05, 20),
+    },
     backgroundGradient: {
       position: 'absolute',
       top: 0,
       left: 0,
       right: 0,
-      height: Platform.OS === 'ios' ? 280 : 300,
+      height: height * 0.4, // Use a percentage of the screen height
       backgroundColor: theme.gradientBackground,
       borderBottomLeftRadius: 30,
       borderBottomRightRadius: 30,
       zIndex: 0,
     },
     headerContainer: {
-      paddingHorizontal: Math.max(width * 0.05, 20),
-      paddingTop: Platform.OS === 'ios' ? 10 : 20,
+      paddingHorizontal: Math.max(width * 0.04, 16),
+      paddingTop: insets.top > 20 ? insets.top : 20, // Use safe area insets
       paddingBottom: 20,
       zIndex: 1,
     },
     brandedLogoContainer: {
       position: 'absolute',
-      top: Platform.OS === 'ios' ? 10 : 20,
-      left: 20,
+      top: insets.top > 20 ? insets.top : 20,
+      left: Math.max(width * 0.04, 16),
       flexDirection: 'row',
       alignItems: 'center',
       zIndex: 10,
@@ -495,8 +693,8 @@ const createStyles = (theme) =>
     },
     headerActionsContainer: {
       position: 'absolute',
-      top: Platform.OS === 'ios' ? 10 : 20,
-      right: 20,
+      top: insets.top > 20 ? insets.top : 20,
+      right: Math.max(width * 0.04, 16),
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
@@ -526,31 +724,8 @@ const createStyles = (theme) =>
     logoutButton: {
       backgroundColor: theme.logoutColor,
     },
-    notificationBadge: {
-      position: 'absolute',
-      top: -2,
-      right: -2,
-      backgroundColor: '#FF3B30',
-      borderRadius: 10,
-      minWidth: 20,
-      height: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: theme.background,
-    },
-    notificationBadgeText: {
-      color: '#fff',
-      fontSize: 11,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
-    },
     welcomeSection: {
-      marginTop: 70,
+      marginTop: 60,
       marginBottom: 24,
     },
     welcomeText: {
@@ -565,7 +740,7 @@ const createStyles = (theme) =>
       marginBottom: 4,
     },
     userName: {
-      fontSize: Math.min(width * 0.08, 32),
+      fontSize: Math.min(width * 0.075, 30),
       color: theme.text,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
       fontFamily: Platform.select({
@@ -588,14 +763,14 @@ const createStyles = (theme) =>
     statsContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 24,
+      marginBottom: 20,
       gap: 12,
     },
     statCard: {
       flex: 1,
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
-      padding: 16,
+      padding: Math.max(width * 0.03, 12),
       alignItems: 'center',
       ...Platform.select({
         ios: {
@@ -609,11 +784,20 @@ const createStyles = (theme) =>
         },
       }),
     },
+    statIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: `${theme.accent}20`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
     statValue: {
-      fontSize: 20,
+      fontSize: Math.min(width * 0.045, 18),
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
-      marginTop: 8,
+      marginTop: 4,
       fontFamily: Platform.select({
         ios: 'Poppins-Bold',
         android: 'Poppins-ExtraBold',
@@ -621,7 +805,7 @@ const createStyles = (theme) =>
       }),
     },
     statLabel: {
-      fontSize: 12,
+      fontSize: Math.min(width * 0.028, 11),
       color: theme.textSecondary,
       marginTop: 2,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
@@ -631,45 +815,213 @@ const createStyles = (theme) =>
         default: 'Poppins-Regular',
       }),
     },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.inputBackground,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 4 : 2,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
+    searchIcon: {
+      marginRight: 12,
+    },
+    searchInput: {
+      flex: 1,
+      paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+      fontSize: 15,
+      color: theme.text,
+      fontWeight: Platform.OS === 'android' ? '500' : '400',
+      fontFamily: Platform.select({
+        ios: 'Poppins-Regular',
+        android: 'Poppins-Medium',
+        default: 'Poppins-Regular',
+      }),
+    },
+    clearButton: {
+      padding: 4,
+    },
+    filterSection: {
+      marginBottom: 16,
+    },
+    filterScrollContent: {
+      paddingRight: Math.max(width * 0.04, 16),
+      gap: 8,
+    },
+    filterChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+      marginRight: 8,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+        },
+        android: {
+          elevation: 1,
+        },
+      }),
+    },
+    activeFilterChip: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+      ...Platform.select({
+        ios: {
+          shadowOpacity: 0.2,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 3,
+        },
+      }),
+    },
+    filterChipText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: Platform.OS === 'android' ? '600' : '500',
+      fontFamily: Platform.select({
+        ios: 'Poppins-Medium',
+        android: 'Poppins-SemiBold',
+        default: 'Poppins-Medium',
+      }),
+    },
+    activeFilterChipText: {
+      color: '#fff',
+      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontFamily: Platform.select({
+        ios: 'Poppins-SemiBold',
+        android: 'Poppins-Bold',
+        default: 'Poppins-SemiBold',
+      }),
+    },
+    sectionHeaderContainer: {
+      marginBottom: 16,
+    },
     sectionTitleContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 16,
-      marginTop: 8,
+      marginBottom: 12,
     },
     sectionTitle: {
       fontSize: 20,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
+      flex: 1,
       fontFamily: Platform.select({
         ios: 'Poppins-Bold',
         android: 'Poppins-ExtraBold',
         default: 'Poppins-Bold',
       }),
     },
-  productCountBadge: {
-    backgroundColor: theme.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  productCountText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+    productCountBadge: {
+      backgroundColor: theme.accent,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginLeft: 8,
+    },
+    productCountText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontFamily: Platform.select({
+        ios: 'Poppins-SemiBold',
+        android: 'Poppins-Bold',
+        default: 'Poppins-SemiBold',
+      }),
+    },
+    controlsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    viewModeContainer: {
+      flexDirection: 'row',
+      backgroundColor: theme.cardBackground,
+      borderRadius: 12,
+      padding: 4,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+    },
+    viewModeButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    activeViewMode: {
+      backgroundColor: theme.accent,
+    },
+    sortButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.accent,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 12,
+      gap: 6,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.accent,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+        },
+        android: {
+          elevation: 4,
+        },
+      }),
+    },
+    sortButtonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontFamily: Platform.select({
+        ios: 'Poppins-SemiBold',
+        android: 'Poppins-Bold',
+        default: 'Poppins-SemiBold',
+      }),
+    },
     emptyContainer: {
       alignItems: 'center',
       justifyContent: 'center',
       paddingVertical: 80,
       paddingHorizontal: 40,
     },
+    emptyIconContainer: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: `${theme.accent}10`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
     emptyTitle: {
       fontSize: 24,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
-      marginTop: 20,
       marginBottom: 8,
+      textAlign: 'center',
       fontFamily: Platform.select({
         ios: 'Poppins-Bold',
         android: 'Poppins-ExtraBold',
@@ -737,55 +1089,143 @@ const createStyles = (theme) =>
         android: 'Poppins-SemiBold',
         default: 'Poppins-Medium',
       }),
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.cardBackground,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginVertical: 16,
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 48,
-    color: theme.text,
-    fontSize: 15,
-  },
-  clearIcon: {
-    padding: 4,
-  },
-  filterContainer: {
-    paddingBottom: 16,
-  },
-  filterScrollContent: {
-    paddingHorizontal: 0,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: theme.cardBackground,
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-  },
-  activeFilterChip: {
-    backgroundColor: theme.accent,
-    borderColor: theme.accent,
-  },
-  filterChipText: {
-    color: theme.textSecondary,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  activeFilterChipText: {
-    color: '#fff',
-    fontWeight: '700',
+    },
+    modalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.overlayBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+    },
+    sortModalContainer: {
+      backgroundColor: theme.modalBackground,
+      borderRadius: 20,
+      padding: 20,
+      width: width * 0.85,
+      maxWidth: 400,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.3,
+          shadowRadius: 20,
+        },
+        android: {
+          elevation: 10,
+        },
+      }),
+    },
+    sortModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderColor,
+    },
+    sortModalTitle: {
+      fontSize: 20,
+      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      color: theme.text,
+      fontFamily: Platform.select({
+        ios: 'Poppins-Bold',
+        android: 'Poppins-ExtraBold',
+        default: 'Poppins-Bold',
+      }),
+    },
+    sortOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 8,
+      backgroundColor: theme.cardBackgroundAlt,
+    },
+    activeSortOption: {
+      backgroundColor: `${theme.accent}20`,
+      borderWidth: 1,
+      borderColor: theme.accent,
+    },
+    sortOptionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    sortOptionText: {
+      fontSize: 15,
+      color: theme.text,
+      fontWeight: Platform.OS === 'android' ? '500' : '400',
+      fontFamily: Platform.select({
+        ios: 'Poppins-Regular',
+        android: 'Poppins-Medium',
+        default: 'Poppins-Regular',
+      }),
+    },
+    activeSortOptionText: {
+      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      color: theme.accent,
+      fontFamily: Platform.select({
+        ios: 'Poppins-SemiBold',
+        android: 'Poppins-Bold',
+        default: 'Poppins-SemiBold',
+      }),
+    },
+    categoryChipContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    filterChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+    },
+    activeFilterChip: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+    },
+    filterChipText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: Platform.OS === 'android' ? '600' : '500',
+      fontFamily: Platform.select({
+        ios: 'Poppins-Medium',
+        android: 'Poppins-SemiBold',
+        default: 'Poppins-Medium',
+      }),
+    },
+    activeFilterChipText: {
+      color: '#fff',
+      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontFamily: Platform.select({
+        ios: 'Poppins-SemiBold',
+        android: 'Poppins-Bold',
+        default: 'Poppins-SemiBold',
+      }),
+    },
+    modalSection: {
+      marginBottom: 20,
+    },
+    modalSectionTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      marginBottom: 12,
+      paddingHorizontal: 8,
+      fontFamily: Platform.select({
+        ios: 'Poppins-SemiBold',
+        android: 'Poppins-Bold',
+        default: 'Poppins-SemiBold',
+      }),
     },
   });

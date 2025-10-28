@@ -1,5 +1,4 @@
 // screens/AddProductScreen.js
-import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
@@ -200,15 +199,6 @@ export default function AddProductScreen({ navigation }) {
           <View style={styles.headerContainer}>
             {/* Background gradient effect */}
             <View style={styles.backgroundGradient} />
-
-            {/* Back Button */}
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
 
             {/* Header Title */}
             <View style={styles.headerTitleContainer}>
@@ -512,30 +502,11 @@ const createStyles = (theme) => StyleSheet.create({
     paddingBottom: 30,
     zIndex: 1,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
   headerTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    marginTop: 64,
   },
   headerTitle: {
     fontSize: Math.min(width * 0.07, 28),

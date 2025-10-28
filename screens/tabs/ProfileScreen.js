@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { signOut } from 'firebase/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,22 +17,20 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
+const CARD_WIDTH = (width - 48) / 2;
 
 const SALE_CATEGORIES = ['All', 'Electronics', 'Books', 'Clothes', 'Food', 'Beauty and Personal Care', 'Toys and Games', 'Automotive', 'Sports', 'Others'];
 const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party&Events', 'Sports&outdoors', 'Apparel', 'Vehicles', 'Other'];
-
 
 export default function ProfileScreen({ navigation, route }) {
   const loggedInUser = auth.currentUser;
@@ -38,51 +38,62 @@ export default function ProfileScreen({ navigation, route }) {
   const isMyProfile = !viewingUserId || viewingUserId === loggedInUser.email;
   const profileUserEmail = isMyProfile ? loggedInUser.email : viewingUserId;
 
+  // Profile State
   const [name, setName] = useState(loggedInUser?.displayName || '');
   const [email, setEmail] = useState(loggedInUser?.email || '');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [studentId, setStudentId] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [verified, setVerified] = useState(false);
+  const [joinedDate, setJoinedDate] = useState('');
+  
+  // Products State
   const [saleProducts, setSaleProducts] = useState([]);
   const [rentalProducts, setRentalProducts] = useState([]);
   const [activeTab, setActiveTab] = useState('sale');
   const [refreshing, setRefreshing] = useState(false);
-  const [verified, setVerified] = useState(false);
-  const [joinedDate, setJoinedDate] = useState('');
+  
+  // UI State
   const [selectedImages, setSelectedImages] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [quantityModalVisible, setQuantityModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-
+  // Theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-  
- 
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  const filteredSaleProducts = useMemo(() => {
-    return saleProducts.filter(product => {
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  // Computed Stats
+  const stats = useMemo(() => {
+    const currentProducts = activeTab === 'sale' ? saleProducts : rentalProducts;
+    const totalItems = currentProducts.length;
+    const activeItems = currentProducts.filter(p => (p.is_visible ?? true) && p.quantity > 0).length;
+    const totalValue = currentProducts.reduce((sum, p) => sum + (parseFloat(p.price) * p.quantity || 0), 0);
+    
+    return { totalItems, activeItems, totalValue };
+  }, [saleProducts, rentalProducts, activeTab]);
+
+  // Filtered Products
+  const filteredProducts = useMemo(() => {
+    const products = activeTab === 'sale' ? saleProducts : rentalProducts;
+    return products.filter(product => {
       const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [saleProducts, searchQuery, selectedCategory]);
+  }, [saleProducts, rentalProducts, activeTab, searchQuery, selectedCategory]);
 
-  const filteredRentalProducts = useMemo(() => {
-    return rentalProducts.filter(product => {
-      const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [rentalProducts, searchQuery, selectedCategory]);
-
+  // Fetch Products
   const fetchMyProducts = useCallback(async () => {
     if (!profileUserEmail) return;
-    let transformedRentalData = [];
+    
     try {
       const { data: saleData, error: saleError } = await supabase
         .from('products')
@@ -101,52 +112,92 @@ export default function ProfileScreen({ navigation, route }) {
 
       if (rentalError) throw rentalError;
       
-      transformedRentalData = rentalData?.map(item => ({
+      const transformedRentalData = rentalData?.map(item => ({
         id: item.id,
         product_name: item.item_name,
         description: item.description,
-        product_image_url: item.rental_item_image, 
-        image: item.rental_item_image, 
+        product_image_url: item.rental_item_image,
+        image: item.rental_item_image,
         quantity: item.quantity,
         price: item.price,
         category: item.category,
         condition: item.condition,
         rental_duration: item.rental_duration,
         is_visible: item.is_visible ?? true,
-        owner_email: item.owner_email // Add this line
+        owner_email: item.owner_email,
       })) || [];
+      
       setRentalProducts(transformedRentalData);
     } catch (error) {
       console.error('Error fetching products:', error);
-      Alert.alert('Error', 'Failed to load your products');
+      Alert.alert('Error', 'Failed to load products');
     }
   }, [profileUserEmail]);
 
+  // Fetch Profile
+  const fetchProfile = useCallback(async () => {
+    if (!profileUserEmail) return;
+
+    setProfileLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('name, phone_number, student_id, profile_photo, created_at')
+        .eq('email', profileUserEmail)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      setEmail(profileUserEmail);
+      setName(data?.name || '');
+      setPhoneNumber(data?.phone_number || '');
+      setStudentId(data?.student_id || '');
+      setProfilePhoto(data?.profile_photo || null);
+
+      if (data?.created_at) {
+        const date = new Date(data.created_at);
+        setJoinedDate(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+      }
+
+      const { data: verificationData } = await supabase
+        .from('verifications')
+        .select('status')
+        .eq('email', profileUserEmail)
+        .single();
+
+      setVerified(verificationData?.status === 'approved');
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [profileUserEmail]);
+
+  // Toggle Visibility
   const handleToggleVisibility = async (product) => {
     try {
       const tableName = activeTab === 'sale' ? 'products' : 'rental_items';
-      const idField = 'id';
       const currentVisibility = product.is_visible ?? true;
       
       const { error } = await supabase
         .from(tableName)
         .update({ is_visible: !currentVisibility })
-        .eq(idField, product.id);
+        .eq('id', product.id);
 
       if (error) throw error;
+      
       await fetchMyProducts();
-      Alert.alert(
-        'Success', 
-        `${activeTab === 'sale' ? 'Product' : 'Rental item'} is now ${!currentVisibility ? 'visible' : 'hidden'} in listings`
-      );
+      Alert.alert('Success', `Item is now ${!currentVisibility ? 'visible' : 'hidden'}`);
     } catch (error) {
       console.error('Error updating visibility:', error);
       Alert.alert('Error', 'Failed to update visibility');
     }
   };
 
+  // Update Quantity
   const handleQuantityChange = async (product, change) => {
     const newQuantity = Math.max(0, product.quantity + change);
+    
     try {
       const tableName = activeTab === 'sale' ? 'products' : 'rental_items';
       const { error } = await supabase
@@ -161,342 +212,11 @@ export default function ProfileScreen({ navigation, route }) {
       await fetchMyProducts();
     } catch (error) {
       console.error('Error updating quantity:', error);
-      Alert.alert('Error', `Failed to update ${activeTab === 'sale' ? 'product' : 'rental item'} quantity`);
+      Alert.alert('Error', 'Failed to update quantity');
     }
   };
 
-  const renderTabs = () => (
-    <View style={styles.tabContainer}>
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'sale' && styles.activeTab]}
-        onPress={() => {
-          setActiveTab('sale');
-          setSelectedCategory('All');
-          setSearchQuery('');
-        }}
-      >
-        <Text style={[styles.tabText, activeTab === 'sale' && styles.activeTabText]}>
-          For Sale
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'rent' && styles.activeTab]}
-        onPress={() => {
-          setActiveTab('rent');
-          setSelectedCategory('All');
-          setSearchQuery('');
-        }}
-      >
-        <Text style={[styles.tabText, activeTab === 'rent' && styles.activeTabText]}>
-          For Rent
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderCategoryFilters = () => {
-    const categories = activeTab === 'sale' ? SALE_CATEGORIES : RENTAL_CATEGORIES;
-    if (categories.length <= 1) return null;
-
-    return (
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
-          {categories.map(category => (
-            <TouchableOpacity
-              key={category}
-              style={[
-                styles.filterChip,
-                selectedCategory === category && styles.activeFilterChip
-              ]}
-              onPress={() => setSelectedCategory(category)}
-            >
-              <Text style={[
-                styles.filterChipText,
-                selectedCategory === category && styles.activeFilterChipText
-              ]}>{category}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderProduct = ({ item: product }) => {
-    const isRental = activeTab === 'rent';
-    let imageUrl = isRental ? product.image : product.product_image_url;
-    if (typeof imageUrl === 'string' && imageUrl.startsWith('[')) {
-      try {
-        const images = JSON.parse(imageUrl);
-        imageUrl = images[0];
-      } catch (e) {
-        console.log('Error parsing image URL:', e);
-      }
-    }
-
-    const CardWrapper = isMyProfile ? View : TouchableOpacity;
-    const cardProps = isMyProfile
-      ? {}
-      : {
-          onPress: () => {
-            if (isRental) {
-              navigation.navigate('RentalDetails', { rentalItem: product });
-            } else {
-              navigation.navigate('ProductDetails', { product: product });
-            }
-          },
-          activeOpacity: 0.85,
-        };
-
-    return (
-      <CardWrapper style={styles.productCard} {...cardProps}>
-        <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
-        <View style={styles.productInfo}>
-          <Text style={styles.productName}>{product.product_name}</Text>
-
-          <View style={styles.productMetaRow}>
-            <View style={styles.priceContainer}>
-              <Text style={styles.priceLabel}>Price</Text>
-              <Text style={styles.productPrice}>
-                <Text>₱{product.price}</Text>
-                {isRental && product.rental_duration && (
-                  <Text style={styles.rentalDuration}> /{product.rental_duration}</Text>
-                )}
-              </Text>
-            </View>
-            {isMyProfile && (
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => handleQuantityChange(product, -1)}
-                  disabled={product.quantity <= 0}
-                >
-                  <Icon name="minus" size={16} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.quantityText}>{product.quantity}</Text>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => handleQuantityChange(product, 1)}
-                >
-                  <Icon name="plus" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          <View style={[styles.categoryRow, { marginTop: 8 }]}>
-            {product.category && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{product.category}</Text>
-              </View>
-            )}
-            {product.condition && (
-              <View style={styles.conditionBadge}>
-                <Text style={styles.conditionText}>{product.condition}</Text>
-              </View>
-            )}
-          </View>
-
-          {isMyProfile ? (
-            <View style={styles.availabilityContainer}>
-              <Text style={styles.availabilityLabel}>Show in listings:</Text>
-              <Switch
-                value={product.is_visible ?? true}
-                onValueChange={() => handleToggleVisibility(product)}
-                trackColor={{ false: theme.buttonDisabled, true: theme.accent }}
-                thumbColor="#fff"
-              />
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.messageButton}
-              onPress={(e) => {
-                e.stopPropagation(); // Prevent card's onPress from firing
-                navigation.navigate('Messaging', {
-                  receiverId: isRental ? product.owner_email : product.email,
-                  receiverName: name,
-                  productToSend: product,
-                });
-              }}
-            >
-              <Ionicons name="chatbubble" size={14} color="#fff" />
-              <Text style={styles.messageButtonText}>Message Seller</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </CardWrapper>
-    );
-  };
-
-
-
-  const handleUpdateQuantity = async (product, newQuantity) => {
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({ 
-          quantity: newQuantity,
-          is_available: newQuantity > 0 
-        })
-        .eq('id', product.id);
-
-      if (error) throw error;
-      
-      setQuantityModalVisible(false);
-      setEditingProduct(null);
-      fetchMyProducts();
-      Alert.alert('Success', 'Product quantity updated');
-    } catch (error) {
-      console.error('Error updating quantity:', error);
-      Alert.alert('Error', 'Failed to update product quantity');
-    }
-  };
-
-  useEffect(() => {
-    fetchMyProducts();
-  }, [fetchMyProducts]);
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const headerSlideAnim = useRef(new Animated.Value(-50)).current;
-
-
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerSlideAnim, {
-        toValue: 0,
-        duration: 700,
-        delay: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  const fetchProfile = async () => {
-    if (!profileUserEmail) return;
-
-    setProfileLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('name, phone_number, student_id, profile_photo, created_at')
-        .eq('email', profileUserEmail)
-        .maybeSingle();
-
-      if (error) {
-        console.log('Fetch error:', error.message);
-        return;
-      }
-
-      setEmail(profileUserEmail);
-      setName(data.name || '');
-      setPhoneNumber(data.phone_number || '');
-      setStudentId(data.student_id || '');
-      setProfilePhoto(data.profile_photo || null);
-
-      if (data.created_at) {
-        const date = new Date(data.created_at);
-        const formatted = `Joined ${date.toLocaleString('default', {
-          month: 'long',
-          year: 'numeric',
-        })}`;
-        setJoinedDate(formatted);
-      }
-
-      const { data: verificationData, error: verificationError } = await supabase
-        .from('verifications')
-        .select('status')
-        .eq('email', profileUserEmail)
-        .single();
-
-      if (verificationError && verificationError.code !== 'PGRST116') {
-        console.log('Verification fetch error:', verificationError.message);
-      }
-
-      setVerified(verificationData?.status === 'approved');
-    } catch (err) {
-      console.error('Error fetching profile:', err);
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
-
-
-  useEffect(() => {
-    fetchProfile();
-    fetchMyProducts();
-  }, [profileUserEmail, fetchMyProducts]);
-
-  useEffect(() => {
-    if (!profileUserEmail) return;
-
-    const channel = supabase
-      .channel(`verifications-${profileUserEmail}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'verifications', filter: `email=eq.${profileUserEmail}` },
-        (payload) => {
-          const status = payload.new?.status;
-          setVerified(status === 'approved');
-          fetchProfile();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profileUserEmail]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchProfile();
-    await fetchMyProducts();
-    setRefreshing(false);
-  }, []);
-
-  const handleGetVerified = () => navigation.navigate('GetVerified');
-
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await loggedInUser.signOut();
-              navigation.replace('Login');
-            } catch (error) {
-              Alert.alert('Logout Error', error.message);
-            }
-          },
-        },
-      ]
-    );
-  };
-
+  // Image Picker
   const handleImagePick = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -509,23 +229,111 @@ export default function ProfileScreen({ navigation, route }) {
       const arrayBuffer = await response.arrayBuffer();
       const fileExt = imageUri.split('.').pop();
       const fileName = `${loggedInUser.uid}_${Date.now()}.${fileExt}`;
+      
       const { error: uploadError } = await supabase.storage
         .from('profile-avatars')
         .upload(fileName, arrayBuffer, {
           contentType: `image/${fileExt}`,
           upsert: true,
         });
+        
       if (uploadError) {
         Alert.alert('Upload Error', uploadError.message);
         return;
       }
+      
       const { data } = supabase.storage.from('profile-avatars').getPublicUrl(fileName);
       const publicUrl = data.publicUrl;
+      
       await supabase.from('users').update({ profile_photo: publicUrl }).eq('id', loggedInUser.uid);
       setProfilePhoto(publicUrl);
       Alert.alert('Success', 'Profile photo updated!');
     }
   };
+
+  // Logout
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              navigation.replace('Login');
+            } catch (error) {
+              Alert.alert('Logout Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchProfile(), fetchMyProducts()]);
+    setRefreshing(false);
+  }, [fetchProfile, fetchMyProducts]);
+
+  // Initialize animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchProfile();
+    fetchMyProducts();
+  }, [fetchProfile, fetchMyProducts]);
+
+  // Subscribe to verification updates
+  useEffect(() => {
+    if (!profileUserEmail) return;
+
+    const channel = supabase
+      .channel(`verifications-${profileUserEmail}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'verifications', 
+          filter: `email=eq.${profileUserEmail}` 
+        },
+        (payload) => {
+          setVerified(payload.new?.status === 'approved');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profileUserEmail]);
 
   const getAvatarSource = () => {
     if (profilePhoto) return { uri: profilePhoto };
@@ -536,155 +344,475 @@ export default function ProfileScreen({ navigation, route }) {
     };
   };
 
-  const openImageModal = (imageUrls) => {
-    if (!imageUrls || imageUrls.length === 0) return;
-    const images = typeof imageUrls === 'string' ? [imageUrls] : imageUrls;
-    setSelectedImages(images);
-    setModalVisible(true);
+  const parseImageUrl = (imageUrl) => {
+    if (typeof imageUrl === 'string' && imageUrl.startsWith('[')) {
+      try {
+        const images = JSON.parse(imageUrl);
+        return images[0];
+      } catch (e) {
+        return imageUrl;
+      }
+    }
+    return imageUrl;
   };
 
-
-
+  // Render Header with Custom App Header
   const renderHeader = () => (
-    <View style={styles.headerContentContainer}>
-      {!isMyProfile && (
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+    <View>
+      {/* Custom App Header - Consistent Design */}
+      <View style={styles.appHeader}>
+        <View style={styles.headerLeft}>
+          <Image 
+            source={require('../../assets/images/OfficialBuyNaBay.png')} 
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
+        {!isMyProfile && (
+          <TouchableOpacity 
+            style={styles.backIconBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Profile Hero Section with Gradient */}
+      <LinearGradient
+        colors={isDarkMode ? ['#1a1a3e', '#0f0f2e'] : ['#f39c12', '#e67e22']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroGradient}
+      >
+        <Animated.View 
+          style={[
+            styles.profileSection,
+            { 
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={isMyProfile ? handleImagePick : undefined}
+            disabled={!isMyProfile}
+            activeOpacity={0.8}
+          >
+            <View style={styles.avatarWrapper}>
+              <Image source={getAvatarSource()} style={styles.avatar} />
+              {isMyProfile && (
+                <View style={styles.cameraButton}>
+                  <Ionicons name="camera" size={20} color="#fff" />
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.nameRow}>
+            <Text style={styles.profileName} numberOfLines={1}>
+              {name || 'User'}
+            </Text>
+            {verified && (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
+            )}
+          </View>
+          
+          {joinedDate && (
+            <View style={styles.joinedRow}>
+              <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.joinedText}>Joined {joinedDate}</Text>
+            </View>
+          )}
+        </Animated.View>
+      </LinearGradient>
+
+      {/* Stats Cards - Modern Dashboard Style */}
+      {isMyProfile && (
+        <Animated.View 
+          style={[
+            styles.statsContainer,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrapper}>
+              <Ionicons name="cube-outline" size={24} color={theme.accent} />
+            </View>
+            <Text style={styles.statValue}>{stats.totalItems}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrapper}>
+              <Ionicons name="checkmark-circle-outline" size={24} color="#4CAF50" />
+            </View>
+            <Text style={styles.statValue}>{stats.activeItems}</Text>
+            <Text style={styles.statLabel}>Active</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrapper}>
+              <Ionicons name="cash-outline" size={24} color={theme.accent} />
+            </View>
+            <Text style={styles.statValue}>₱{stats.totalValue.toFixed(0)}</Text>
+            <Text style={styles.statLabel}>Value</Text>
+          </View>
+        </Animated.View>
       )}
-      <View style={styles.backgroundGradient} />
+
+      {/* Contact Info Section - Unified Card Design */}
       <Animated.View 
         style={[
-          styles.profileHeader, 
-          {
-            transform: [{ translateY: headerSlideAnim }],
+          styles.contactSection,
+          { 
             opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
           }
         ]}
       >
-        <TouchableOpacity onPress={isMyProfile ? handleImagePick : undefined} style={styles.avatarContainer} disabled={!isMyProfile}>
-          <Image source={getAvatarSource()} style={styles.avatar} />
-          {isMyProfile && (
-            <View style={styles.cameraIconContainer}>
-              <Icon name="camera" size={16} color="#fff" />
+        <Text style={styles.sectionTitle}>Contact Information</Text>
+        
+        <View style={styles.contactCard}>
+          <View style={styles.contactItem}>
+            <View style={styles.contactIconWrapper}>
+              <Ionicons name="mail" size={18} color={theme.accent} />
             </View>
-          )}
-        </TouchableOpacity>
+            <View style={styles.contactContent}>
+              <Text style={styles.contactLabel}>Email</Text>
+              <Text style={styles.contactValue} numberOfLines={1}>{email || 'N/A'}</Text>
+            </View>
+          </View>
 
-        <View style={styles.nameContainer}>
-          <Text style={styles.userName}>{name || 'N/A'}</Text>
           {verified && (
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
+            <>
+              <View style={styles.divider} />
+              <View style={styles.contactItem}>
+                <View style={styles.contactIconWrapper}>
+                  <Ionicons name="call" size={18} color={theme.accent} />
+                </View>
+                <View style={styles.contactContent}>
+                  <Text style={styles.contactLabel}>Phone</Text>
+                  <Text style={styles.contactValue}>{phoneNumber || 'N/A'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+              <View style={styles.contactItem}>
+                <View style={styles.contactIconWrapper}>
+                  <Ionicons name="card" size={18} color={theme.accent} />
+                </View>
+                <View style={styles.contactContent}>
+                  <Text style={styles.contactLabel}>Student ID</Text>
+                  <Text style={styles.contactValue}>{studentId || 'N/A'}</Text>
+                </View>
+              </View>
+            </>
           )}
         </View>
 
-        {joinedDate ? (
-          <View style={styles.joinedContainer}>
-            <Icon name="calendar" size={12} color={theme.textSecondary} />
-            <Text style={styles.joinedText}> {joinedDate}</Text>
-          </View>
-        ) : null}
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.infoSection,
-          {
-            transform: [{ translateY: slideAnim }],
-            opacity: fadeAnim,
-          }
-        ]}
-      >
-        <View style={styles.infoCard}>
-          <View style={styles.infoIconContainer}>
-            <Icon name="envelope" size={16} color={theme.accent} />
-          </View>
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>{email || 'N/A'}</Text>
-          </View>
-        </View>
-
-        {verified && (
-          <>
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconContainer}>
-                <Icon name="phone" size={16} color={theme.accent} />
-              </View>
-              <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Phone Number</Text>
-                <Text style={styles.infoValue}>{phoneNumber || 'N/A'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconContainer}>
-                <Icon name="id-card" size={16} color={theme.accent} />
-              </View>
-              <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Student ID</Text>
-                <Text style={styles.infoValue}>{studentId || 'N/A'}</Text>
-              </View>
-            </View>
-          </>
-        )}
-
+        {/* Action Buttons - Horizontal Layout */}
         {isMyProfile && (
-          <View style={styles.buttonContainer}>
+          <View style={styles.actionButtonsRow}>
+            {!verified && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.verifyButton]}
+                onPress={() => navigation.navigate('GetVerified')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="shield-checkmark" size={18} color="#fff" />
+                <Text style={styles.actionButtonText}>Verify</Text>
+              </TouchableOpacity>
+            )}
+            
             <TouchableOpacity
-              style={[styles.button, styles.verifyButton]}
-              onPress={handleGetVerified}
-              activeOpacity={0.85}
-            >
-              <Icon name="shield" size={16} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Get Verified</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.logoutButton]}
+              style={[styles.actionButton, styles.logoutButton, !verified && { flex: 1 }]}
               onPress={handleLogout}
-              activeOpacity={0.85}
+              activeOpacity={0.8}
             >
-              <Icon name="sign-out" size={16} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Logout</Text>
+              <Ionicons name="log-out" size={18} color="#fff" />
+              <Text style={styles.actionButtonText}>Logout</Text>
             </TouchableOpacity>
           </View>
         )}
       </Animated.View>
 
-      <View style={styles.sectionHeader}>
-        <Icon name="shopping-bag" size={20} color={theme.text} />
-        <Text style={styles.sectionTitle}> My Products</Text>
-        <View style={styles.productCountBadge}>
-          <Text style={styles.productCountText}>
-            {activeTab === 'sale' ? filteredSaleProducts.length : filteredRentalProducts.length}
-          </Text>
+      {/* Listings Section Header */}
+      <View style={styles.listingsHeader}>
+        <Text style={styles.listingsTitle}>
+          {isMyProfile ? 'My Listings' : `${name}'s Listings`}
+        </Text>
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{filteredProducts.length}</Text>
         </View>
       </View>
 
-      {renderTabs()}
+      {/* Tabs - Modern Toggle Style */}
+      <View style={styles.tabsWrapper}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'sale' && styles.activeTab]}
+          onPress={() => {
+            setActiveTab('sale');
+            setSelectedCategory('All');
+            setSearchQuery('');
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons 
+            name="pricetag" 
+            size={18} 
+            color={activeTab === 'sale' ? '#fff' : theme.textSecondary} 
+          />
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'sale' && styles.activeTabText
+          ]}>
+            For Sale
+          </Text>
+        </TouchableOpacity>
 
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'rent' && styles.activeTab]}
+          onPress={() => {
+            setActiveTab('rent');
+            setSelectedCategory('All');
+            setSearchQuery('');
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons 
+            name="time" 
+            size={18} 
+            color={activeTab === 'rent' ? '#fff' : theme.textSecondary} 
+          />
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'rent' && styles.activeTabText
+          ]}>
+            For Rent
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={20} color={theme.textSecondary} />
         <TextInput
           style={styles.searchInput}
-          placeholder={`Search in your ${activeTab === 'sale' ? 'products' : 'rentals'}...`}
+          placeholder={`Search ${activeTab === 'sale' ? 'products' : 'rentals'}...`}
           placeholderTextColor={theme.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}><Ionicons name="close-circle" size={20} color={theme.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
         )}
       </View>
 
+      {/* Category Filters */}
       {renderCategoryFilters()}
+    </View>
+  );
+
+  // Render Category Filters
+  const renderCategoryFilters = () => {
+    const categories = activeTab === 'sale' ? SALE_CATEGORIES : RENTAL_CATEGORIES;
+    
+    return (
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesScroll}
+        style={styles.categoriesWrapper}
+      >
+        {categories.map(category => (
+          <TouchableOpacity
+            key={category}
+            style={[
+              styles.categoryChip,
+              selectedCategory === category && styles.activeCategoryChip
+            ]}
+            onPress={() => setSelectedCategory(category)}
+            activeOpacity={0.7}
+          >
+            <Text style={[
+              styles.categoryChipText,
+              selectedCategory === category && styles.activeCategoryChipText
+            ]}>
+              {category}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  };
+
+  // Render Product Card - Modern Grid Layout
+  const renderProduct = ({ item: product, index }) => {
+    const isRental = activeTab === 'rent';
+    const imageUrl = parseImageUrl(isRental ? product.image : product.product_image_url);
+
+    const CardWrapper = isMyProfile ? View : TouchableOpacity;
+    const cardProps = isMyProfile
+      ? {}
+      : {
+          onPress: () => {
+            if (isRental) {
+              navigation.navigate('RentalDetails', { rentalItem: product });
+            } else {
+              navigation.navigate('ProductDetails', { product });
+            }
+          },
+          activeOpacity: 0.9,
+        };
+
+    return (
+      <Animated.View
+        style={[
+          styles.productCardWrapper,
+          {
+            opacity: fadeAnim,
+            transform: [
+              { 
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 30],
+                  outputRange: [0, 30 + index * 5],
+                })
+              }
+            ]
+          }
+        ]}
+      >
+        <CardWrapper style={styles.productCard} {...cardProps}>
+          <View style={styles.imageContainer}>
+            <Image 
+              source={{ uri: imageUrl }} 
+              style={styles.productImage} 
+              resizeMode="cover" 
+            />
+            {product.quantity === 0 && (
+              <View style={styles.outOfStockBadge}>
+                <Text style={styles.outOfStockText}>Out of Stock</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.productContent}>
+            <Text style={styles.productName} numberOfLines={2}>
+              {product.product_name}
+            </Text>
+
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>₱{product.price}</Text>
+              {isRental && product.rental_duration && (
+                <Text style={styles.duration}>/{product.rental_duration}</Text>
+              )}
+            </View>
+
+            {(product.category || product.condition) && (
+              <View style={styles.tagsRow}>
+                {product.category && (
+                  <View style={styles.tag}>
+                    <Text style={styles.tagText} numberOfLines={1}>{product.category}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {isMyProfile ? (
+              <View style={styles.controls}>
+                <View style={styles.quantityControl}>
+                  <TouchableOpacity
+                    style={[styles.quantityBtn, product.quantity <= 0 && styles.quantityBtnDisabled]}
+                    onPress={() => handleQuantityChange(product, -1)}
+                    disabled={product.quantity <= 0}
+                  >
+                    <Ionicons name="remove" size={16} color="#fff" />
+                  </TouchableOpacity>
+                  <Text style={styles.quantityText}>{product.quantity}</Text>
+                  <TouchableOpacity
+                    style={styles.quantityBtn}
+                    onPress={() => handleQuantityChange(product, 1)}
+                  >
+                    <Ionicons name="add" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.visibilityBtn}
+                  onPress={() => handleToggleVisibility(product)}
+                >
+                  <Ionicons 
+                    name={product.is_visible ? "eye" : "eye-off"} 
+                    size={18} 
+                    color={product.is_visible ? theme.accent : theme.textSecondary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.messageBtn}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  navigation.navigate('Messaging', {
+                    receiverId: isRental ? product.owner_email : product.email,
+                    receiverName: name,
+                    productToSend: product,
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubble" size={14} color="#fff" />
+                <Text style={styles.messageBtnText}>Message</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </CardWrapper>
+      </Animated.View>
+    );
+  };
+
+  // Render Empty State
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconWrapper}>
+        <Ionicons 
+          name={searchQuery || selectedCategory !== 'All' ? "search" : "cube-outline"} 
+          size={64} 
+          color={theme.textSecondary} 
+        />
+      </View>
+      <Text style={styles.emptyTitle}>
+        {searchQuery || selectedCategory !== 'All' 
+          ? 'No Results Found' 
+          : `No ${activeTab === 'sale' ? 'Products' : 'Rentals'} Yet`}
+      </Text>
+      <Text style={styles.emptySubtitle}>
+        {searchQuery || selectedCategory !== 'All'
+          ? 'Try adjusting your search or filters'
+          : `Start ${activeTab === 'sale' ? 'selling' : 'renting'} by adding your first item`}
+      </Text>
+      {isMyProfile && !searchQuery && selectedCategory === 'All' && (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate(activeTab === 'sale' ? 'AddProduct' : 'RentItem')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle" size={20} color="#fff" />
+          <Text style={styles.addButtonText}>
+            Add {activeTab === 'sale' ? 'Product' : 'Rental'}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -692,7 +820,7 @@ export default function ProfileScreen({ navigation, route }) {
 
   if (profileLoading) {
     return (
-      <View style={styles.loadingOverlay}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.accent} />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
@@ -702,20 +830,17 @@ export default function ProfileScreen({ navigation, route }) {
   return (
     <>
       <StatusBar 
-        barStyle={isDarkMode ? "light-content" : "dark-content"} 
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.container}>
         <FlatList
-          data={activeTab === 'sale' ? filteredSaleProducts : filteredRentalProducts}
-          keyExtractor={(item) => item.id.toString()}
+          data={filteredProducts}
+          keyExtractor={(item) => `${activeTab}-${item.id}`}
           renderItem={renderProduct}
           ListHeaderComponent={renderHeader}
-          // Sticky header to keep tabs and search bar visible
-          stickyHeaderIndices={[0]}
-          // The actual header is now part of the scroll view, so we don't need a separate component for it
-          // but we need to wrap it to make it sticky
+          ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl 
               refreshing={refreshing} 
@@ -724,65 +849,44 @@ export default function ProfileScreen({ navigation, route }) {
               colors={[theme.accent]}
             />
           }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Icon name="inbox" size={48} color={theme.textSecondary} />
-              <Text style={styles.emptyTitle}>
-                {searchQuery || selectedCategory !== 'All' ? 'No Results Found' : `No ${activeTab === 'sale' ? 'Products' : 'Rentals'} Yet`}
-              </Text>
-              <Text style={styles.emptySubtext}>
-                {searchQuery || selectedCategory !== 'All'
-                  ? `No items match your criteria`
-                  : `Start ${activeTab === 'sale' ? 'selling' : 'renting'} by adding your first item`}
-              </Text>
-              {isMyProfile && (
-                <TouchableOpacity
-                  style={[styles.button, { backgroundColor: theme.accent }]}
-                  onPress={() => navigation.navigate(activeTab === 'sale' ? 'AddProduct' : 'RentItem')}
-                >
-                  <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
-                  <Text style={styles.buttonText}>
-                    Add {activeTab === 'sale' ? 'Product' : 'Rental Item'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
         />
 
-        <Modal visible={modalVisible} transparent={true} animationType="fade">
+        {/* Image Modal */}
+        <Modal visible={modalVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-              >
-                {selectedImages.map((img, index) => (
-                  <Image
-                    key={index}
-                    source={{ uri: img }}
-                    style={styles.modalImage}
-                    resizeMode="contain"
-                  />
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Ionicons name="close-circle" size={40} color="#fff" />
-              </TouchableOpacity>
-              {selectedImages.length > 1 && (
-                <View style={styles.imageIndicator}>
-                  <Text style={styles.imageIndicatorText}>
-                    Swipe to view all {selectedImages.length} images
-                  </Text>
-                </View>
-              )}
-            </View>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setModalVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={32} color="#fff" />
+            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.modalImageScroll}
+            >
+              {selectedImages.map((img, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: img }}
+                  style={styles.modalImage}
+                  resizeMode="contain"
+                />
+              ))}
+            </ScrollView>
+            {selectedImages.length > 1 && (
+              <View style={styles.imageCounter}>
+                <Text style={styles.imageCounterText}>
+                  Swipe to see all {selectedImages.length} images
+                </Text>
+              </View>
+            )}
           </View>
         </Modal>
       </SafeAreaView>
@@ -790,264 +894,127 @@ export default function ProfileScreen({ navigation, route }) {
   );
 }
 
+// Theme Definitions
 const darkTheme = {
   background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
   cardBackground: '#1e1e3f',
   cardBackgroundAlt: '#252550',
-  inputBackground: '#fff',
-  inputText: '#333',
-  inputIcon: '#666',
-  placeholder: '#999',
+  text: '#ffffff',
+  textSecondary: '#a0a0bb',
+  textTertiary: '#8080a0',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  buttonDisabled: '#4a4a6a',
-  error: '#FF6B6B',
+  accentLight: '#FFD54F',
   success: '#4CAF50',
-  verifyColor: '#fbc02d',
-  logoutColor: '#d32f2f',
-  divider: '#333',
+  error: '#FF6B6B',
+  warning: '#FFA726',
   borderColor: '#2a2a4a',
-  shadowColor: '#000',
+  divider: '#333355',
+  shadowColor: '#000000',
+  switchOff: '#4a4a6a',
+  overlay: 'rgba(0, 0, 0, 0.7)',
 };
 
 const lightTheme = {
   background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
   cardBackground: '#ffffff',
   cardBackgroundAlt: '#f9f9fc',
-  inputBackground: '#ffffff',
-  inputText: '#1a1a2e',
-  inputIcon: '#7a7a9a',
-  placeholder: '#9a9ab0',
+  text: '#1a1a2e',
+  textSecondary: '#6a6a8a',
+  textTertiary: '#8a8aaa',
   accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  buttonDisabled: '#d0d0e0',
-  error: '#e74c3c',
+  accentLight: '#f7b731',
   success: '#27ae60',
-  verifyColor: '#f39c12',
-  logoutColor: '#e74c3c',
-  divider: '#d0d0e0',
+  error: '#e74c3c',
+  warning: '#f39c12',
   borderColor: '#e0e0ea',
-  shadowColor: '#000',
+  divider: '#d0d0e0',
+  shadowColor: '#000000',
+  switchOff: '#d0d0e0',
+  overlay: 'rgba(0, 0, 0, 0.5)',
 };
 
 const createStyles = (theme) => StyleSheet.create({
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    borderRadius: 12,
-    backgroundColor: theme.cardBackgroundAlt,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: theme.accent,
-  },
-  tabText: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
-  },
-  activeTabText: {
-    color: '#fff',
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.cardBackground,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginVertical: 16,
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 48,
-    color: theme.text,
-    fontSize: 15,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
-  clearIcon: {
-    padding: 4,
-  },
-  filterContainer: {
-    paddingBottom: 16,
-  },
-  filterScrollContent: {
-    paddingHorizontal: 0,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: theme.cardBackground,
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-  },
-  activeFilterChip: {
-    backgroundColor: theme.accent,
-    borderColor: theme.accent,
-  },
-  filterChipText: {
-    color: theme.textSecondary,
-    fontSize: 13,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
-  },
-  activeFilterChipText: {
-    color: '#fff',
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-  },
-  productControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: theme.borderColor,
-  },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.cardBackgroundAlt,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  quantityButton: {
-    padding: 8,
-    backgroundColor: theme.accent,
-  },
-  quantityText: {
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-  },
-  availabilityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  availabilityLabel: {
-    marginRight: 8,
-    fontSize: 14,
-    color: theme.textSecondary,
-  },
-  messageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.accent,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginTop: 16,
-    alignSelf: 'flex-end',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  messageButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-    marginLeft: 6,
-  },
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: theme.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.text,
+    fontWeight: '600',
+  },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
-  productSectionContainer: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
-    marginBottom: 16,
+  columnWrapper: {
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
   },
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === 'ios' ? 220 : 240,
-    backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    zIndex: 0,
+
+  // App Header - Consistent Design System
+  appHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.borderColor,
   },
-  headerContentContainer: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
-    paddingTop: 20,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
-    left: 20,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+  headerLogo: {
+    width: 32,
+    height: 32,
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.text,
+    letterSpacing: 0.5,
+  },
+  backIconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: theme.cardBackgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: 30,
-    zIndex: 2,
+
+  // Hero Section
+  heroGradient: {
+    paddingTop: 32,
+    paddingBottom: 32,
+    paddingHorizontal: 16,
   },
-  avatarContainer: {
+  profileSection: {
+    alignItems: 'center',
+  },
+  avatarWrapper: {
     position: 'relative',
     marginBottom: 16,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: theme.accent,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#ffffff',
     ...Platform.select({
       ios: {
-        shadowColor: theme.accent,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -1057,39 +1024,35 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  cameraIconContainer: {
+  cameraButton: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: theme.accent,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FDAD00',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: theme.background,
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
-  nameContainer: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 8,
   },
-  userName: {
-    fontSize: Math.min(width * 0.065, 26),
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
+  profileName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.success,
+    backgroundColor: '#4CAF50',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1098,98 +1061,38 @@ const createStyles = (theme) => StyleSheet.create({
   verifiedText: {
     color: '#fff',
     fontSize: 13,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
+    fontWeight: '600',
   },
-  joinedContainer: {
+  joinedRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
   joinedText: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
-  infoSection: {
-    marginBottom: 30,
-    zIndex: 1,
-  },
-  infoCard: {
+
+  // Stats Section
+  statsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  infoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${theme.accent}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  infoTextContainer: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    marginBottom: 2,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
-  infoValue: {
-    fontSize: 16,
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
-  },
-  buttonContainer: {
-    marginTop: 8,
-  },
-  button: {
-    flexDirection: 'row',
-    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
         shadowRadius: 8,
       },
       android: {
@@ -1197,68 +1100,100 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  verifyButton: {
-    backgroundColor: theme.verifyColor,
+  statIconWrapper: {
+    marginBottom: 8,
   },
-  logoutButton: {
-    backgroundColor: theme.logoutColor,
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.text,
+    marginBottom: 4,
   },
-  buttonIcon: {
-    marginRight: 8,
+  statLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: '500',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 10,
+
+  // Contact Section
+  contactSection: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontSize: 18,
+    fontWeight: '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
-    flex: 1,
+    marginBottom: 12,
   },
-  productCountBadge: {
-    backgroundColor: theme.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  productCountText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
-  },
-  productCard: {
+  contactCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
+    padding: 16,
     marginBottom: 16,
-    overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  contactIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${theme.accent}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  contactContent: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  contactValue: {
+    fontSize: 15,
+    color: theme.text,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.divider,
+    marginVertical: 12,
+  },
+
+  // Action Buttons
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
         shadowRadius: 4,
       },
       android: {
@@ -1266,236 +1201,352 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
+  verifyButton: {
+    backgroundColor: '#4CAF50',
+  },
+  logoutButton: {
+    backgroundColor: '#e74c3c',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+
+  // Listings Section
+  listingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  listingsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.text,
+  },
+  countBadge: {
+    backgroundColor: theme.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+
+  // Tabs
+  tabsWrapper: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: theme.cardBackgroundAlt,
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  activeTab: {
+    backgroundColor: theme.accent,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  activeTabText: {
+    color: '#ffffff',
+  },
+
+  // Search Bar
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    fontSize: 15,
+    color: theme.text,
+  },
+
+  // Categories
+  categoriesWrapper: {
+    marginBottom: 16,
+  },
+  categoriesScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  activeCategoryChip: {
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  activeCategoryChipText: {
+    color: '#ffffff',
+  },
+
+  // Product Cards
+  productCardWrapper: {
+    width: CARD_WIDTH,
+    marginBottom: 16,
+  },
+  productCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  imageContainer: {
+    position: 'relative',
+    width: '100%',
+    height: CARD_WIDTH * 1.1,
+    backgroundColor: theme.cardBackgroundAlt,
+  },
   productImage: {
     width: '100%',
-    height: 200,
+    height: '100%',
   },
-  imageCountBadge: {
+  outOfStockBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 8,
+    right: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
-  imageCountText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+  outOfStockText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
   },
-  productInfo: {
-    padding: 16,
+  productContent: {
+    padding: 12,
   },
   productName: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    color: theme.text,
-    marginBottom: 6,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
-  },
-  productDesc: {
     fontSize: 14,
-    color: theme.textSecondary,
-    marginBottom: 12,
-    lineHeight: 20,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 8,
+    lineHeight: 18,
   },
-  productMetaRow: {
+  priceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    alignItems: 'baseline',
+    marginBottom: 8,
   },
-  priceContainer: {
-    backgroundColor: `${theme.accent}20`,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+  price: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.accent,
   },
-  priceLabel: {
+  duration: {
     fontSize: 12,
+    fontWeight: '500',
     color: theme.textSecondary,
-    marginBottom: 2,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
-  metaChip: {
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  tag: {
+    backgroundColor: theme.cardBackgroundAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    maxWidth: '100%',
+  },
+  tagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+
+  // Controls
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.divider,
+  },
+  quantityControl: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.cardBackgroundAlt,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
-  metaText: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
-  productPrice: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.accent,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
-  },
-  rentalDuration: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-  },
-  quantityContainer: {
-    flexDirection: 'row',
+  quantityBtn: {
+    width: 28,
+    height: 28,
+    backgroundColor: theme.accent,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  productQuantity: {
+  quantityBtnDisabled: {
+    backgroundColor: theme.textSecondary,
+    opacity: 0.5,
+  },
+  quantityText: {
+    paddingHorizontal: 12,
     fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '600',
+    color: theme.text,
   },
-  categoryRow: {
+  visibilityBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messageBtn: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  categoryBadge: {
-    backgroundColor: `${theme.accentSecondary}20`,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.accent,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
+    gap: 4,
+    marginTop: 8,
   },
-  categoryText: {
+  messageBtnText: {
     fontSize: 12,
-    color: theme.accentSecondary,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+    fontWeight: '600',
+    color: '#ffffff',
   },
-  conditionBadge: {
-    backgroundColor: `${theme.success}20`,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  conditionText: {
-    fontSize: 12,
-    color: theme.success,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
-  },
-  emptyContainer: {
+
+  // Empty State
+  emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 20,
+    paddingHorizontal: 32,
+  },
+  emptyIconWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: '700',
     color: theme.text,
-    marginTop: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
+    marginBottom: 8,
+    textAlign: 'center',
   },
-  emptySubtext: {
+  emptySubtitle: {
     fontSize: 14,
     color: theme.textSecondary,
-    marginTop: 8,
     textAlign: 'center',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.accent,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
     }),
   },
-  emptyText: {
-    fontSize: 18,
-    color: theme.textSecondary,
-    marginTop: 16,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+  addButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    marginTop: 8,
-    textAlign: 'center',
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
-    width: '100%',
-    height: '80%',
-    justifyContent: 'center',
-  },
-  modalImage: {
-    width: width,
-    height: '100%',
-  },
-  closeButton: {
+  modalCloseBtn: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 50 : 40,
     right: 20,
     zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  imageIndicator: {
+  modalImageScroll: {
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: width,
+    height: height * 0.7,
+  },
+  imageCounter: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 50 : 40,
     alignSelf: 'center',
@@ -1504,31 +1555,9 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
-  imageIndicatorText: {
-    color: '#fff',
+  imageCounterText: {
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
-  loadingOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.background,
-  },
-  loadingText: {
-    color: theme.text,
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+    fontWeight: '500',
+    color: '#ffffff',
   },
 });
