@@ -141,20 +141,6 @@ function Tabs({ showAdmin, userStatus }) {
         })}
       />
 
-      <Tab.Screen
-        name="Community"
-        component={require('./CommunityScreen').default}
-        options={{
-          tabBarLabel: 'Community',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
-          ),
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => handleTabPress(e, navigation, 'Community'),
-       })}
-      />
-
 
       <Tab.Screen
         name="Add"
@@ -342,6 +328,10 @@ export default function MainTabNavigator({ route }) {
       <Stack.Screen 
         name="VerificationStatus" 
         component={VerificationStatusScreen}
+      />
+      <Stack.Screen 
+        name="UserProfile" 
+        component={ProfileScreen}
       />
       <Stack.Screen 
         name="NotVerified" 

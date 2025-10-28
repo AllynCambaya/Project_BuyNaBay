@@ -25,6 +25,71 @@ import { supabase } from "../../supabase/supabaseClient";
 
 const { width, height } = Dimensions.get('window');
 
+export const handleDirectCheckout = async (product, buyer, buyerName) => {
+  if (!product || !buyer || !buyerName) {
+    Alert.alert("Error", "Missing product or user information for checkout.");
+    return false;
+  }
+
+  try {
+    // Add item to checkout history
+    const { error: historyError } = await supabase
+      .from("checkout_history")
+      .insert([{
+        buyer_email: buyer.email,
+        product_name: product.product_name,
+        price: product.price,
+        quantity: 1, // Assuming checkout of 1 item
+        seller_name: product.seller_name || 'Unknown Seller',
+        checkout_date: new Date().toISOString(),
+      }]);
+
+    if (historyError) throw historyError;
+
+    // Get current product data to ensure quantity is up-to-date
+    const { data: currentProduct, error: productError } = await supabase
+      .from("products")
+      .select("quantity, email")
+      .eq("id", product.id || product.product_id) // Handle both product objects
+      .single();
+
+    if (productError || !currentProduct) {
+      throw new Error("Could not retrieve product details for checkout.");
+    }
+
+    if (currentProduct.quantity < 1) {
+      Alert.alert("Out of Stock", "This item is no longer available.");
+      return false;
+    }
+
+    // Update product quantity
+    const newQuantity = currentProduct.quantity - 1;
+    const { error: updateError } = await supabase
+      .from("products")
+      .update({ 
+        quantity: newQuantity,
+        is_visible: newQuantity > 0 
+      })
+      .eq("id", product.id || product.product_id);
+
+    if (updateError) throw updateError;
+
+    // Send notification to seller
+    await supabase.from("notifications").insert({
+      sender_id: buyer.email,
+      receiver_id: currentProduct.email,
+      title: "Product Sold! 🎉",
+      message: `${buyerName} has purchased your product: "${product.product_name}".`,
+    });
+
+    return true;
+  } catch (e) {
+    console.error("Direct checkout error:", e);
+    Alert.alert("Checkout Failed", e.message || "There was a problem processing your order.");
+    return false;
+  }
+};
+
 export default function CartScreen({ navigation }) {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -136,61 +201,22 @@ export default function CartScreen({ navigation }) {
     const itemsToCheckout = cartItems.filter((item) => selectedIds.includes(item.id));
 
     setIsCheckingOut(true);
+    let allCheckoutsSuccessful = true;
 
-    try {
-      // Add items to checkout history
-      const checkoutHistoryItems = itemsToCheckout.map(item => ({
-        buyer_email: user?.email,
-        product_name: item.product_name,
-        price: item.price,
-        quantity: item.quantity,
-        seller_name: item.productData?.seller_name,
-        checkout_date: new Date().toISOString(),
-      }));
-
-      const { error: historyError } = await supabase
-        .from("checkout_history")
-        .insert(checkoutHistoryItems);
-
-      if (historyError) throw historyError;
-
-      // Update product quantities and remove if sold out
-      for (const item of itemsToCheckout) {
-        // Get current product data
-        const { data: product, error: productError } = await supabase
-          .from("products")
-          .select("*")
-          .eq("product_name", item.product_name)
-          .maybeSingle();
-
-        if (productError || !product) continue;
-
-        const newQuantity = product.quantity - item.quantity;
-        
-        // Update product quantity
-        const { error: updateError } = await supabase
-          .from("products")
-          .update({ 
-            quantity: newQuantity,
-            is_available: newQuantity > 0 // Automatically set availability based on quantity
-          })
-          .eq("id", product.id);
-
-        if (updateError) {
-          console.error("Error updating product quantity:", updateError);
-          continue;
-        }
-
-        // Send notification to seller
-        await supabase.from("notifications").insert({
-          sender_id: user?.email || "unknown",
-          receiver_id: product.email,
-          title: "Order Received 🎉",
-          message: `${buyerName || user?.email || "A buyer"} checked out your product "${item.product_name}".`,
-          read: false,
-        });
+    for (const item of itemsToCheckout) {
+      const productToCheckout = {
+        ...item.productData,
+        product_id: item.productData.id,
+      };
+      const success = await handleDirectCheckout(productToCheckout, user, buyerName);
+      if (!success) {
+        allCheckoutsSuccessful = false;
+        // The handleDirectCheckout function already shows an alert on failure.
+        // We can break here or continue trying other items. Let's continue.
       }
-
+    }
+    
+    if (allCheckoutsSuccessful) {
       const { error } = await supabase.from("cart").delete().in("id", selectedIds);
       if (!error) {
         setCartItems(cartItems.filter((item) => !selectedIds.includes(item.id)));
@@ -200,12 +226,9 @@ export default function CartScreen({ navigation }) {
         console.error(error);
         Alert.alert("Checkout Failed", "There was a problem processing your order.");
       }
-    } catch (e) {
-      console.error("Checkout error", e);
-      Alert.alert("Checkout Failed", "There was a problem processing your order.");
-    } finally {
-      setIsCheckingOut(false);
     }
+
+    setIsCheckingOut(false);
   };
 
   const toggleSelect = (id) => {

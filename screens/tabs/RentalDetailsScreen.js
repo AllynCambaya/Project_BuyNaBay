@@ -82,7 +82,8 @@ export default function RentalDetailsScreen({ route, navigation }) {
       // Navigate to messaging screen after sending notification
       navigation.navigate('Messaging', { 
         receiverId: rentalItem.owner_email,
-        receiverName: rentalItem.seller_name
+        receiverName: rentalItem.seller_name,
+        productToSend: { ...rentalItem, product_name: rentalItem.item_name }, // Pass rental item
       });
     } catch (err) {
       console.error('Error processing rental request:', err);

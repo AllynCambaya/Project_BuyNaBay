@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -9,9 +9,11 @@ import {
   Platform,
   RefreshControl,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
@@ -21,11 +23,15 @@ import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
+const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party&Events', 'Sports&outdoors', 'Apparel', 'Vehicles', 'Other'];
+
 export default function RentalScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFocused = useIsFocused();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
@@ -34,6 +40,14 @@ export default function RentalScreen({ navigation }) {
   // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
   const styles = createStyles(theme);
+
+  const filteredItems = useMemo(() => {
+    return items.filter(item => {
+      const matchesSearch = item.item_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [items, searchQuery, selectedCategory]);
 
   useEffect(() => {
     if (isFocused) fetchRentals();
@@ -114,7 +128,7 @@ export default function RentalScreen({ navigation }) {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Icon name="cube" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{items.length}</Text>
+          <Text style={styles.statValue}>{filteredItems.length}</Text>
           <Text style={styles.statLabel}>Items</Text>
         </View>
         <View style={styles.statCard}>
@@ -134,12 +148,46 @@ export default function RentalScreen({ navigation }) {
       </View>
 
       {/* Section Title */}
-      {items.length > 0 && (
+      {filteredItems.length > 0 && (
         <View style={styles.sectionTitleContainer}>
           <Icon name="th-list" size={18} color={theme.text} />
           <Text style={styles.sectionTitle}> Available Rentals</Text>
         </View>
       )}
+
+      <View style={styles.searchContainer}>
+        <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search rentals..."
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}><Ionicons name="close-circle" size={20} color={theme.textSecondary} /></TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+          {RENTAL_CATEGORIES.map(category => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.filterChip,
+                selectedCategory === category && styles.activeFilterChip
+              ]}
+              onPress={() => setSelectedCategory(category)}
+            >
+              <Text style={[
+                styles.filterChipText,
+                selectedCategory === category && styles.activeFilterChipText
+              ]}>{category}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
 
@@ -213,6 +261,7 @@ export default function RentalScreen({ navigation }) {
                 navigation.navigate('Messaging', {
                   receiverId: item.owner_email,
                   receiverName: item.seller_name,
+                  productToSend: { ...item, product_name: item.item_name }, // Pass rental item
                 });
               }}
               activeOpacity={0.85}
@@ -229,10 +278,12 @@ export default function RentalScreen({ navigation }) {
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Icon name="cube" size={64} color={theme.textSecondary} />
-      <Text style={styles.emptyTitle}>No Rental Items Available</Text>
-      <Text style={styles.emptySubtext}>
-        Be the first to list an item for rent!
-      </Text>
+      <Text style={styles.emptyTitle}>{searchQuery || selectedCategory !== 'All' ? 'No Results Found' : 'No Rental Items Available'}</Text>
+      {searchQuery || selectedCategory !== 'All' ? (
+        <Text style={styles.emptySubtext}>No rental items match your search criteria.</Text>
+      ) : (
+        <Text style={styles.emptySubtext}>Be the first to list an item for rent!</Text>
+      )}
       <TouchableOpacity
         style={styles.addItemButton}
         onPress={() => navigation.navigate('RentItemScreen')}
@@ -263,7 +314,7 @@ export default function RentalScreen({ navigation }) {
       />
       <SafeAreaView style={styles.safeArea}>
         <FlatList
-          data={items}
+          data={filteredItems}
           keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
           renderItem={renderItem}
           ListHeaderComponent={renderHeader}
@@ -489,6 +540,56 @@ const createStyles = (theme) =>
         android: 'Poppins-ExtraBold',
         default: 'Poppins-Bold',
       }),
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackground,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      marginVertical: 16,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+    },
+    searchIcon: {
+      marginRight: 8,
+    },
+    searchInput: {
+      flex: 1,
+      height: 48,
+      color: theme.text,
+      fontSize: 15,
+    },
+    clearIcon: {
+      padding: 4,
+    },
+    filterContainer: {
+      paddingBottom: 16,
+    },
+    filterScrollContent: {
+      paddingHorizontal: 0,
+      gap: 8,
+    },
+    filterChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+    },
+    activeFilterChip: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+    },
+    filterChipText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: '500',
+    },
+    activeFilterChipText: {
+      color: '#fff',
+      fontWeight: '700',
     },
     card: {
       backgroundColor: theme.cardBackground,

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,9 +11,11 @@ import {
   Platform,
   RefreshControl,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
@@ -25,11 +27,15 @@ import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
+const SALE_CATEGORIES = ['All', 'Electronics', 'Books', 'Clothes', 'Food', 'Beauty and Personal Care', 'Toys and Games', 'Automotive', 'Sports', 'Others'];
+
 export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const currentUser = auth.currentUser;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
@@ -43,6 +49,24 @@ export default function HomeScreen({ navigation }) {
 
   // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
+
+  const uniqueSellersCount = useMemo(() => {
+    const sellerEmails = new Set(products.map(p => p.email));
+    return sellerEmails.size;
+  }, [products]);
+
+  const uniqueCategoriesCount = useMemo(() => {
+    const categories = new Set(products.map(p => p.category).filter(Boolean));
+    return categories.size;
+  }, [products]);
 
   // Initial animations
   useEffect(() => {
@@ -83,7 +107,25 @@ export default function HomeScreen({ navigation }) {
     if (error) {
       Alert.alert('Error', error.message);
     } else {
-      setProducts(data);
+      const productsWithSellerNames = await Promise.all(
+        data.map(async (product) => {
+          const { data: sellerData, error: sellerError } = await supabase
+            .from('users')
+            .select('name')
+            .eq('email', product.email)
+            .single();
+
+          if (sellerError) {
+            console.error('Error fetching seller name:', sellerError.message);
+          }
+
+          return {
+            ...product,
+            seller_name: sellerData?.name || 'Unknown Seller',
+          };
+        })
+      );
+      setProducts(productsWithSellerNames);
     }
     setLoading(false);
     setRefreshing(false);
@@ -194,17 +236,17 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Icon name="shopping-bag" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{products.length}</Text>
+          <Text style={styles.statValue}>{filteredProducts.length}</Text>
           <Text style={styles.statLabel}>Products</Text>
         </View>
         <View style={styles.statCard}>
-          <Icon name="star" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>4.8</Text>
-          <Text style={styles.statLabel}>Rating</Text>
+          <Icon name="tags" size={20} color={theme.accent} />
+          <Text style={styles.statValue}>{uniqueCategoriesCount}</Text>
+          <Text style={styles.statLabel}>Categories</Text>
         </View>
         <View style={styles.statCard}>
           <Icon name="users" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>120+</Text>
+          <Text style={styles.statValue}>{uniqueSellersCount}</Text>
           <Text style={styles.statLabel}>Sellers</Text>
         </View>
       </View>
@@ -213,6 +255,45 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.sectionTitleContainer}>
         <Icon name="th-large" size={18} color={theme.text} />
         <Text style={styles.sectionTitle}> All Products</Text>
+        <View style={styles.productCountBadge}>
+          <Text style={styles.productCountText}>
+            {filteredProducts.length}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search products..."
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}><Ionicons name="close-circle" size={20} color={theme.textSecondary} /></TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+          {SALE_CATEGORIES.map(category => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.filterChip,
+                selectedCategory === category && styles.activeFilterChip
+              ]}
+              onPress={() => setSelectedCategory(category)}
+            >
+              <Text style={[
+                styles.filterChipText,
+                selectedCategory === category && styles.activeFilterChipText
+              ]}>{category}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
     </Animated.View>
   );
@@ -240,7 +321,11 @@ export default function HomeScreen({ navigation }) {
           onDelete={() => handleDelete(item.id)}
           onMessageSeller={() => {
             if (item.email !== currentUser?.email) {
-              navigation.navigate('Messaging', { receiverId: item.email });
+              navigation.navigate('Messaging', { 
+                receiverId: item.email,
+                receiverName: item.seller_name, // Pass seller name for a better UX
+                productToSend: item, // Pass the product object
+              });
             }
           }}
           onPress={() => navigation.navigate('ProductDetails', { product: item })}
@@ -261,9 +346,15 @@ export default function HomeScreen({ navigation }) {
     >
       <Icon name="inbox" size={64} color={theme.textSecondary} />
       <Text style={styles.emptyTitle}>No Products Yet</Text>
-      <Text style={styles.emptySubtext}>
-        Be the first to add a product and start selling!
-      </Text>
+      {searchQuery || selectedCategory !== 'All' ? (
+        <Text style={styles.emptySubtext}>
+          No products match your search criteria.
+        </Text>
+      ) : (
+        <Text style={styles.emptySubtext}>
+          Be the first to add a product and start selling!
+        </Text>
+      )}
       <TouchableOpacity
         style={styles.addProductButton}
         onPress={() => navigation.navigate('AddProduct')}
@@ -294,7 +385,7 @@ export default function HomeScreen({ navigation }) {
       />
       <SafeAreaView style={styles.safeArea}>
         <FlatList
-          data={products}
+          data={filteredProducts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderProduct}
           ListHeaderComponent={renderHeader}
@@ -556,6 +647,17 @@ const createStyles = (theme) =>
         default: 'Poppins-Bold',
       }),
     },
+  productCountBadge: {
+    backgroundColor: theme.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  productCountText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
     emptyContainer: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -635,5 +737,55 @@ const createStyles = (theme) =>
         android: 'Poppins-SemiBold',
         default: 'Poppins-Medium',
       }),
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    color: theme.text,
+    fontSize: 15,
+  },
+  clearIcon: {
+    padding: 4,
+  },
+  filterContainer: {
+    paddingBottom: 16,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 0,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  activeFilterChip: {
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
+  },
+  filterChipText: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  activeFilterChipText: {
+    color: '#fff',
+    fontWeight: '700',
     },
   });

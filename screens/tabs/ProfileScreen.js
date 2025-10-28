@@ -32,10 +32,14 @@ const SALE_CATEGORIES = ['All', 'Electronics', 'Books', 'Clothes', 'Food', 'Beau
 const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party&Events', 'Sports&outdoors', 'Apparel', 'Vehicles', 'Other'];
 
 
-export default function ProfileScreen({ navigation }) {
-  const user = auth.currentUser;
-  const [name, setName] = useState(user?.displayName || '');
-  const [email, setEmail] = useState(user?.email || '');
+export default function ProfileScreen({ navigation, route }) {
+  const loggedInUser = auth.currentUser;
+  const viewingUserId = route.params?.userId;
+  const isMyProfile = !viewingUserId || viewingUserId === loggedInUser.email;
+  const profileUserEmail = isMyProfile ? loggedInUser.email : viewingUserId;
+
+  const [name, setName] = useState(loggedInUser?.displayName || '');
+  const [email, setEmail] = useState(loggedInUser?.email || '');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [studentId, setStudentId] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -77,13 +81,13 @@ export default function ProfileScreen({ navigation }) {
   }, [rentalProducts, searchQuery, selectedCategory]);
 
   const fetchMyProducts = useCallback(async () => {
-    if (!user?.email) return;
+    if (!profileUserEmail) return;
     let transformedRentalData = [];
     try {
       const { data: saleData, error: saleError } = await supabase
         .from('products')
         .select('*')
-        .eq('email', user.email)
+        .eq('email', profileUserEmail)
         .order('created_at', { ascending: false });
 
       if (saleError) throw saleError;
@@ -92,7 +96,7 @@ export default function ProfileScreen({ navigation }) {
       const { data: rentalData, error: rentalError } = await supabase
         .from('rental_items')
         .select('*')
-        .eq('owner_email', user.email)
+        .eq('owner_email', profileUserEmail)
         .order('id', { ascending: false });
 
       if (rentalError) throw rentalError;
@@ -108,14 +112,15 @@ export default function ProfileScreen({ navigation }) {
         category: item.category,
         condition: item.condition,
         rental_duration: item.rental_duration,
-        is_visible: item.is_visible ?? true
+        is_visible: item.is_visible ?? true,
+        owner_email: item.owner_email // Add this line
       })) || [];
       setRentalProducts(transformedRentalData);
     } catch (error) {
       console.error('Error fetching products:', error);
       Alert.alert('Error', 'Failed to load your products');
     }
-  }, [user?.email]);
+  }, [profileUserEmail]);
 
   const handleToggleVisibility = async (product) => {
     try {
@@ -228,28 +233,39 @@ export default function ProfileScreen({ navigation }) {
       }
     }
 
+    const CardWrapper = isMyProfile ? View : TouchableOpacity;
+    const cardProps = isMyProfile
+      ? {}
+      : {
+          onPress: () => {
+            if (isRental) {
+              navigation.navigate('RentalDetails', { rentalItem: product });
+            } else {
+              navigation.navigate('ProductDetails', { product: product });
+            }
+          },
+          activeOpacity: 0.85,
+        };
+
     return (
-      <View style={styles.productCard}>
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.productImage}
-          resizeMode="cover"
-        />
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{product.product_name}</Text>
-            
-            <View style={styles.productMetaRow}>
-              <View style={styles.priceContainer}>
-                <Text style={styles.priceLabel}>Price</Text>
-                <Text style={styles.productPrice}>
-                  <Text>₱{product.price}</Text>
-                  {isRental && product.rental_duration && (
-                    <Text style={styles.rentalDuration}> /{product.rental_duration}</Text>
-                  )}
-                </Text>
-              </View>
+      <CardWrapper style={styles.productCard} {...cardProps}>
+        <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+        <View style={styles.productInfo}>
+          <Text style={styles.productName}>{product.product_name}</Text>
+
+          <View style={styles.productMetaRow}>
+            <View style={styles.priceContainer}>
+              <Text style={styles.priceLabel}>Price</Text>
+              <Text style={styles.productPrice}>
+                <Text>₱{product.price}</Text>
+                {isRental && product.rental_duration && (
+                  <Text style={styles.rentalDuration}> /{product.rental_duration}</Text>
+                )}
+              </Text>
+            </View>
+            {isMyProfile && (
               <View style={styles.quantityContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.quantityButton}
                   onPress={() => handleQuantityChange(product, -1)}
                   disabled={product.quantity <= 0}
@@ -257,42 +273,30 @@ export default function ProfileScreen({ navigation }) {
                   <Icon name="minus" size={16} color="#fff" />
                 </TouchableOpacity>
                 <Text style={styles.quantityText}>{product.quantity}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.quantityButton}
                   onPress={() => handleQuantityChange(product, 1)}
                 >
                   <Icon name="plus" size={16} color="#fff" />
                 </TouchableOpacity>
               </View>
-            </View>
+            )}
+          </View>
 
-            {isRental ? (
-              <View style={[styles.categoryRow, { marginTop: 8 }]}>
-                {product.category && (
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryText}>{product.category}</Text>
-                  </View>
-                )}
-                {product.condition && (
-                  <View style={styles.conditionBadge}>
-                    <Text style={styles.conditionText}>{product.condition}</Text>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View style={[styles.categoryRow, { marginTop: 8 }]}>
-                {product.category && (
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryText}>{product.category}</Text>
-                  </View>
-                )}
-                {product.condition && (
-                  <View style={styles.conditionBadge}>
-                    <Text style={styles.conditionText}>{product.condition}</Text>
-                  </View>
-                )}
+          <View style={[styles.categoryRow, { marginTop: 8 }]}>
+            {product.category && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>{product.category}</Text>
               </View>
             )}
+            {product.condition && (
+              <View style={styles.conditionBadge}>
+                <Text style={styles.conditionText}>{product.condition}</Text>
+              </View>
+            )}
+          </View>
+
+          {isMyProfile ? (
             <View style={styles.availabilityContainer}>
               <Text style={styles.availabilityLabel}>Show in listings:</Text>
               <Switch
@@ -302,8 +306,24 @@ export default function ProfileScreen({ navigation }) {
                 thumbColor="#fff"
               />
             </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={(e) => {
+                e.stopPropagation(); // Prevent card's onPress from firing
+                navigation.navigate('Messaging', {
+                  receiverId: isRental ? product.owner_email : product.email,
+                  receiverName: name,
+                  productToSend: product,
+                });
+              }}
+            >
+              <Ionicons name="chatbubble" size={14} color="#fff" />
+              <Text style={styles.messageButtonText}>Message Seller</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      </View>
+      </CardWrapper>
     );
   };
 
@@ -370,14 +390,14 @@ export default function ProfileScreen({ navigation }) {
   }, []);
 
   const fetchProfile = async () => {
-    if (!user?.uid) return;
+    if (!profileUserEmail) return;
 
     setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from('users')
         .select('name, phone_number, student_id, profile_photo, created_at')
-        .eq('email', user.email)
+        .eq('email', profileUserEmail)
         .maybeSingle();
 
       if (error) {
@@ -385,6 +405,7 @@ export default function ProfileScreen({ navigation }) {
         return;
       }
 
+      setEmail(profileUserEmail);
       setName(data.name || '');
       setPhoneNumber(data.phone_number || '');
       setStudentId(data.student_id || '');
@@ -402,7 +423,7 @@ export default function ProfileScreen({ navigation }) {
       const { data: verificationData, error: verificationError } = await supabase
         .from('verifications')
         .select('status')
-        .eq('email', user.email)
+        .eq('email', profileUserEmail)
         .single();
 
       if (verificationError && verificationError.code !== 'PGRST116') {
@@ -422,16 +443,16 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     fetchProfile();
     fetchMyProducts();
-  }, [user]);
+  }, [profileUserEmail, fetchMyProducts]);
 
   useEffect(() => {
-    if (!user?.email) return;
+    if (!profileUserEmail) return;
 
     const channel = supabase
-      .channel(`verifications-${user.email}`)
+      .channel(`verifications-${profileUserEmail}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'verifications', filter: `email=eq.${user.email}` },
+        { event: 'UPDATE', schema: 'public', table: 'verifications', filter: `email=eq.${profileUserEmail}` },
         (payload) => {
           const status = payload.new?.status;
           setVerified(status === 'approved');
@@ -443,7 +464,7 @@ export default function ProfileScreen({ navigation }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [profileUserEmail]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -465,7 +486,7 @@ export default function ProfileScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await auth.signOut();
+              await loggedInUser.signOut();
               navigation.replace('Login');
             } catch (error) {
               Alert.alert('Logout Error', error.message);
@@ -487,7 +508,7 @@ export default function ProfileScreen({ navigation }) {
       const response = await fetch(imageUri);
       const arrayBuffer = await response.arrayBuffer();
       const fileExt = imageUri.split('.').pop();
-      const fileName = `${user.uid}_${Date.now()}.${fileExt}`;
+      const fileName = `${loggedInUser.uid}_${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('profile-avatars')
         .upload(fileName, arrayBuffer, {
@@ -500,7 +521,7 @@ export default function ProfileScreen({ navigation }) {
       }
       const { data } = supabase.storage.from('profile-avatars').getPublicUrl(fileName);
       const publicUrl = data.publicUrl;
-      await supabase.from('users').update({ profile_photo: publicUrl }).eq('id', user.uid);
+      await supabase.from('users').update({ profile_photo: publicUrl }).eq('id', loggedInUser.uid);
       setProfilePhoto(publicUrl);
       Alert.alert('Success', 'Profile photo updated!');
     }
@@ -526,6 +547,14 @@ export default function ProfileScreen({ navigation }) {
 
   const renderHeader = () => (
     <View style={styles.headerContentContainer}>
+      {!isMyProfile && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+      )}
       <View style={styles.backgroundGradient} />
       <Animated.View 
         style={[
@@ -536,11 +565,13 @@ export default function ProfileScreen({ navigation }) {
           }
         ]}
       >
-        <TouchableOpacity onPress={handleImagePick} style={styles.avatarContainer}>
+        <TouchableOpacity onPress={isMyProfile ? handleImagePick : undefined} style={styles.avatarContainer} disabled={!isMyProfile}>
           <Image source={getAvatarSource()} style={styles.avatar} />
-          <View style={styles.cameraIconContainer}>
-            <Icon name="camera" size={16} color="#fff" />
-          </View>
+          {isMyProfile && (
+            <View style={styles.cameraIconContainer}>
+              <Icon name="camera" size={16} color="#fff" />
+            </View>
+          )}
         </TouchableOpacity>
 
         <View style={styles.nameContainer}>
@@ -604,25 +635,27 @@ export default function ProfileScreen({ navigation }) {
           </>
         )}
 
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.button, styles.verifyButton]}
-            onPress={handleGetVerified}
-            activeOpacity={0.85}
-          >
-            <Icon name="shield" size={16} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Get Verified</Text>
-          </TouchableOpacity>
+        {isMyProfile && (
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.button, styles.verifyButton]}
+              onPress={handleGetVerified}
+              activeOpacity={0.85}
+            >
+              <Icon name="shield" size={16} color="#fff" style={styles.buttonIcon} />
+              <Text style={styles.buttonText}>Get Verified</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, styles.logoutButton]}
-            onPress={handleLogout}
-            activeOpacity={0.85}
-          >
-            <Icon name="sign-out" size={16} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.button, styles.logoutButton]}
+              onPress={handleLogout}
+              activeOpacity={0.85}
+            >
+              <Icon name="sign-out" size={16} color="#fff" style={styles.buttonIcon} />
+              <Text style={styles.buttonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </Animated.View>
 
       <View style={styles.sectionHeader}>
@@ -694,21 +727,25 @@ export default function ProfileScreen({ navigation }) {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="inbox" size={48} color={theme.textSecondary} />
-              <Text style={styles.emptyText}>
-                No {activeTab === 'sale' ? 'products' : 'rentals'} added yet
+              <Text style={styles.emptyTitle}>
+                {searchQuery || selectedCategory !== 'All' ? 'No Results Found' : `No ${activeTab === 'sale' ? 'Products' : 'Rentals'} Yet`}
               </Text>
               <Text style={styles.emptySubtext}>
-                Start {activeTab === 'sale' ? 'selling' : 'renting'} by adding your first item
+                {searchQuery || selectedCategory !== 'All'
+                  ? `No items match your criteria`
+                  : `Start ${activeTab === 'sale' ? 'selling' : 'renting'} by adding your first item`}
               </Text>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: theme.accent }]}
-                onPress={() => navigation.navigate(activeTab === 'sale' ? 'AddProduct' : 'RentItem')}
-              >
-                <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>
-                  Add {activeTab === 'sale' ? 'Product' : 'Rental Item'}
-                </Text>
-              </TouchableOpacity>
+              {isMyProfile && (
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: theme.accent }]}
+                  onPress={() => navigation.navigate(activeTab === 'sale' ? 'AddProduct' : 'RentItem')}
+                >
+                  <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
+                  <Text style={styles.buttonText}>
+                    Add {activeTab === 'sale' ? 'Product' : 'Rental Item'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           contentContainerStyle={styles.listContent}
@@ -927,6 +964,34 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     color: theme.textSecondary,
   },
+  messageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.accent,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 16,
+    alignSelf: 'flex-end',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  messageButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+    marginLeft: 6,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
@@ -952,6 +1017,18 @@ const createStyles = (theme) => StyleSheet.create({
   headerContentContainer: {
     paddingHorizontal: Math.max(width * 0.05, 20),
     paddingTop: 20,
+  },
+  backButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileHeader: {
     alignItems: 'center',
