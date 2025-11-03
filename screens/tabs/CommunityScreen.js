@@ -28,21 +28,21 @@ import { supabase } from '../../supabase/supabaseClient';
 const { width, height } = Dimensions.get('window');
 
 const REACTIONS = [
-  { key: 'like', emoji: '👍', label: 'Like' },
-  { key: 'love', emoji: '❤️', label: 'Love' },
-  { key: 'haha', emoji: '😂', label: 'Haha' },
-  { key: 'wow', emoji: '😮', label: 'Wow' },
-  { key: 'sad', emoji: '😢', label: 'Sad' },
-  { key: 'angry', emoji: '😡', label: 'Angry' },
+  { key: 'like', emoji: '👍', label: 'Like', color: '#3b82f6' },
+  { key: 'love', emoji: '❤️', label: 'Love', color: '#ef4444' },
+  { key: 'haha', emoji: '😂', label: 'Haha', color: '#f59e0b' },
+  { key: 'wow', emoji: '😮', label: 'Wow', color: '#8b5cf6' },
+  { key: 'sad', emoji: '😢', label: 'Sad', color: '#6366f1' },
+  { key: 'angry', emoji: '😡', label: 'Angry', color: '#dc2626' },
 ];
 
 const SORT_OPTIONS = [
-  { key: 'latest', label: 'Latest Posts', icon: 'time-outline' },
-  { key: 'trending', label: 'Trending', icon: 'trending-up-outline' },
-  { key: 'most_commented', label: 'Most Discussed', icon: 'chatbubbles-outline' },
+  { key: 'latest', label: 'Latest Posts', icon: 'time-outline', desc: 'Most recent first' },
+  { key: 'trending', label: 'Trending', icon: 'flame-outline', desc: 'Hot discussions' },
+  { key: 'most_commented', label: 'Most Discussed', icon: 'chatbubbles-outline', desc: 'Popular conversations' },
 ];
 
-// Helper functions for comment tree structure
+// Helper functions
 const buildCommentTree = (commentsList) => {
   const map = {};
   const roots = [];
@@ -96,7 +96,6 @@ const flattenReplies = (replyTree) => {
   return flattened;
 };
 
-// Format relative time
 const getRelativeTime = (dateString) => {
   const now = new Date();
   const past = new Date(dateString);
@@ -116,14 +115,12 @@ export default function CommunityScreen({ navigation }) {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Create post modal
   const [createVisible, setCreateVisible] = useState(false);
   const [postText, setPostText] = useState('');
   const [postImages, setPostImages] = useState([]);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [posting, setPosting] = useState(false);
 
-  // Comments modal
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [activePost, setActivePost] = useState(null);
   const [comments, setComments] = useState([]);
@@ -131,51 +128,45 @@ export default function CommunityScreen({ navigation }) {
   const [commentImage, setCommentImage] = useState(null);
   const [commenting, setCommenting] = useState(false);
 
-  // Reply UI state
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyTextMap, setReplyTextMap] = useState({});
   const [replyingMap, setReplyingMap] = useState({});
 
-  // Reaction picker
   const [reactionPickerVisible, setReactionPickerVisible] = useState(false);
   const [reactionPostTarget, setReactionPostTarget] = useState(null);
+  const [reactionScale] = useState(new Animated.Value(0));
 
-  // Image viewer
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewingImageUri, setViewingImageUri] = useState(null);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
 
-  // Filter and sort
   const [sortBy, setSortBy] = useState('latest');
   const [sortPickerVisible, setSortPickerVisible] = useState(false);
 
-  // UI/theme
   const systemColorScheme = useColorScheme();
   const isDark = systemColorScheme === 'dark';
   const [userProfileImage, setUserProfileImage] = useState(null);
   const theme = isDark ? darkTheme : lightTheme;
 
-  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const fabScale = useRef(new Animated.Value(1)).current;
 
-  // Realtime channels
   const postsChannelRef = useRef(null);
   const commentsChannelRef = useRef(null);
   const reactionsChannelRef = useRef(null);
   const dirtyTimerRef = useRef(null);
 
-  // Initialize animations
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 400,
+        duration: 500,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 400,
+        duration: 500,
         useNativeDriver: true,
       }),
     ]).start();
@@ -200,7 +191,6 @@ export default function CommunityScreen({ navigation }) {
   useEffect(() => {
     fetchPosts();
 
-    // Realtime subscription for posts
     postsChannelRef.current = supabase
       .channel('public:community_posts')
       .on(
@@ -549,6 +539,12 @@ export default function CommunityScreen({ navigation }) {
       Alert.alert('Empty Post', 'Please add some content or an image to your post.');
       return;
     }
+    
+    Animated.sequence([
+      Animated.spring(fabScale, { toValue: 0.9, useNativeDriver: true }),
+      Animated.spring(fabScale, { toValue: 1, useNativeDriver: true }),
+    ]).start();
+    
     setPosting(true);
     const tempId = `temp_${Date.now()}`;
     const currentUserData = {
@@ -926,7 +922,7 @@ export default function CommunityScreen({ navigation }) {
                 key={rc.reaction_type} 
                 style={[
                   styles.reactionEmojiCircle,
-                  { zIndex: 3 - index, marginLeft: index > 0 ? -8 : 0 }
+                  { zIndex: 3 - index, marginLeft: index > 0 ? -6 : 0 }
                 ]}
               >
                 <Text style={styles.reactionEmojiText}>{emoji}</Text>
@@ -935,7 +931,7 @@ export default function CommunityScreen({ navigation }) {
           })}
         </View>
         <Text style={[styles.reactionCountText, { color: theme.textSecondary }]}>
-          {totalReactions} {totalReactions === 1 ? 'reaction' : 'reactions'}
+          {totalReactions}
         </Text>
       </View>
     );
@@ -958,16 +954,18 @@ export default function CommunityScreen({ navigation }) {
         ]}
       >
         <View style={[styles.postCardInner, { backgroundColor: theme.cardBackground }]}>
-          {/* Post Header */}
           <View style={styles.postHeader}>
             <View style={styles.postHeaderLeft}>
               <View style={styles.avatarContainer}>
                 {avatar ? (
                   <Image source={{ uri: avatar }} style={styles.avatar} />
                 ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.accentLight }]}>
-                    <Ionicons name={item.is_anonymous ? "eye-off" : "person"} size={20} color="#fff" />
-                  </View>
+                  <LinearGradient
+                    colors={item.is_anonymous ? ['#6366f1', '#8b5cf6'] : [theme.accentGold, '#f39c12']}
+                    style={[styles.avatar, styles.avatarPlaceholder]}
+                  >
+                    <Ionicons name={item.is_anonymous ? "eye-off" : "person"} size={22} color="#fff" />
+                  </LinearGradient>
                 )}
               </View>
               <View style={styles.postAuthorInfo}>
@@ -985,17 +983,15 @@ export default function CommunityScreen({ navigation }) {
                 style={styles.postOptionsBtn}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="ellipsis-horizontal" size={20} color={theme.textSecondary} />
+                <Ionicons name="ellipsis-horizontal" size={22} color={theme.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Post Content */}
           {item.content && (
             <Text style={[styles.postContent, { color: theme.text }]}>{item.content}</Text>
           )}
 
-          {/* Post Images */}
           {item.image_urls && item.image_urls.length > 0 && (
             <ScrollView
               horizontal
@@ -1036,7 +1032,6 @@ export default function CommunityScreen({ navigation }) {
 
           {!isPending && (
             <>
-              {/* Reactions & Comments Count */}
               <View style={styles.engagementBar}>
                 {renderReactionSummary(item)}
                 {item.comments_count > 0 && (
@@ -1048,8 +1043,7 @@ export default function CommunityScreen({ navigation }) {
                 )}
               </View>
 
-              {/* Action Buttons */}
-              <View style={[styles.postActions, { borderTopColor: theme.divider }]}>
+              <View style={[styles.postActions, { borderTopColor: theme.borderColor }]}>
                 <TouchableOpacity
                   style={styles.actionBtn}
                   onPress={() => openReactionPicker(item)}
@@ -1061,7 +1055,7 @@ export default function CommunityScreen({ navigation }) {
                     </Text>
                     <Text style={[
                       styles.actionBtnText, 
-                      { color: item.my_reaction ? theme.accent : theme.textSecondary }
+                      { color: item.my_reaction ? theme.accentGold : theme.textSecondary }
                     ]}>
                       {item.my_reaction ? REACTIONS.find(r => r.key === item.my_reaction)?.label : 'React'}
                     </Text>
@@ -1127,13 +1121,25 @@ export default function CommunityScreen({ navigation }) {
   const openReactionPicker = (post) => {
     setReactionPostTarget(post);
     setReactionPickerVisible(true);
+    Animated.spring(reactionScale, {
+      toValue: 1,
+      tension: 50,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handleReact = async (reactionKey) => {
     if (!reactionPostTarget) return;
     await toggleReaction(reactionPostTarget.id, reactionKey);
-    setReactionPickerVisible(false);
-    setReactionPostTarget(null);
+    Animated.timing(reactionScale, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setReactionPickerVisible(false);
+      setReactionPostTarget(null);
+    });
   };
 
   const renderCommentItem = ({ item: comment }) => {
@@ -1149,13 +1155,16 @@ export default function CommunityScreen({ navigation }) {
             {avatar ? (
               <Image source={{ uri: avatar }} style={styles.commentAvatar} />
             ) : (
-              <View style={[styles.commentAvatar, styles.avatarPlaceholder, { backgroundColor: theme.accentLight }]}>
-                <Ionicons name="person" size={14} color="#fff" />
-              </View>
+              <LinearGradient
+                colors={[theme.accentGold, '#f39c12']}
+                style={[styles.commentAvatar, styles.avatarPlaceholder]}
+              >
+                <Ionicons name="person" size={16} color="#fff" />
+              </LinearGradient>
             )}
           </View>
           <View style={styles.commentMain}>
-            <View style={[styles.commentBubble, { backgroundColor: theme.cardBackgroundAlt }]}>
+            <View style={[styles.commentBubble, { backgroundColor: theme.commentBubble }]}>
               <Text style={[styles.commentAuthor, { color: theme.text }]}>{displayName}</Text>
               {comment.content && (
                 <Text style={[styles.commentText, { color: theme.text }]}>
@@ -1174,7 +1183,7 @@ export default function CommunityScreen({ navigation }) {
                   {getRelativeTime(comment.created_at)}
                 </Text>
                 <TouchableOpacity onPress={() => handleStartReply(comment)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={[styles.commentAction, { color: theme.accent }]}>Reply</Text>
+                  <Text style={[styles.commentAction, { color: theme.accentGold }]}>Reply</Text>
                 </TouchableOpacity>
                 {comment.user_id === user?.uid && (
                   <TouchableOpacity onPress={() => handleDeleteComment(comment)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1189,7 +1198,6 @@ export default function CommunityScreen({ navigation }) {
               </Text>
             )}
 
-            {/* Reply Input */}
             {(replyingTo === comment.id || replyingTo === comment._tempId) && (
               <View style={styles.replyInputContainer}>
                 <TextInput
@@ -1223,7 +1231,7 @@ export default function CommunityScreen({ navigation }) {
                   <TouchableOpacity
                     onPress={() => submitReply(comment.id || comment._tempId)}
                     disabled={replyingMap[comment.id || comment._tempId]}
-                    style={[styles.replyActionBtn, styles.replySendBtn, { backgroundColor: theme.accent }]}
+                    style={[styles.replyActionBtn, styles.replySendBtn, { backgroundColor: theme.accentGold }]}
                   >
                     {replyingMap[comment.id || comment._tempId] ? (
                       <ActivityIndicator size="small" color="#fff" />
@@ -1235,7 +1243,6 @@ export default function CommunityScreen({ navigation }) {
               </View>
             )}
 
-            {/* Nested Replies */}
             {comment.replies && comment.replies.length > 0 && (
               <View style={styles.repliesContainer}>
                 {flattenReplies(comment.replies).map(reply => (
@@ -1290,13 +1297,16 @@ export default function CommunityScreen({ navigation }) {
             {avatar ? (
               <Image source={{ uri: avatar }} style={styles.commentAvatar} />
             ) : (
-              <View style={[styles.commentAvatar, styles.avatarPlaceholder, { backgroundColor: theme.accentLight }]}>
-                <Ionicons name="person" size={14} color="#fff" />
-              </View>
+              <LinearGradient
+                colors={[theme.accentGold, '#f39c12']}
+                style={[styles.commentAvatar, styles.avatarPlaceholder]}
+              >
+                <Ionicons name="person" size={16} color="#fff" />
+              </LinearGradient>
             )}
           </View>
           <View style={styles.commentMain}>
-            <View style={[styles.commentBubble, { backgroundColor: theme.cardBackgroundAlt }]}>
+            <View style={[styles.commentBubble, { backgroundColor: theme.commentBubble }]}>
               <Text style={[styles.commentAuthor, { color: theme.text }]}>{displayName}</Text>
               {reply.content && (
                 <Text style={[styles.commentText, { color: theme.text }]}>
@@ -1310,7 +1320,7 @@ export default function CommunityScreen({ navigation }) {
                   {getRelativeTime(reply.created_at)}
                 </Text>
                 <TouchableOpacity onPress={() => handleStartReply(reply)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={[styles.commentAction, { color: theme.accent }]}>Reply</Text>
+                  <Text style={[styles.commentAction, { color: theme.accentGold }]}>Reply</Text>
                 </TouchableOpacity>
                 {reply.user_id === user?.uid && (
                   <TouchableOpacity onPress={() => handleDeleteComment(reply)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1358,7 +1368,7 @@ export default function CommunityScreen({ navigation }) {
                   <TouchableOpacity
                     onPress={() => submitReply(currentId)}
                     disabled={replyingMap[currentId]}
-                    style={[styles.replyActionBtn, styles.replySendBtn, { backgroundColor: theme.accent }]}
+                    style={[styles.replyActionBtn, styles.replySendBtn, { backgroundColor: theme.accentGold }]}
                   >
                     {replyingMap[currentId] ? (
                       <ActivityIndicator size="small" color="#fff" />
@@ -1388,22 +1398,26 @@ export default function CommunityScreen({ navigation }) {
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            style={[styles.filterBtn, { backgroundColor: theme.cardBackground }]}
+            style={[styles.filterBtn, { backgroundColor: theme.filterBtnBg }]}
             onPress={() => setSortPickerVisible(true)}
             activeOpacity={0.8}
           >
-            <Ionicons name="options-outline" size={22} color={theme.accent} />
+            <Ionicons name="options-outline" size={22} color={theme.accentGold} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate("ProfileScreen")}>
-            <Image
-              source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: theme.borderColor
-              }} />
+            {userProfileImage ? (
+              <Image
+                source={{ uri: userProfileImage }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <LinearGradient
+                colors={[theme.accentGold, '#f39c12']}
+                style={styles.profileImage}
+              >
+                <Ionicons name="person" size={20} color="#fff" />
+              </LinearGradient>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -1415,7 +1429,7 @@ export default function CommunityScreen({ navigation }) {
   if (loadingPosts) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.accent} />
+        <ActivityIndicator size="large" color={theme.accentGold} />
         <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading community...</Text>
       </View>
     );
@@ -1438,9 +1452,12 @@ export default function CommunityScreen({ navigation }) {
           contentContainerStyle={styles.feedContent}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <View style={[styles.emptyIconCircle, { backgroundColor: theme.cardBackgroundAlt }]}>
-                <Ionicons name="chatbubbles-outline" size={48} color={theme.textSecondary} />
-              </View>
+              <LinearGradient
+                colors={[theme.accentGold + '20', theme.accentGold + '10']}
+                style={styles.emptyIconCircle}
+              >
+                <Ionicons name="chatbubbles-outline" size={56} color={theme.accentGold} />
+              </LinearGradient>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>No Posts Yet</Text>
               <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
                 Be the first to share something with the community
@@ -1451,28 +1468,28 @@ export default function CommunityScreen({ navigation }) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[theme.accent]}
-              tintColor={theme.accent}
+              colors={[theme.accentGold]}
+              tintColor={theme.accentGold}
             />
           }
           showsVerticalScrollIndicator={false}
         />
 
-        {/* Floating Action Button */}
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.accent }]}
-          onPress={() => setCreateVisible(true)}
-          activeOpacity={0.85}
-        >
-          <LinearGradient
-            colors={['#FDAD00', '#f39c12']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.fabGradient}
+        <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
+          <TouchableOpacity
+            onPress={() => setCreateVisible(true)}
+            activeOpacity={0.85}
           >
-            <Ionicons name="add" size={28} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={[theme.accentGold, '#f39c12']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.fabGradient}
+            >
+              <Ionicons name="add" size={28} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Create Post Modal */}
         <Modal 
@@ -1482,12 +1499,11 @@ export default function CommunityScreen({ navigation }) {
           presentationStyle="pageSheet"
         >
           <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { backgroundColor: theme.background, borderBottomColor: theme.divider }]}>
+            <View style={[styles.modalHeader, { backgroundColor: theme.background, borderBottomColor: theme.borderColor }]}>
               <TouchableOpacity
                 onPress={() => !posting && setCreateVisible(false)}
                 disabled={posting}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={28} color={theme.text} />
               </TouchableOpacity>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Create Post</Text>
@@ -1496,15 +1512,19 @@ export default function CommunityScreen({ navigation }) {
                 disabled={posting || (!postText.trim() && postImages.length === 0)}
                 style={[
                   styles.postBtn,
-                  { backgroundColor: theme.accent },
                   (posting || (!postText.trim() && postImages.length === 0)) && styles.postBtnDisabled
                 ]}
               >
-                {posting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.postBtnText}>Post</Text>
-                )}
+                <LinearGradient
+                  colors={[theme.accentGold, '#f39c12']}
+                  style={styles.postBtnGradient}
+                >
+                  {posting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.postBtnText}>Post</Text>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             </View>
 
@@ -1515,12 +1535,7 @@ export default function CommunityScreen({ navigation }) {
                 multiline
                 value={postText}
                 onChangeText={setPostText}
-                style={[
-                  styles.createInput,
-                  {
-                    color: theme.text,
-                  },
-                ]}
+                style={[styles.createInput, { color: theme.text }]}
                 maxLength={5000}
               />
 
@@ -1546,14 +1561,14 @@ export default function CommunityScreen({ navigation }) {
                 </ScrollView>
               )}
 
-              <View style={[styles.createActions, { borderTopColor: theme.divider }]}>
+              <View style={[styles.createActions, { borderTopColor: theme.borderColor }]}>
                 <TouchableOpacity
                   style={styles.mediaBtn}
                   onPress={() => pickImages(false, false)}
                   disabled={posting}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="image-outline" size={24} color={theme.accent} />
+                  <Ionicons name="image-outline" size={24} color={theme.accentGold} />
                   <Text style={[styles.mediaBtnText, { color: theme.text }]}>
                     Add Photos
                   </Text>
@@ -1567,7 +1582,7 @@ export default function CommunityScreen({ navigation }) {
                     onPress={() => setIsAnonymous(s => !s)}
                     style={[
                       styles.switchTrack,
-                      { backgroundColor: isAnonymous ? theme.accent : theme.switchOff },
+                      { backgroundColor: isAnonymous ? theme.accentGold : theme.switchOff },
                     ]}
                     disabled={posting}
                     activeOpacity={0.8}
@@ -1591,7 +1606,7 @@ export default function CommunityScreen({ navigation }) {
           presentationStyle="pageSheet"
         >
           <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
-            <View style={[styles.modalHeader, { backgroundColor: theme.background, borderBottomColor: theme.divider }]}>
+            <View style={[styles.modalHeader, { backgroundColor: theme.background, borderBottomColor: theme.borderColor }]}>
               <TouchableOpacity 
                 onPress={() => setCommentsVisible(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -1610,19 +1625,25 @@ export default function CommunityScreen({ navigation }) {
               contentContainerStyle={styles.commentsContent}
               ListHeaderComponent={
                 activePost ? (
-                  <View style={[styles.postPreview, { backgroundColor: theme.cardBackgroundAlt }]}>
+                  <View style={[styles.postPreview, { backgroundColor: theme.postPreviewBg }]}>
                     <View style={styles.postPreviewHeader}>
                       <View style={styles.postPreviewAvatar}>
                         {activePost.is_anonymous ? (
-                          <View style={[styles.commentAvatar, styles.avatarPlaceholder, { backgroundColor: theme.accentLight }]}>
+                          <LinearGradient
+                            colors={['#6366f1', '#8b5cf6']}
+                            style={[styles.commentAvatar, styles.avatarPlaceholder]}
+                          >
                             <Ionicons name="eye-off" size={16} color="#fff" />
-                          </View>
+                          </LinearGradient>
                         ) : activePost.users?.profile_photo ? (
                           <Image source={{ uri: activePost.users.profile_photo }} style={styles.commentAvatar} />
                         ) : (
-                          <View style={[styles.commentAvatar, styles.avatarPlaceholder, { backgroundColor: theme.accentLight }]}>
+                          <LinearGradient
+                            colors={[theme.accentGold, '#f39c12']}
+                            style={[styles.commentAvatar, styles.avatarPlaceholder]}
+                          >
                             <Ionicons name="person" size={16} color="#fff" />
-                          </View>
+                          </LinearGradient>
                         )}
                       </View>
                       <View>
@@ -1653,8 +1674,7 @@ export default function CommunityScreen({ navigation }) {
               showsVerticalScrollIndicator={false}
             />
 
-            {/* Comment Input Box */}
-            <View style={[styles.commentInputContainer, { backgroundColor: theme.cardBackground, borderTopColor: theme.divider }]}>
+            <View style={[styles.commentInputContainer, { backgroundColor: theme.cardBackground, borderTopColor: theme.borderColor }]}>
               <View style={styles.commentInputRow}>
                 {commentImage && (
                   <View style={styles.commentImagePreview}>
@@ -1672,28 +1692,33 @@ export default function CommunityScreen({ navigation }) {
                   style={styles.commentImageBtn}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="image-outline" size={24} color={theme.accent} />
+                  <Ionicons name="image-outline" size={24} color={theme.accentGold} />
                 </TouchableOpacity>
                 <TextInput
                   placeholder="Write a comment..."
                   placeholderTextColor={theme.textTertiary}
                   value={commentText}
                   onChangeText={setCommentText}
-                  style={[styles.commentInput, { color: theme.text, backgroundColor: theme.cardBackgroundAlt }]}
+                  style={[styles.commentInput, { color: theme.text, backgroundColor: theme.commentInputBg }]}
                   multiline
                   maxLength={2000}
                 />
                 <TouchableOpacity
                   onPress={submitComment}
-                  style={[styles.commentSendBtn, { backgroundColor: theme.accent }]}
+                  style={[styles.commentSendBtn]}
                   disabled={commenting || (!commentText.trim() && !commentImage)}
                   activeOpacity={0.8}
                 >
-                  {commenting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="send" size={20} color="#fff" />
-                  )}
+                  <LinearGradient
+                    colors={[theme.accentGold, '#f39c12']}
+                    style={styles.commentSendGradient}
+                  >
+                    {commenting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name="send" size={20} color="#fff" />
+                    )}
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1705,15 +1730,32 @@ export default function CommunityScreen({ navigation }) {
           <TouchableOpacity
             style={styles.reactionOverlay}
             activeOpacity={1}
-            onPress={() => setReactionPickerVisible(false)}
+            onPress={() => {
+              Animated.timing(reactionScale, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+              }).start(() => {
+                setReactionPickerVisible(false);
+                setReactionPostTarget(null);
+              });
+            }}
           >
-            <View style={[styles.reactionPicker, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.reactionPickerTitle, { color: theme.text }]}>React to this post</Text>
+            <Animated.View 
+              style={[
+                styles.reactionPicker, 
+                { 
+                  backgroundColor: theme.cardBackground,
+                  transform: [{ scale: reactionScale }]
+                }
+              ]}
+            >
+              <Text style={[styles.reactionPickerTitle, { color: theme.text }]}>Choose your reaction</Text>
               <View style={styles.reactionsGrid}>
                 {REACTIONS.map((r) => (
                   <TouchableOpacity
                     key={r.key}
-                    style={styles.reactionOption}
+                    style={[styles.reactionOption, { backgroundColor: theme.reactionOptionBg }]}
                     onPress={() => handleReact(r.key)}
                     activeOpacity={0.7}
                   >
@@ -1724,7 +1766,7 @@ export default function CommunityScreen({ navigation }) {
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </Animated.View>
           </TouchableOpacity>
         </Modal>
 
@@ -1736,12 +1778,12 @@ export default function CommunityScreen({ navigation }) {
             onPress={() => setSortPickerVisible(false)}
           >
             <View style={[styles.sortPicker, { backgroundColor: theme.cardBackground }]}>
-              <View style={styles.sortPickerHandle} />
+              <View style={[styles.sortPickerHandle, { backgroundColor: theme.borderColor }]} />
               <Text style={[styles.sortPickerTitle, { color: theme.text }]}>Sort Posts</Text>
               {SORT_OPTIONS.map((option) => (
                 <TouchableOpacity
                   key={option.key}
-                  style={[styles.sortOption, { borderBottomColor: theme.divider }]}
+                  style={[styles.sortOption, { borderBottomColor: theme.borderColor }]}
                   onPress={() => {
                     setSortBy(option.key);
                     setSortPickerVisible(false);
@@ -1752,17 +1794,22 @@ export default function CommunityScreen({ navigation }) {
                     <Ionicons 
                       name={option.icon} 
                       size={22} 
-                      color={sortBy === option.key ? theme.accent : theme.textSecondary} 
+                      color={sortBy === option.key ? theme.accentGold : theme.textSecondary} 
                     />
-                    <Text style={[
-                      styles.sortOptionText,
-                      { color: sortBy === option.key ? theme.accent : theme.text }
-                    ]}>
-                      {option.label}
-                    </Text>
+                    <View style={styles.sortOptionTextContainer}>
+                      <Text style={[
+                        styles.sortOptionText,
+                        { color: sortBy === option.key ? theme.accentGold : theme.text }
+                      ]}>
+                        {option.label}
+                      </Text>
+                      <Text style={[styles.sortOptionDesc, { color: theme.textTertiary }]}>
+                        {option.desc}
+                      </Text>
+                    </View>
                   </View>
                   {sortBy === option.key && (
-                    <Ionicons name="checkmark-circle" size={24} color={theme.accent} />
+                    <Ionicons name="checkmark-circle" size={24} color={theme.accentGold} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -1801,38 +1848,42 @@ export default function CommunityScreen({ navigation }) {
 
 // Theme Definitions
 const darkTheme = {
-  background: '#0f0f2e',
-  cardBackground: '#1a1a3e',
-  cardBackgroundAlt: '#242449',
+  background: '#1B1B41',
+  cardBackground: '#252555',
+  postPreviewBg: '#2a2a5a',
+  commentBubble: '#2f2f65',
+  commentInputBg: '#2a2a5a',
+  filterBtnBg: '#2f2f65',
+  reactionOptionBg: '#2a2a5a',
   text: '#ffffff',
   textSecondary: '#a0a0c8',
   textTertiary: '#7878a8',
-  accent: '#FDAD00',
-  accentLight: '#FFB82E',
+  accentGold: '#FDAD00',
   success: '#4CAF50',
   error: '#FF6B6B',
   warning: '#FFA726',
-  borderColor: '#2a2a4f',
-  divider: '#2f2f5a',
+  borderColor: '#3a3a6a',
   shadowColor: '#000000',
   switchOff: '#404070',
   overlay: 'rgba(0, 0, 0, 0.85)',
 };
 
 const lightTheme = {
-  background: '#f8f9fa',
+  background: '#f5f7fa',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f0f2f5',
-  text: '#1a1a2e',
-  textSecondary: '#65676b',
+  postPreviewBg: '#f8f9fb',
+  commentBubble: '#f0f2f5',
+  commentInputBg: '#f8f9fb',
+  filterBtnBg: '#ffffff',
+  reactionOptionBg: '#f8f9fb',
+  text: '#1B1B41',
+  textSecondary: '#5a5a7a',
   textTertiary: '#8a8d91',
-  accent: '#f39c12',
-  accentLight: '#f7b731',
+  accentGold: '#FDAD00',
   success: '#27ae60',
   error: '#e74c3c',
   warning: '#f39c12',
   borderColor: '#e4e6eb',
-  divider: '#dadde1',
   shadowColor: '#000000',
   switchOff: '#ccd0d5',
   overlay: 'rgba(0, 0, 0, 0.65)',
@@ -1853,19 +1904,20 @@ const createStyles = (theme) =>
       marginTop: 16,
       fontSize: 16,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
 
     // Header
     header: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
       borderBottomWidth: 1,
       ...Platform.select({
         ios: {
           shadowColor: theme.shadowColor,
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 3,
+          shadowOpacity: 0.08,
+          shadowRadius: 4,
         },
         android: {
           elevation: 4,
@@ -1880,21 +1932,22 @@ const createStyles = (theme) =>
     headerLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 14,
     },
     headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 14,
     },
     headerLogo: {
-      width: 36,
-      height: 36,
+      width: 40,
+      height: 40,
     },
     headerTitle: {
-      fontSize: 24,
+      fontSize: 26,
       fontWeight: '700',
-      letterSpacing: 0.3,
+      fontFamily: 'Poppins',
+      letterSpacing: 0.5,
     },
     filterBtn: {
       width: 44,
@@ -1906,11 +1959,29 @@ const createStyles = (theme) =>
         ios: {
           shadowColor: theme.shadowColor,
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
+          shadowOpacity: 0.1,
           shadowRadius: 4,
         },
         android: {
-          elevation: 2,
+          elevation: 3,
+        },
+      }),
+    },
+    profileImage: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 3,
         },
       }),
     },
@@ -1925,21 +1996,21 @@ const createStyles = (theme) =>
 
     // Post Card
     postCard: {
-      marginTop: 12,
+      marginTop: 14,
       paddingHorizontal: 16,
     },
     postCardInner: {
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: 16,
+      padding: 18,
       ...Platform.select({
         ios: {
           shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
         },
         android: {
-          elevation: 2,
+          elevation: 3,
         },
       }),
     },
@@ -1947,7 +2018,7 @@ const createStyles = (theme) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 12,
+      marginBottom: 14,
     },
     postHeaderLeft: {
       flexDirection: 'row',
@@ -1958,9 +2029,11 @@ const createStyles = (theme) =>
       marginRight: 12,
     },
     avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     avatarPlaceholder: {
       justifyContent: 'center',
@@ -1972,11 +2045,13 @@ const createStyles = (theme) =>
     postAuthorName: {
       fontSize: 16,
       fontWeight: '700',
-      marginBottom: 2,
+      fontFamily: 'Poppins',
+      marginBottom: 3,
     },
     postTime: {
       fontSize: 13,
       fontWeight: '500',
+      fontFamily: 'Poppins',
     },
     postOptionsBtn: {
       padding: 8,
@@ -1984,25 +2059,26 @@ const createStyles = (theme) =>
     },
     postContent: {
       fontSize: 15,
-      lineHeight: 22,
-      marginBottom: 12,
+      lineHeight: 24,
+      marginBottom: 14,
+      fontFamily: 'Poppins',
     },
     postImagesScroll: {
-      marginHorizontal: -16,
-      marginBottom: 12,
+      marginHorizontal: -18,
+      marginBottom: 14,
     },
     postImagesContent: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 18,
     },
     postImageWrapper: {
-      marginRight: 8,
+      marginRight: 10,
       position: 'relative',
     },
     postImage: {
-      width: width - 64,
-      height: 240,
-      borderRadius: 12,
-      backgroundColor: theme.cardBackgroundAlt,
+      width: width - 72,
+      height: 260,
+      borderRadius: 14,
+      backgroundColor: theme.commentBubble,
     },
     imageOverlay: {
       position: 'absolute',
@@ -2011,7 +2087,7 @@ const createStyles = (theme) =>
       right: 0,
       bottom: 0,
       backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      borderRadius: 12,
+      borderRadius: 14,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -2019,15 +2095,16 @@ const createStyles = (theme) =>
       position: 'absolute',
       top: 12,
       right: 12,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
     },
     imageCounterText: {
       color: '#fff',
       fontSize: 12,
       fontWeight: '700',
+      fontFamily: 'Poppins',
     },
 
     // Engagement Bar
@@ -2035,90 +2112,104 @@ const createStyles = (theme) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: 8,
-      minHeight: 32,
+      paddingVertical: 10,
+      minHeight: 36,
     },
     reactionSummaryContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: 10,
     },
     reactionEmojiRow: {
       flexDirection: 'row',
     },
     reactionEmojiCircle: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: theme.cardBackgroundAlt,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: theme.cardBackground,
       justifyContent: 'center',
       alignItems: 'center',
       borderWidth: 2,
       borderColor: theme.cardBackground,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
     },
     reactionEmojiText: {
-      fontSize: 12,
+      fontSize: 13,
     },
     reactionCountText: {
-      fontSize: 13,
+      fontSize: 14,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
     commentsCountText: {
-      fontSize: 13,
+      fontSize: 14,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
 
     // Post Actions
     postActions: {
       flexDirection: 'row',
       borderTopWidth: 1,
-      paddingTop: 8,
-      marginTop: 8,
-      gap: 4,
+      paddingTop: 10,
+      marginTop: 10,
+      gap: 6,
     },
     actionBtn: {
       flex: 1,
-      paddingVertical: 8,
-      borderRadius: 8,
+      paddingVertical: 10,
+      borderRadius: 10,
       alignItems: 'center',
     },
     actionBtnContent: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 7,
     },
     actionEmoji: {
-      fontSize: 18,
+      fontSize: 19,
     },
     actionBtnText: {
       fontSize: 14,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
 
     // FAB
     fab: {
       position: 'absolute',
-      bottom: 24,
+      bottom: 28,
       right: 24,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
       ...Platform.select({
         ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 4 },
+          shadowColor: theme.accentGold,
+          shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.4,
-          shadowRadius: 8,
+          shadowRadius: 12,
         },
         android: {
-          elevation: 8,
+          elevation: 10,
         },
       }),
     },
     fabGradient: {
       width: '100%',
       height: '100%',
-      borderRadius: 30,
+      borderRadius: 32,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -2131,101 +2222,111 @@ const createStyles = (theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
       borderBottomWidth: 1,
     },
     modalTitle: {
       fontSize: 20,
       fontWeight: '700',
+      fontFamily: 'Poppins',
     },
     postBtn: {
-      paddingHorizontal: 20,
-      paddingVertical: 8,
-      borderRadius: 20,
-      minWidth: 70,
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderRadius: 22,
+      minWidth: 80,
+      height: 44,
+      overflow: 'hidden',
     },
     postBtnDisabled: {
       opacity: 0.5,
+    },
+    postBtnGradient: {
+      width: '100%',
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 20,
     },
     postBtnText: {
       color: '#fff',
       fontSize: 15,
       fontWeight: '700',
+      fontFamily: 'Poppins',
     },
 
     // Create Post
     createPostContent: {
       flex: 1,
-      padding: 16,
+      padding: 20,
     },
     createInput: {
       fontSize: 16,
-      lineHeight: 24,
-      minHeight: 150,
+      lineHeight: 26,
+      minHeight: 160,
       textAlignVertical: 'top',
-      marginBottom: 16,
+      marginBottom: 20,
+      fontFamily: 'Poppins',
     },
     previewScroll: {
-      marginBottom: 16,
+      marginBottom: 20,
     },
     previewContent: {
-      gap: 12,
+      gap: 14,
     },
     previewImageWrapper: {
       position: 'relative',
     },
     previewImage: {
-      width: 100,
-      height: 100,
-      borderRadius: 12,
-      backgroundColor: theme.cardBackgroundAlt,
+      width: 110,
+      height: 110,
+      borderRadius: 14,
+      backgroundColor: theme.commentBubble,
     },
     removePreviewBtn: {
       position: 'absolute',
       top: -10,
       right: -10,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      backgroundColor: 'rgba(0, 0, 0, 0.85)',
       borderRadius: 14,
     },
     createActions: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingTop: 16,
+      paddingTop: 20,
       borderTopWidth: 1,
     },
     mediaBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      paddingVertical: 8,
+      gap: 11,
+      paddingVertical: 10,
     },
     mediaBtnText: {
       fontSize: 15,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
     anonymousToggle: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 13,
     },
     anonymousLabel: {
       fontSize: 15,
       fontWeight: '500',
+      fontFamily: 'Poppins',
     },
     switchTrack: {
-      width: 51,
-      height: 31,
+      width: 52,
+      height: 32,
       borderRadius: 16,
       padding: 2,
       justifyContent: 'center',
     },
     switchThumb: {
-      width: 27,
-      height: 27,
+      width: 28,
+      height: 28,
       borderRadius: 14,
       backgroundColor: '#fff',
       ...Platform.select({
@@ -2233,10 +2334,10 @@ const createStyles = (theme) =>
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.2,
-          shadowRadius: 2,
+          shadowRadius: 3,
         },
         android: {
-          elevation: 2,
+          elevation: 3,
         },
       }),
     },
@@ -2249,177 +2350,194 @@ const createStyles = (theme) =>
       flex: 1,
     },
     commentsContent: {
-      padding: 16,
+      padding: 20,
       paddingBottom: 100,
     },
     postPreview: {
-      padding: 16,
-      borderRadius: 12,
-      marginBottom: 20,
+      padding: 18,
+      borderRadius: 14,
+      marginBottom: 24,
     },
     postPreviewHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 12,
-      gap: 10,
+      gap: 11,
     },
     postPreviewAvatar: {
-      width: 36,
-      height: 36,
+      width: 38,
+      height: 38,
     },
     postPreviewAuthor: {
       fontSize: 15,
       fontWeight: '700',
-      marginBottom: 2,
+      fontFamily: 'Poppins',
+      marginBottom: 3,
     },
     postPreviewTime: {
       fontSize: 12,
       fontWeight: '500',
+      fontFamily: 'Poppins',
     },
     postPreviewContent: {
       fontSize: 14,
-      lineHeight: 20,
+      lineHeight: 22,
+      fontFamily: 'Poppins',
     },
     commentItem: {
-      marginBottom: 16,
+      marginBottom: 18,
     },
     commentLayout: {
       flexDirection: 'row',
       alignItems: 'flex-start',
     },
     commentAvatarContainer: {
-      marginRight: 10,
+      marginRight: 11,
     },
     commentAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     commentMain: {
       flex: 1,
     },
     commentBubble: {
-      borderRadius: 18,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       maxWidth: '100%',
     },
     commentAuthor: {
       fontSize: 14,
       fontWeight: '700',
-      marginBottom: 4,
+      fontFamily: 'Poppins',
+      marginBottom: 5,
     },
     commentText: {
       fontSize: 14,
-      lineHeight: 20,
+      lineHeight: 22,
+      fontFamily: 'Poppins',
     },
     commentImage: {
       width: '100%',
-      maxWidth: 200,
-      height: 150,
-      borderRadius: 12,
-      marginTop: 8,
+      maxWidth: 220,
+      height: 160,
+      borderRadius: 14,
+      marginTop: 10,
       backgroundColor: theme.cardBackground,
     },
     commentFooter: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
-      marginTop: 6,
-      paddingLeft: 14,
+      gap: 18,
+      marginTop: 7,
+      paddingLeft: 16,
     },
     commentTime: {
       fontSize: 12,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
     commentAction: {
       fontSize: 13,
       fontWeight: '700',
+      fontFamily: 'Poppins',
     },
     replyInputContainer: {
-      marginTop: 12,
+      marginTop: 14,
     },
     replyInput: {
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
       fontSize: 14,
       borderWidth: 1,
-      minHeight: 40,
-      maxHeight: 100,
+      minHeight: 44,
+      maxHeight: 110,
+      fontFamily: 'Poppins',
     },
     replyActions: {
       flexDirection: 'row',
       justifyContent: 'flex-end',
-      gap: 12,
-      marginTop: 8,
+      gap: 13,
+      marginTop: 10,
     },
     replyActionBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 18,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 20,
     },
     replySendBtn: {
-      minWidth: 70,
+      minWidth: 75,
       alignItems: 'center',
     },
     replyActionText: {
       fontSize: 14,
       fontWeight: '700',
+      fontFamily: 'Poppins',
     },
     repliesContainer: {
-      marginTop: 12,
-      marginLeft: 8,
-      paddingLeft: 12,
+      marginTop: 14,
+      marginLeft: 10,
+      paddingLeft: 14,
       borderLeftWidth: 2,
-      borderLeftColor: theme.divider,
+      borderLeftColor: theme.borderColor,
     },
     replyItem: {
-      marginBottom: 12,
+      marginBottom: 14,
     },
 
     // Comment Input
     commentInputContainer: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: 18,
+      paddingVertical: 14,
       borderTopWidth: 1,
     },
     commentInputRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      gap: 10,
+      gap: 11,
     },
     commentImagePreview: {
       position: 'relative',
-      marginBottom: 4,
+      marginBottom: 5,
     },
     commentImagePreviewImg: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
+      width: 44,
+      height: 44,
+      borderRadius: 10,
     },
     removeCommentImage: {
       position: 'absolute',
-      top: -6,
-      right: -6,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      borderRadius: 10,
+      top: -7,
+      right: -7,
+      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      borderRadius: 11,
     },
     commentImageBtn: {
-      padding: 8,
+      padding: 9,
     },
     commentInput: {
       flex: 1,
-      borderRadius: 20,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      borderRadius: 22,
+      paddingHorizontal: 18,
+      paddingVertical: 11,
       fontSize: 14,
-      maxHeight: 100,
+      maxHeight: 110,
+      fontFamily: 'Poppins',
     },
     commentSendBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      overflow: 'hidden',
+    },
+    commentSendGradient: {
+      width: '100%',
+      height: '100%',
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -2430,50 +2548,63 @@ const createStyles = (theme) =>
       backgroundColor: theme.overlay,
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 20,
+      padding: 24,
     },
     reactionPicker: {
       width: '100%',
-      maxWidth: 400,
-      borderRadius: 20,
-      padding: 24,
+      maxWidth: 420,
+      borderRadius: 24,
+      padding: 28,
       ...Platform.select({
         ios: {
           shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 8 },
+          shadowOffset: { width: 0, height: 10 },
           shadowOpacity: 0.3,
-          shadowRadius: 16,
+          shadowRadius: 20,
         },
         android: {
-          elevation: 8,
+          elevation: 10,
         },
       }),
     },
     reactionPickerTitle: {
-      fontSize: 18,
+      fontSize: 19,
       fontWeight: '700',
-      marginBottom: 20,
+      fontFamily: 'Poppins',
+      marginBottom: 24,
       textAlign: 'center',
     },
     reactionsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'center',
-      gap: 16,
+      gap: 18,
     },
     reactionOption: {
       alignItems: 'center',
-      gap: 8,
-      padding: 12,
-      borderRadius: 12,
-      minWidth: 80,
+      gap: 10,
+      padding: 14,
+      borderRadius: 16,
+      minWidth: 88,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
     },
     reactionOptionEmoji: {
-      fontSize: 36,
+      fontSize: 40,
     },
     reactionOptionLabel: {
       fontSize: 13,
       fontWeight: '600',
+      fontFamily: 'Poppins',
     },
 
     // Sort Picker
@@ -2483,40 +2614,62 @@ const createStyles = (theme) =>
       justifyContent: 'flex-end',
     },
     sortPicker: {
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingTop: 12,
-      paddingBottom: 32,
-      paddingHorizontal: 20,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingTop: 14,
+      paddingBottom: 36,
+      paddingHorizontal: 24,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+        },
+        android: {
+          elevation: 8,
+        },
+      }),
     },
     sortPickerHandle: {
-      width: 40,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: theme.divider,
+      width: 44,
+      height: 5,
+      borderRadius: 3,
       alignSelf: 'center',
-      marginBottom: 20,
+      marginBottom: 24,
     },
     sortPickerTitle: {
-      fontSize: 20,
+      fontSize: 21,
       fontWeight: '700',
-      marginBottom: 20,
+      fontFamily: 'Poppins',
+      marginBottom: 24,
     },
     sortOption: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 16,
+      paddingVertical: 18,
       borderBottomWidth: 1,
     },
     sortOptionLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 14,
+      gap: 16,
+      flex: 1,
+    },
+    sortOptionTextContainer: {
+      flex: 1,
     },
     sortOptionText: {
       fontSize: 16,
       fontWeight: '600',
+      fontFamily: 'Poppins',
+      marginBottom: 3,
+    },
+    sortOptionDesc: {
+      fontSize: 13,
+      fontWeight: '400',
+      fontFamily: 'Poppins',
     },
 
     // Image Viewer
@@ -2528,17 +2681,28 @@ const createStyles = (theme) =>
     },
     imageViewerClose: {
       position: 'absolute',
-      top: Platform.OS === 'ios' ? 50 : 20,
-      right: 20,
+      top: Platform.OS === 'ios' ? 54 : 24,
+      right: 24,
       zIndex: 10,
     },
     imageViewerCloseBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
       justifyContent: 'center',
       alignItems: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+        },
+        android: {
+          elevation: 6,
+        },
+      }),
     },
     imageViewerImage: {
       width: '100%',
@@ -2549,37 +2713,40 @@ const createStyles = (theme) =>
     emptyState: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 80,
-      paddingHorizontal: 40,
+      paddingVertical: 90,
+      paddingHorizontal: 44,
     },
     emptyIconCircle: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
+      width: 110,
+      height: 110,
+      borderRadius: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 20,
+      marginBottom: 24,
     },
     emptyTitle: {
-      fontSize: 20,
+      fontSize: 22,
       fontWeight: '700',
-      marginBottom: 8,
+      fontFamily: 'Poppins',
+      marginBottom: 10,
       textAlign: 'center',
     },
     emptySubtitle: {
       fontSize: 15,
+      fontFamily: 'Poppins',
       textAlign: 'center',
-      lineHeight: 22,
+      lineHeight: 24,
     },
     emptyComments: {
       alignItems: 'center',
-      paddingVertical: 60,
-      paddingHorizontal: 32,
+      paddingVertical: 70,
+      paddingHorizontal: 36,
     },
     emptyCommentsText: {
-      marginTop: 16,
+      marginTop: 18,
       fontSize: 15,
+      fontFamily: 'Poppins',
       textAlign: 'center',
-      lineHeight: 22,
+      lineHeight: 24,
     },
   });

@@ -1,8 +1,9 @@
+// navigation/MainTabNavigator.js
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useEffect, useState } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Platform, StyleSheet, View, useColorScheme } from 'react-native';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
@@ -26,29 +27,79 @@ import VerificationStatusScreen from './VerificationStatusScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
+// Animated Tab Icon Component
+function AnimatedTabIcon({ name, color, size, focused }) {
+  const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.9)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (focused) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1.1,
+          friction: 3,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(bounceAnim, {
+            toValue: -4,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bounceAnim, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+    } else {
+      Animated.spring(scaleAnim, {
+        toValue: 0.9,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [focused]);
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{ scale: scaleAnim }, { translateY: bounceAnim }],
+      }}
+    >
+      <Ionicons name={name} size={size} color={color} />
+    </Animated.View>
+  );
+}
+
+// Custom Tab Bar Background Component
+function CustomTabBarBackground({ theme }) {
+  return (
+    <View style={styles.tabBarBackgroundContainer}>
+      <View style={[styles.tabBarBackground, { backgroundColor: theme.tabBarBackground }]} />
+      <View style={[styles.tabBarTopBorder, { backgroundColor: theme.borderColor }]} />
+    </View>
+  );
+}
+
 function Tabs({ showAdmin, userStatus }) {
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-  
-  // Get current theme colors
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Handle tab restrictions based on status
   const handleTabPress = (e, navigation, tabName) => {
-    if (userStatus === 'approved') return; // allow access
+    if (userStatus === 'approved') return;
 
     e.preventDefault();
-
     const parent = navigation.getParent ? navigation.getParent() : null;
 
-    // If pending → go to VerificationStatusScreen
     if (userStatus === 'pending') {
       if (parent && parent.navigate) parent.navigate('VerificationStatus');
       else navigation.navigate('VerificationStatus');
-    } 
-    // If not_requested → go to NotVerifiedScreen
-    else {
+    } else {
       if (parent && parent.navigate) parent.navigate('NotVerified');
       else navigation.navigate('NotVerified');
     }
@@ -60,60 +111,66 @@ function Tabs({ showAdmin, userStatus }) {
         headerShown: false,
         tabBarIcon: ({ color, size, focused }) => {
           const icons = {
-            Home: 'home',
-            Cart: 'cart',
-            Rentals: 'layers',
+            Home: focused ? 'home' : 'home-outline',
+            Cart: focused ? 'cart' : 'cart-outline',
+            Community: focused ? 'people' : 'people-outline',
             Add: 'add-circle',
-            Inbox: 'chatbox',
-            Profile: 'person',
-            Admin: 'shield-checkmark',
+            Inbox: focused ? 'chatbox' : 'chatbox-outline',
+            Admin: focused ? 'shield-checkmark' : 'shield-checkmark-outline',
           };
           const name = icons[route.name] || 'ellipse';
-          
-          // Use filled icons when focused for better visual feedback
-          const iconName = focused && route.name !== 'Add' 
-            ? name 
-            : name.replace('-outline', '');
-          
-          return <Ionicons name={iconName} size={size} color={color} />;
+
+          // Special styling for Add button
+          if (route.name === 'Add') {
+            return (
+              <View style={[styles.addButtonContainer, { backgroundColor: theme.accent }]}>
+                <Ionicons name={name} size={size + 4} color="#fff" />
+              </View>
+            );
+          }
+
+          return <AnimatedTabIcon name={name} color={color} size={size} focused={focused} />;
         },
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.tabBarInactive,
+        tabBarBackground: () => <CustomTabBarBackground theme={theme} />,
         tabBarStyle: {
-          backgroundColor: theme.tabBarBackground,
-          borderTopColor: theme.borderColor,
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
           paddingTop: 8,
-          ...Platform.select({
-            ios: {
-              shadowColor: theme.shadowColor,
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-            },
-            android: {
-              elevation: 16,
-            },
-          }),
+          paddingHorizontal: 8,
+          elevation: 0,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: Platform.OS === 'android' ? '600' : '500',
-          marginTop: 2,
+          fontWeight: Platform.OS === 'android' ? '700' : '600',
+          marginTop: route.name === 'Add' ? 6 : 2,
+          fontFamily: Platform.select({
+            ios: 'Poppins-SemiBold',
+            android: 'Poppins-Bold',
+            default: 'Poppins-SemiBold',
+          }),
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 6,
+          borderRadius: 12,
+          marginHorizontal: 2,
         },
-        // Add badge styling for notifications (can be used later)
         tabBarBadgeStyle: {
           backgroundColor: theme.badgeColor,
           color: '#fff',
           fontSize: 10,
           fontWeight: Platform.OS === 'android' ? '700' : '600',
+          minWidth: 18,
+          height: 18,
           borderRadius: 9,
-          lineHeight: Platform.OS === 'ios' ? 18 : 16,
+          borderWidth: 2,
+          borderColor: theme.tabBarBackground,
+          lineHeight: Platform.OS === 'ios' ? 14 : 12,
+          fontFamily: 'Poppins-Bold',
         },
       })}
     >
@@ -141,13 +198,10 @@ function Tabs({ showAdmin, userStatus }) {
         component={require('./CommunityScreen').default}
         options={{
           tabBarLabel: 'Community',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
-          ),
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Community'),
-       })}
+        })}
       />
 
       <Tab.Screen
@@ -155,9 +209,6 @@ function Tabs({ showAdmin, userStatus }) {
         component={AddScreen}
         options={{
           tabBarLabel: 'Add',
-          tabBarIconStyle: {
-            marginTop: -4, // Slight offset for the add button to make it more prominent
-          },
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Add'),
@@ -192,14 +243,11 @@ export default function MainTabNavigator({ route }) {
   const role = route?.params?.role ?? 'user';
   const showAdmin = role === 'admin';
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-  
-  // Get current theme colors
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  const [userStatus, setUserStatus] = useState(null); // 'approved' | 'pending' | 'not_requested'
+  const [userStatus, setUserStatus] = useState(null);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -237,12 +285,11 @@ export default function MainTabNavigator({ route }) {
         cardStyle: { 
           backgroundColor: theme.background 
         },
-        // Enhanced screen transitions
         presentation: 'card',
         animationEnabled: true,
         gestureEnabled: true,
         gestureDirection: 'horizontal',
-        cardStyleInterpolator: ({ current, layouts }) => {
+        cardStyleInterpolator: ({ current, next, layouts }) => {
           return {
             cardStyle: {
               transform: [
@@ -252,12 +299,24 @@ export default function MainTabNavigator({ route }) {
                     outputRange: [layouts.screen.width, 0],
                   }),
                 },
+                {
+                  scale: next
+                    ? next.progress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0.95],
+                      })
+                    : 1,
+                },
               ],
+              opacity: current.progress.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0, 0.5, 1],
+              }),
             },
             overlayStyle: {
               opacity: current.progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 0.5],
+                outputRange: [0, 0.3],
               }),
             },
           };
@@ -277,6 +336,24 @@ export default function MainTabNavigator({ route }) {
           presentation: 'modal',
           gestureEnabled: true,
           gestureDirection: 'vertical',
+          cardStyleInterpolator: ({ current }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1000, 0],
+                  }),
+                },
+              ],
+            },
+            overlayStyle: {
+              opacity: current.progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+              }),
+            },
+          }),
         }}
       />
       <Stack.Screen 
@@ -290,6 +367,24 @@ export default function MainTabNavigator({ route }) {
           presentation: 'modal',
           gestureEnabled: true,
           gestureDirection: 'vertical',
+          cardStyleInterpolator: ({ current }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1000, 0],
+                  }),
+                },
+              ],
+            },
+            overlayStyle: {
+              opacity: current.progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+              }),
+            },
+          }),
         }}
       />
       <Stack.Screen 
@@ -315,6 +410,34 @@ export default function MainTabNavigator({ route }) {
           presentation: 'modal',
           gestureEnabled: true,
           gestureDirection: 'vertical',
+          cardStyleInterpolator: ({ current }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1000, 0],
+                  }),
+                },
+                {
+                  scale: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.9, 1],
+                  }),
+                },
+              ],
+              opacity: current.progress.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0, 0.5, 1],
+              }),
+            },
+            overlayStyle: {
+              opacity: current.progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+              }),
+            },
+          }),
         }}
       />
       <Stack.Screen 
@@ -323,7 +446,7 @@ export default function MainTabNavigator({ route }) {
       />
       <Stack.Screen 
         name="UserProfile" 
-        component={ProfileScreen} // This is kept for backward compatibility if any other part uses it.
+        component={ProfileScreen}
       />
       <Stack.Screen
         name="AddProductScreen"
@@ -340,6 +463,24 @@ export default function MainTabNavigator({ route }) {
           presentation: 'modal',
           gestureEnabled: true,
           gestureDirection: 'vertical',
+          cardStyleInterpolator: ({ current }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1000, 0],
+                  }),
+                },
+              ],
+            },
+            overlayStyle: {
+              opacity: current.progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+              }),
+            },
+          }),
         }}
       />
       <Stack.Screen 
@@ -354,28 +495,80 @@ export default function MainTabNavigator({ route }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
 const darkTheme = {
   background: '#0f0f2e',
-  tabBarBackground: '#1e1e3f',
-  text: '#fff',
-  textSecondary: '#bbb',
+  tabBarBackground: '#1a1a3e',
+  text: '#ffffff',
+  textSecondary: '#9ca3af',
   accent: '#FDAD00',
-  tabBarInactive: '#7a7a9a',
-  borderColor: '#2a2a4a',
+  tabBarInactive: '#64748b',
+  borderColor: '#2d2d5a',
   shadowColor: '#000',
-  badgeColor: '#d32f2f',
+  badgeColor: '#ef4444',
 };
 
-// Light theme colors (matching CartScreen)
 const lightTheme = {
-  background: '#f5f7fa',
+  background: '#f8fafc',
   tabBarBackground: '#ffffff',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
+  text: '#1e293b',
+  textSecondary: '#64748b',
   accent: '#f39c12',
-  tabBarInactive: '#8a8a9a',
-  borderColor: '#e0e0ea',
+  tabBarInactive: '#94a3b8',
+  borderColor: '#e2e8f0',
   shadowColor: '#000',
-  badgeColor: '#e74c3c',
+  badgeColor: '#ef4444',
 };
+
+const styles = StyleSheet.create({
+  tabBarBackgroundContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  tabBarBackground: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  tabBarTopBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1,
+    opacity: 0.3,
+  },
+  addButtonContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FDAD00',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+});

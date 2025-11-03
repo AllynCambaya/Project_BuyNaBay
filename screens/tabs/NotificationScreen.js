@@ -27,20 +27,17 @@ export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState('all');
   const user = auth.currentUser;
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+  const headerAnim = useRef(new Animated.Value(0)).current;
 
-  // Fetch notifications
   const fetchNotifications = async (isRefreshing = false) => {
     if (!user?.email) {
       setLoading(false);
@@ -50,7 +47,6 @@ export default function NotificationsScreen({ navigation }) {
 
     if (!isRefreshing) setLoading(true);
 
-    // Get notifications for this user
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
@@ -65,8 +61,6 @@ export default function NotificationsScreen({ navigation }) {
     }
 
     const notificationsData = data || [];
-
-    // Collect unique sender emails to fetch their display names in one query
     const uniqueSenders = Array.from(new Set(notificationsData.map(n => n.sender_id).filter(Boolean)));
 
     let senderMap = {};
@@ -86,7 +80,6 @@ export default function NotificationsScreen({ navigation }) {
       }
     }
 
-    // Attach sender_name to each notification
     const annotated = notificationsData.map(n => ({
       ...n,
       sender_name: senderMap[n.sender_id] || null,
@@ -96,17 +89,21 @@ export default function NotificationsScreen({ navigation }) {
     setLoading(false);
     setRefreshing(false);
 
-    // Trigger animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 500,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
-        tension: 50,
-        friction: 7,
+        tension: 40,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerAnim, {
+        toValue: 1,
+        duration: 600,
         useNativeDriver: true,
       }),
     ]).start();
@@ -117,7 +114,6 @@ export default function NotificationsScreen({ navigation }) {
 
     if (!user?.email) return;
 
-    // Real-time subscription for new notifications
     const channel = supabase
       .channel("notifications-channel")
       .on(
@@ -141,13 +137,10 @@ export default function NotificationsScreen({ navigation }) {
   }, [user]);
 
   const navigateToMessaging = (params) => {
-    // Try current navigator, then parent, then grandparent — whichever has the route registered.
     try {
       navigation.navigate('Messaging', params);
       return;
-    } catch (e) {
-      // ignore and try parent
-    }
+    } catch (e) {}
 
     const parent = navigation.getParent && navigation.getParent();
     if (parent && parent.navigate) {
@@ -161,7 +154,6 @@ export default function NotificationsScreen({ navigation }) {
       return;
     }
 
-    // Last resort: attempt to navigate to Tabs -> Messaging if app uses nested tabs
     try {
       navigation.navigate('Tabs', { screen: 'Messaging', params });
     } catch (err) {
@@ -180,7 +172,6 @@ export default function NotificationsScreen({ navigation }) {
       if (userError) console.warn('Error fetching sender name:', userError);
 
       const receiverName = userData?.name || null;
-
       navigateToMessaging({ receiverId: notification.sender_id, receiverName });
     } catch (err) {
       console.error('Error navigating from notification:', err);
@@ -194,7 +185,7 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const getNotificationIcon = (title) => {
-    if (title.includes('Order') || title.includes('Checkout')) return 'shopping-cart';
+    if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'shopping-cart';
     if (title.includes('Rent') || title.includes('Rental')) return 'calendar';
     if (title.includes('Message')) return 'envelope';
     if (title.includes('Review')) return 'star';
@@ -202,84 +193,171 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const getNotificationColor = (title) => {
-    if (title.includes('Order') || title.includes('Checkout')) return theme.accent;
-    if (title.includes('Rent') || title.includes('Rental')) return theme.historyColor;
-    if (title.includes('Message')) return '#3a7bd5';
-    if (title.includes('Review')) return '#f39c12';
+    if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return theme.accent;
+    if (title.includes('Rent') || title.includes('Rental')) return theme.rentalColor;
+    if (title.includes('Message')) return theme.messageColor;
+    if (title.includes('Review')) return theme.reviewColor;
     return theme.accent;
   };
+
+  const getNotificationCategory = (title) => {
+    if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'orders';
+    if (title.includes('Rent') || title.includes('Rental')) return 'rentals';
+    if (title.includes('Message')) return 'messages';
+    return 'other';
+  };
+
+  const getFilteredNotifications = () => {
+    if (filter === 'all') return notifications;
+    return notifications.filter(n => getNotificationCategory(n.title) === filter);
+  };
+
+  const filteredNotifications = getFilteredNotifications();
+
+  const todayCount = notifications.filter(n => {
+    const now = new Date();
+    const notifDate = new Date(n.created_at);
+    const diffHours = (now - notifDate) / (1000 * 60 * 60);
+    return diffHours < 24;
+  }).length;
+
+  const messageCount = notifications.filter(n => n.title.includes('Message')).length;
 
   const styles = createStyles(theme);
 
   const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      {/* Background gradient effect */}
-      <View style={styles.backgroundGradient} />
-
-      {/* Back Button - upper left */}
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={styles.backButton}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="arrow-back" size={22} color={theme.text} />
-      </TouchableOpacity>
-
-      {/* Branded logo - upper left */}
-      <View style={styles.brandedLogoContainer}>
-        <Image
-          source={require('../../assets/images/OfficialBuyNaBay.png')}
-          style={styles.brandedLogoImage}
-          resizeMode="contain"
-        />
-        <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+    <Animated.View 
+      style={[
+        styles.headerContainer,
+        {
+          opacity: headerAnim,
+          transform: [{
+            translateY: headerAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-20, 0]
+            })
+          }]
+        }
+      ]}
+    >
+      <View style={styles.headerBackground}>
+        <View style={styles.gradientOverlay} />
       </View>
 
-      {/* Welcome Section */}
-      <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>Notifications</Text>
-        <Text style={styles.userName}>
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </TouchableOpacity>
+
+        <View style={styles.brandContainer}>
+          <Image
+            source={require('../../assets/images/OfficialBuyNaBay.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandText}>BuyNaBay</Text>
+        </View>
+      </View>
+
+      <View style={styles.welcomeContainer}>
+        <Text style={styles.greetingText}>Notifications</Text>
+        <Text style={styles.userNameText}>
           {user?.displayName || user?.email?.split('@')[0] || 'User'}
         </Text>
-        <Text style={styles.subtitle}>Stay updated with your activity</Text>
+        <Text style={styles.descriptionText}>Stay updated with your activity</Text>
       </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Icon name="bell" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{notifications.length}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+      <View style={styles.summaryCards}>
+        <View style={styles.summaryCard}>
+          <View style={[styles.cardIcon, { backgroundColor: `${theme.accent}15` }]}>
+            <Icon name="bell" size={18} color={theme.accent} />
+          </View>
+          <Text style={styles.cardValue}>{notifications.length}</Text>
+          <Text style={styles.cardLabel}>Total</Text>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="clock-o" size={20} color={theme.historyColor} />
-          <Text style={styles.statValue}>
-            {notifications.filter(n => {
-              const now = new Date();
-              const notifDate = new Date(n.created_at);
-              const diffHours = (now - notifDate) / (1000 * 60 * 60);
-              return diffHours < 24;
-            }).length}
-          </Text>
-          <Text style={styles.statLabel}>Today</Text>
+        <View style={styles.summaryCard}>
+          <View style={[styles.cardIcon, { backgroundColor: `${theme.rentalColor}15` }]}>
+            <Icon name="clock-o" size={18} color={theme.rentalColor} />
+          </View>
+          <Text style={styles.cardValue}>{todayCount}</Text>
+          <Text style={styles.cardLabel}>Today</Text>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="envelope" size={20} color="#3a7bd5" />
-          <Text style={styles.statValue}>
-            {notifications.filter(n => n.title.includes('Message')).length}
-          </Text>
-          <Text style={styles.statLabel}>Messages</Text>
+        <View style={styles.summaryCard}>
+          <View style={[styles.cardIcon, { backgroundColor: `${theme.messageColor}15` }]}>
+            <Icon name="envelope" size={18} color={theme.messageColor} />
+          </View>
+          <Text style={styles.cardValue}>{messageCount}</Text>
+          <Text style={styles.cardLabel}>Messages</Text>
         </View>
       </View>
 
-      {/* Section Title */}
       {notifications.length > 0 && (
-        <View style={styles.sectionTitleContainer}>
-          <Icon name="list" size={18} color={theme.text} />
-          <Text style={styles.sectionTitle}> Recent Activity</Text>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
+            onPress={() => setFilter('all')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+              All
+            </Text>
+            {filter === 'all' && <View style={styles.filterDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterChip, filter === 'orders' && styles.filterChipActive]}
+            onPress={() => setFilter('orders')}
+            activeOpacity={0.7}
+          >
+            <Icon 
+              name="shopping-cart" 
+              size={12} 
+              color={filter === 'orders' ? '#fff' : theme.textSecondary} 
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterText, filter === 'orders' && styles.filterTextActive]}>
+              Orders
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterChip, filter === 'rentals' && styles.filterChipActive]}
+            onPress={() => setFilter('rentals')}
+            activeOpacity={0.7}
+          >
+            <Icon 
+              name="calendar" 
+              size={12} 
+              color={filter === 'rentals' ? '#fff' : theme.textSecondary} 
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterText, filter === 'rentals' && styles.filterTextActive]}>
+              Rentals
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterChip, filter === 'messages' && styles.filterChipActive]}
+            onPress={() => setFilter('messages')}
+            activeOpacity={0.7}
+          >
+            <Icon 
+              name="envelope" 
+              size={12} 
+              color={filter === 'messages' ? '#fff' : theme.textSecondary} 
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterText, filter === 'messages' && styles.filterTextActive]}>
+              Messages
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 
   const renderItem = ({ item, index }) => {
@@ -292,19 +370,6 @@ export default function NotificationsScreen({ navigation }) {
     const iconName = getNotificationIcon(item.title);
     const iconColor = getNotificationColor(item.title);
 
-    const animatedStyle = {
-      opacity: fadeAnim,
-      transform: [
-        {
-          translateY: slideAnim.interpolate({
-            inputRange: [0, 50],
-            outputRange: [0, 50],
-          }),
-        },
-      ],
-    };
-
-    // Format date
     const notifDate = new Date(item.created_at);
     const now = new Date();
     const diffMs = now - notifDate;
@@ -319,37 +384,52 @@ export default function NotificationsScreen({ navigation }) {
     else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
     else timeAgo = notifDate.toLocaleDateString();
 
+    const isNew = diffHours < 24;
+
     return (
-      <Animated.View style={[animatedStyle, { paddingHorizontal: Math.max(width * 0.05, 20) }]}>
+      <Animated.View 
+        style={[
+          styles.itemContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 50],
+                outputRange: [0, 50 + index * 5]
+              })
+            }]
+          }
+        ]}
+      >
         <TouchableOpacity
           onPress={() => handleNotificationPress(item)}
-          activeOpacity={0.85}
-          style={styles.card}
+          activeOpacity={0.8}
+          style={[styles.notificationCard, isNew && styles.notificationCardNew]}
         >
-          <View style={styles.cardContent}>
-            <View style={[styles.iconContainer, { backgroundColor: `${iconColor}20` }]}>
-              <Icon name={iconName} size={24} color={iconColor} />
-            </View>
-            
-            <View style={styles.textContent}>
-              <View style={styles.titleRow}>
-                <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                <View style={styles.unreadDot} />
-              </View>
-              
-              <Text style={styles.message} numberOfLines={2}>
-                {displayMessage}
+          <View style={[styles.iconCircle, { backgroundColor: `${iconColor}20` }]}>
+            <Icon name={iconName} size={22} color={iconColor} />
+          </View>
+
+          <View style={styles.contentArea}>
+            <View style={styles.headerRow}>
+              <Text style={styles.titleText} numberOfLines={1}>
+                {item.title}
               </Text>
-              
-              <View style={styles.footerRow}>
-                <View style={styles.timeContainer}>
-                  <Icon name="clock-o" size={12} color={theme.textSecondary} />
-                  <Text style={styles.timeText}> {timeAgo}</Text>
-                </View>
-                <View style={styles.actionIndicator}>
-                  <Text style={styles.actionText}>Tap to view</Text>
-                  <Ionicons name="chevron-forward" size={14} color={theme.accent} />
-                </View>
+              {isNew && <View style={styles.newBadge} />}
+            </View>
+
+            <Text style={styles.messageText} numberOfLines={2}>
+              {displayMessage}
+            </Text>
+
+            <View style={styles.metaRow}>
+              <View style={styles.timeRow}>
+                <Icon name="clock-o" size={11} color={theme.textSecondary} />
+                <Text style={styles.timeText}> {timeAgo}</Text>
+              </View>
+              <View style={styles.actionHint}>
+                <Text style={styles.hintText}>Tap to open</Text>
+                <Ionicons name="chevron-forward" size={14} color={theme.accent} />
               </View>
             </View>
           </View>
@@ -359,27 +439,36 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Icon name="bell-slash" size={64} color={theme.textSecondary} />
+    <Animated.View 
+      style={[
+        styles.emptyState,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
+      <View style={styles.emptyIconContainer}>
+        <Icon name="bell-slash" size={72} color={theme.iconPlaceholder} />
+      </View>
       <Text style={styles.emptyTitle}>No Notifications Yet</Text>
-      <Text style={styles.emptySubtext}>
-        You're all caught up! Notifications about your orders and rentals will appear here.
+      <Text style={styles.emptyDescription}>
+        You're all caught up! Notifications about your orders and activity will appear here.
       </Text>
       <TouchableOpacity
         style={styles.exploreButton}
         onPress={() => navigation.navigate('Home')}
-        activeOpacity={0.85}
+        activeOpacity={0.8}
       >
-        <Icon name="shopping-bag" size={16} color="#fff" style={styles.buttonIcon} />
+        <Icon name="shopping-bag" size={18} color="#fff" style={{ marginRight: 10 }} />
         <Text style={styles.exploreButtonText}>Explore Products</Text>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 
-  // Full-screen loading overlay
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingOverlay}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.accent} />
         <Text style={styles.loadingText}>Loading notifications...</Text>
       </View>
@@ -393,9 +482,9 @@ export default function NotificationsScreen({ navigation }) {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.container}>
         <FlatList
-          data={notifications}
+          data={filteredNotifications}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           ListHeaderComponent={renderHeader}
@@ -416,85 +505,83 @@ export default function NotificationsScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
 const darkTheme = {
   background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
+  headerBackground: '#1b1b41',
+  text: '#ffffff',
+  textSecondary: '#a8a8c8',
   cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  cardBackgroundSelected: '#2a2a55',
+  cardBackgroundNew: '#252550',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  historyColor: '#4CAF50',
-  error: '#d32f2f',
-  shadowColor: '#000',
-  borderColor: '#2a2a4a',
-  buttonDisabled: '#555',
-  unreadDot: '#4CAF50',
+  rentalColor: '#4CAF50',
+  messageColor: '#3b82f6',
+  reviewColor: '#f59e0b',
+  border: '#2a2a4a',
+  iconPlaceholder: '#4a4a6a',
+  newBadge: '#4CAF50',
 };
 
-// Light theme colors (matching CartScreen)
 const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
+  background: '#f8f9fa',
+  headerBackground: '#e8ecf1',
   text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
+  textSecondary: '#6b7280',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  cardBackgroundSelected: '#fffbf0',
+  cardBackgroundNew: '#fffbf0',
   accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  historyColor: '#27ae60',
-  error: '#e74c3c',
-  shadowColor: '#000',
-  borderColor: '#e0e0ea',
-  buttonDisabled: '#ccc',
-  unreadDot: '#27ae60',
+  rentalColor: '#27ae60',
+  messageColor: '#3b82f6',
+  reviewColor: '#f59e0b',
+  border: '#e5e7eb',
+  iconPlaceholder: '#9ca3af',
+  newBadge: '#27ae60',
 };
 
 const createStyles = (theme) => StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: theme.background,
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
-  backgroundGradient: {
+  headerContainer: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  headerBackground: {
+    height: Platform.OS === 'ios' ? 360 : 380,
+    backgroundColor: theme.headerBackground,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
+  },
+  gradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.03,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 12 : 20,
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 340 : 360,
-    backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    zIndex: 0,
-  },
-  headerContainer: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 20,
-    zIndex: 1,
+    zIndex: 10,
   },
   backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 20,
-    left: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    marginRight: 12,
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -504,50 +591,51 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  brandedLogoContainer: {
+  brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 60,
   },
-  brandedLogoImage: {
-    width: 32,
-    height: 32,
+  brandLogo: {
+    width: 28,
+    height: 28,
     marginRight: 8,
   },
-  brandedLogoText: {
-    fontSize: 18,
+  brandText: {
+    fontSize: 17,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
-    color: theme.accentSecondary,
+    color: theme.text,
+    letterSpacing: -0.3,
+  },
+  welcomeContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 70,
+    paddingBottom: 24,
+  },
+  greetingText: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  userNameText: {
+    fontSize: Math.min(width * 0.075, 30),
+    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    color: theme.text,
+    marginBottom: 6,
     letterSpacing: -0.5,
   },
-  welcomeSection: {
-    marginTop: 70,
-    marginBottom: 24,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: Math.min(width * 0.08, 32),
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
-    marginBottom: 4,
-  },
-  subtitle: {
+  descriptionText: {
     fontSize: 14,
     color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontWeight: '400',
   },
-  statsContainer: {
+  summaryCards: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    paddingHorizontal: 20,
     gap: 12,
+    marginBottom: 20,
   },
-  statCard: {
+  summaryCard: {
     flex: 1,
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
@@ -555,9 +643,71 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  cardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardValue: {
+    fontSize: 20,
+    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    color: theme.text,
+    marginTop: 4,
+  },
+  cardLabel: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  filterChipActive: {
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
         shadowRadius: 4,
       },
       android: {
@@ -565,166 +715,163 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
+  filterText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: theme.textSecondary,
-    marginTop: 2,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
   },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
+  filterTextActive: {
+    color: '#fff',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+    marginLeft: 6,
   },
-  card: {
+  itemContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  notificationCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
-    marginBottom: 16,
-    overflow: 'hidden',
+    padding: 16,
+    flexDirection: 'row',
     borderWidth: 1,
-    borderColor: theme.borderColor,
+    borderColor: theme.border,
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 4,
+        elevation: 2,
       },
     }),
   },
-  cardContent: {
-    flexDirection: 'row',
-    padding: 16,
+  notificationCardNew: {
+    backgroundColor: theme.cardBackgroundNew,
+    borderColor: theme.accent,
+    borderWidth: 1.5,
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
-  textContent: {
+  contentArea: {
     flex: 1,
   },
-  titleRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
   },
-  title: {
+  titleText: {
     flex: 1,
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
-  unreadDot: {
+  newBadge: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.unreadDot,
+    backgroundColor: theme.newBadge,
     marginLeft: 8,
   },
-  message: {
+  messageText: {
     fontSize: 14,
     color: theme.textSecondary,
-    marginBottom: 10,
     lineHeight: 20,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    marginBottom: 10,
   },
-  footerRow: {
+  metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  timeContainer: {
+  timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   timeText: {
     fontSize: 12,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
-  actionIndicator: {
+  actionHint: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  actionText: {
+  hintText: {
     fontSize: 12,
     color: theme.accent,
     marginRight: 4,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+    fontWeight: '600',
   },
-  emptyContainer: {
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingVertical: 60,
+    paddingVertical: 80,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.cardBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   emptyTitle: {
     fontSize: 24,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    marginTop: 20,
     marginBottom: 12,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
+    textAlign: 'center',
   },
-  emptySubtext: {
-    fontSize: 16,
+  emptyDescription: {
+    fontSize: 15,
     color: theme.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 30,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 20,
   },
   exploreButton: {
     backgroundColor: theme.accent,
     paddingVertical: 14,
     paddingHorizontal: 32,
-    borderRadius: 25,
+    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
     ...Platform.select({
@@ -739,20 +886,12 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  buttonIcon: {
-    marginRight: 8,
-  },
   exploreButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
-  loadingOverlay: {
+  loadingContainer: {
     flex: 1,
     backgroundColor: theme.background,
     justifyContent: 'center',
@@ -760,7 +899,8 @@ const createStyles = (theme) => StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.textSecondary,
+    fontWeight: '500',
   },
 });

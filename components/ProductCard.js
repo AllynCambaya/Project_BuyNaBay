@@ -17,7 +17,7 @@ import { auth } from '../firebase/firebaseConfig';
 import { supabase } from '../supabase/supabaseClient';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2; // For grid view
+const CARD_WIDTH = (width - 48) / 2;
 const nameCache = {};
 
 export default function ProductCard({
@@ -27,24 +27,24 @@ export default function ProductCard({
   onDelete,
   onMessageSeller,
   onPress,
-  viewMode = 'list', // 'list' or 'grid'
+  viewMode = 'list',
 }) {
   const [sellerName, setSellerName] = useState('');
   const [imageIndex, setImageIndex] = useState(0);
+  const [isFavorite, setIsFavorite] = useState(false);
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const favoriteScaleAnim = useRef(new Animated.Value(1)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   const currentUser = auth.currentUser;
-
-  // Get current theme colors
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Parse image URLs from JSON if multiple images
+  // Parse image URLs
   const imageUrls = product.product_image_url
     ? Array.isArray(product.product_image_url)
       ? product.product_image_url
@@ -74,7 +74,6 @@ export default function ProductCard({
         .single();
 
       if (error) {
-        console.log('Failed fetching seller name:', error.message || error);
         if (mounted) setSellerName(product.email);
         return;
       }
@@ -90,12 +89,29 @@ export default function ProductCard({
     };
   }, [product]);
 
-  // Handle press animation
+  // Shimmer animation for loading state
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.97,
+      toValue: 0.96,
       useNativeDriver: true,
-      tension: 100,
+      tension: 120,
       friction: 7,
     }).start();
   };
@@ -104,18 +120,36 @@ export default function ProductCard({
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
-      tension: 100,
+      tension: 120,
       friction: 7,
     }).start();
   };
 
-  // Calculate discount percentage (if you have original price)
+  const handleFavoritePress = () => {
+    Animated.sequence([
+      Animated.spring(favoriteScaleAnim, {
+        toValue: 1.3,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 3,
+      }),
+      Animated.spring(favoriteScaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 3,
+      }),
+    ]).start();
+    setIsFavorite(!isFavorite);
+  };
+
+  // Calculate discount
   const hasDiscount = product.original_price && parseFloat(product.original_price) > parseFloat(product.price);
   const discountPercent = hasDiscount
     ? Math.round(((parseFloat(product.original_price) - parseFloat(product.price)) / parseFloat(product.original_price)) * 100)
     : 0;
 
-  // Check if product is new (created within last 7 days)
+  // Check if new product
   const isNewProduct = () => {
     if (!product.created_at) return false;
     const createdDate = new Date(product.created_at);
@@ -123,7 +157,7 @@ export default function ProductCard({
     return daysDiff <= 7;
   };
 
-  // Get stock status
+  // Stock status
   const getStockStatus = () => {
     const qty = parseInt(product.quantity) || 0;
     if (qty === 0) return { text: 'Out of Stock', color: theme.error };
@@ -132,10 +166,9 @@ export default function ProductCard({
   };
 
   const stockStatus = getStockStatus();
-
   const styles = createStyles(theme, viewMode);
 
-  // Grid View Layout
+  // Grid View
   if (viewMode === 'grid') {
     return (
       <Animated.View style={[styles.gridCardWrapper, { transform: [{ scale: scaleAnim }] }]}>
@@ -143,23 +176,27 @@ export default function ProductCard({
           onPress={onPress}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-          activeOpacity={0.95}
+          activeOpacity={1}
           style={styles.gridCard}
         >
           {/* Image Section */}
           <View style={styles.gridImageContainer}>
             {imageUrls.length > 0 ? (
-              <Image source={{ uri: imageUrls[0] }} style={styles.gridImage} />
+              <>
+                <Image source={{ uri: imageUrls[0] }} style={styles.gridImage} />
+                <View style={styles.imageOverlay} />
+              </>
             ) : (
               <View style={styles.gridImagePlaceholder}>
                 <Icon name="image" size={32} color={theme.textSecondary} />
               </View>
             )}
 
-            {/* Badges */}
+            {/* Top Badges */}
             <View style={styles.gridBadgesContainer}>
               {isNewProduct() && (
                 <View style={styles.newBadge}>
+                  <Icon name="star" size={8} color="#fff" style={{ marginRight: 3 }} />
                   <Text style={styles.newBadgeText}>NEW</Text>
                 </View>
               )}
@@ -170,10 +207,21 @@ export default function ProductCard({
               )}
             </View>
 
+            {/* Favorite Button */}
+            <Animated.View style={[styles.gridFavoriteButton, { transform: [{ scale: favoriteScaleAnim }] }]}>
+              <TouchableOpacity onPress={handleFavoritePress} activeOpacity={0.8}>
+                <Ionicons
+                  name={isFavorite ? 'heart' : 'heart-outline'}
+                  size={18}
+                  color={isFavorite ? '#FF3B30' : '#fff'}
+                />
+              </TouchableOpacity>
+            </Animated.View>
+
             {/* Image Counter */}
             {imageUrls.length > 1 && (
               <View style={styles.gridImageCounter}>
-                <Icon name="images" size={10} color="#fff" />
+                <Icon name="images" size={9} color="#fff" />
                 <Text style={styles.gridImageCounterText}> {imageUrls.length}</Text>
               </View>
             )}
@@ -183,8 +231,8 @@ export default function ProductCard({
           <View style={styles.gridInfoSection}>
             {/* Category Badge */}
             {product.category && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText} numberOfLines={1}>
+              <View style={styles.categoryBadgeSmall}>
+                <Text style={styles.categoryBadgeTextSmall} numberOfLines={1}>
                   {product.category}
                 </Text>
               </View>
@@ -204,9 +252,9 @@ export default function ProductCard({
             </View>
 
             {/* Stock Status */}
-            <View style={[styles.stockBadge, { backgroundColor: `${stockStatus.color}20` }]}>
+            <View style={[styles.stockBadgeSmall, { backgroundColor: `${stockStatus.color}15` }]}>
               <View style={[styles.stockDot, { backgroundColor: stockStatus.color }]} />
-              <Text style={[styles.stockText, { color: stockStatus.color }]}>
+              <Text style={[styles.stockTextSmall, { color: stockStatus.color }]} numberOfLines={1}>
                 {stockStatus.text}
               </Text>
             </View>
@@ -217,7 +265,7 @@ export default function ProductCard({
                 <Image source={{ uri: product.seller_avatar }} style={styles.gridSellerAvatar} />
               ) : (
                 <View style={[styles.gridSellerAvatar, styles.avatarPlaceholder]}>
-                  <Ionicons name="person" size={8} color={theme.text} />
+                  <Ionicons name="person" size={8} color={theme.textSecondary} />
                 </View>
               )}
               <Text style={styles.gridSellerName} numberOfLines={1}>
@@ -230,14 +278,14 @@ export default function ProductCard({
     );
   }
 
-  // List View Layout (Original Enhanced Design)
+  // List View
   return (
     <Animated.View style={[styles.cardWrapper, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        activeOpacity={0.95}
+        activeOpacity={1}
         style={styles.cardContainer}
       >
         <View style={styles.card}>
@@ -258,6 +306,7 @@ export default function ProductCard({
                 {imageUrls.map((uri, index) => (
                   <View key={index} style={styles.imageContainer}>
                     <Image source={{ uri }} style={styles.productImage} />
+                    <View style={styles.imageGradient} />
                   </View>
                 ))}
               </ScrollView>
@@ -287,11 +336,21 @@ export default function ProductCard({
                 )}
                 {hasDiscount && (
                   <View style={styles.discountBadge}>
-                    <Text style={styles.discountBadgeText}>-{discountPercent}%</Text>
+                    <Text style={styles.discountBadgeText}>-{discountPercent}% OFF</Text>
                   </View>
                 )}
               </View>
 
+              {/* Favorite Button */}
+              <Animated.View style={[styles.favoriteButton, { transform: [{ scale: favoriteScaleAnim }] }]}>
+                <TouchableOpacity onPress={handleFavoritePress} activeOpacity={0.8}>
+                  <Ionicons
+                    name={isFavorite ? 'heart' : 'heart-outline'}
+                    size={22}
+                    color={isFavorite ? '#FF3B30' : '#fff'}
+                  />
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
@@ -311,6 +370,7 @@ export default function ProductCard({
               )}
               {product.condition && (
                 <View style={styles.conditionBadge}>
+                  <Icon name="check-circle" size={10} color={theme.success} style={{ marginRight: 4 }} />
                   <Text style={styles.conditionBadgeText}>{product.condition}</Text>
                 </View>
               )}
@@ -324,12 +384,14 @@ export default function ProductCard({
             {/* Price Section */}
             <View style={styles.priceRow}>
               <View style={styles.priceContainer}>
-                <Icon name="tag" size={16} color={theme.accent} style={styles.priceIcon} />
                 <Text style={styles.price}>₱{product.price}</Text>
+                {hasDiscount && (
+                  <Text style={styles.originalPrice}>₱{product.original_price}</Text>
+                )}
               </View>
-              {hasDiscount && (
-                <Text style={styles.originalPrice}>₱{product.original_price}</Text>
-              )}
+              <View style={styles.priceBadge}>
+                <Icon name="tag" size={12} color={theme.accent} />
+              </View>
             </View>
 
             {/* Description */}
@@ -341,7 +403,7 @@ export default function ProductCard({
 
             {/* Stock & Quantity Info */}
             <View style={styles.stockRow}>
-              <View style={[styles.stockBadge, { backgroundColor: `${stockStatus.color}20` }]}>
+              <View style={[styles.stockBadge, { backgroundColor: `${stockStatus.color}15` }]}>
                 <View style={[styles.stockDot, { backgroundColor: stockStatus.color }]} />
                 <Text style={[styles.stockText, { color: stockStatus.color }]}>
                   {stockStatus.text}
@@ -349,7 +411,7 @@ export default function ProductCard({
               </View>
               {product.quantity && parseInt(product.quantity) > 5 && (
                 <View style={styles.quantityBadge}>
-                  <Icon name="cube" size={12} color={theme.textSecondary} />
+                  <Icon name="cube" size={11} color={theme.textSecondary} />
                   <Text style={styles.quantityText}> {product.quantity} available</Text>
                 </View>
               )}
@@ -362,9 +424,10 @@ export default function ProductCard({
                   <Image source={{ uri: product.seller_avatar }} style={styles.sellerAvatar} />
                 ) : (
                   <View style={[styles.sellerAvatar, styles.avatarPlaceholder]}>
-                    <Ionicons name="person" size={18} color={theme.text} />
+                    <Ionicons name="person" size={16} color={theme.textSecondary} />
                   </View>
                 )}
+                <View style={styles.onlineIndicator} />
               </View>
               <View style={styles.sellerInfo}>
                 <Text style={styles.sellerLabel}>Seller</Text>
@@ -377,7 +440,7 @@ export default function ProductCard({
                 onPress={onMessageSeller}
                 activeOpacity={0.8}
               >
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.accent} />
+                <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
@@ -388,7 +451,7 @@ export default function ProductCard({
               <TouchableOpacity
                 style={[styles.actionButton, styles.editButton]}
                 onPress={onEdit}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
                 <Ionicons name="pencil" size={16} color="#fff" />
                 <Text style={styles.actionButtonText}>Edit</Text>
@@ -396,7 +459,7 @@ export default function ProductCard({
               <TouchableOpacity
                 style={[styles.actionButton, styles.deleteButton]}
                 onPress={onDelete}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
                 <Ionicons name="trash" size={16} color="#fff" />
                 <Text style={styles.actionButtonText}>Delete</Text>
@@ -409,7 +472,6 @@ export default function ProductCard({
   );
 }
 
-// Dark theme colors
 const darkTheme = {
   background: '#0f0f2e',
   cardBackground: '#1e1e3f',
@@ -428,7 +490,6 @@ const darkTheme = {
   overlayColor: 'rgba(0, 0, 0, 0.6)',
 };
 
-// Light theme colors
 const lightTheme = {
   background: '#f5f7fa',
   cardBackground: '#ffffff',
@@ -449,6 +510,9 @@ const lightTheme = {
 
 const createStyles = (theme, viewMode) =>
   StyleSheet.create({
+    cardWrapper: {
+      marginBottom: 20,
+    },
     // Grid View Styles
     gridCardWrapper: {
       width: CARD_WIDTH,
@@ -456,148 +520,7 @@ const createStyles = (theme, viewMode) =>
     },
     gridCard: {
       backgroundColor: theme.cardBackground,
-      borderRadius: 16,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
-    },
-    gridImageContainer: {
-      width: '100%',
-      height: CARD_WIDTH * 1.1,
-      position: 'relative',
-      backgroundColor: theme.cardBackgroundAlt,
-    },
-    gridImage: {
-      width: '100%',
-      height: '100%',
-      resizeMode: 'cover',
-    },
-    gridImagePlaceholder: {
-      width: '100%',
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.cardBackgroundAlt,
-    },
-    gridBadgesContainer: {
-      position: 'absolute',
-      top: 8,
-      left: 8,
-      gap: 6,
-    },
-    gridImageCounter: {
-      position: 'absolute',
-      bottom: 8,
-      right: 8,
-      backgroundColor: theme.overlayColor,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    gridImageCounterText: {
-      color: '#fff',
-      fontSize: 10,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
-    },
-    gridInfoSection: {
-      padding: 12,
-    },
-    gridProductName: {
-      fontSize: 14,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      color: theme.text,
-      marginBottom: 6,
-      lineHeight: 18,
-      minHeight: 36,
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
-    },
-    gridPriceSection: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 8,
-      gap: 6,
-    },
-    gridPrice: {
-      fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
-      color: theme.accent,
-      fontFamily: Platform.select({
-        ios: 'Poppins-ExtraBold',
-        android: 'Poppins-Black',
-        default: 'Poppins-ExtraBold',
-      }),
-    },
-    gridOriginalPrice: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      textDecorationLine: 'line-through',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
-    },
-    gridSellerContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 6,
-      paddingTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: theme.borderColor,
-      gap: 4,
-    },
-    gridSellerAvatar: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: theme.cardBackgroundAlt,
-    },
-    gridSellerName: {
-      fontSize: 11,
-      color: theme.textSecondary,
-      flex: 1,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
-    },
-    gridFavoriteButton: {
-      position: 'absolute',
-      top: 8,
-      right: 8,
-      width: 36,
-      height: 36,
       borderRadius: 18,
-      backgroundColor: theme.overlayColor,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    card: {
-      backgroundColor: theme.cardBackground,
-      borderRadius: 16,
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: theme.borderColor,
@@ -613,23 +536,202 @@ const createStyles = (theme, viewMode) =>
         },
       }),
     },
+    gridImageContainer: {
+      width: '100%',
+      height: CARD_WIDTH * 1.15,
+      position: 'relative',
+      backgroundColor: theme.cardBackgroundAlt,
+    },
+    gridImage: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
+    },
+    imageOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    },
+    gridImagePlaceholder: {
+      width: '100%',
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt,
+    },
+    gridBadgesContainer: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      gap: 6,
+    },
+    gridFavoriteButton: {
+      position: 'absolute',
+      top: 10,
+      right: 10,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.overlayColor,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 3,
+        },
+      }),
+    },
+    gridImageCounter: {
+      position: 'absolute',
+      bottom: 10,
+      right: 10,
+      backgroundColor: theme.overlayColor,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    gridImageCounterText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '700',
+      fontFamily: 'Poppins-Bold',
+    },
+    gridInfoSection: {
+      padding: 14,
+    },
+    categoryBadgeSmall: {
+      alignSelf: 'flex-start',
+      backgroundColor: `${theme.accent}18`,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      marginBottom: 8,
+    },
+    categoryBadgeTextSmall: {
+      fontSize: 9,
+      color: theme.accent,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      fontFamily: 'Poppins-Bold',
+    },
+    gridProductName: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: theme.text,
+      marginBottom: 8,
+      lineHeight: 19,
+      minHeight: 38,
+      fontFamily: 'Poppins-Bold',
+    },
+    gridPriceSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+      gap: 6,
+    },
+    gridPrice: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: theme.accent,
+      fontFamily: 'Poppins-ExtraBold',
+    },
+    gridOriginalPrice: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      textDecorationLine: 'line-through',
+      fontFamily: 'Poppins-Regular',
+    },
+    stockBadgeSmall: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 6,
+      gap: 4,
+      marginBottom: 8,
+    },
+    stockTextSmall: {
+      fontSize: 10,
+      fontWeight: '600',
+      fontFamily: 'Poppins-SemiBold',
+    },
+    gridSellerContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderColor,
+      gap: 6,
+    },
+    gridSellerAvatar: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: theme.cardBackgroundAlt,
+    },
+    gridSellerName: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      flex: 1,
+      fontFamily: 'Poppins-Medium',
+    },
+    // List View Styles
+    card: {
+      backgroundColor: theme.cardBackground,
+      borderRadius: 20,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+        },
+        android: {
+          elevation: 6,
+        },
+      }),
+    },
     imageSection: {
       width: '100%',
-      height: 240,
+      height: 260,
       position: 'relative',
+      backgroundColor: theme.cardBackgroundAlt,
     },
     imageContainer: {
       width: width - 40,
-      height: 240,
+      height: 260,
     },
     productImage: {
       width: '100%',
       height: '100%',
       resizeMode: 'cover',
     },
+    imageGradient: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 60,
+      backgroundColor: 'transparent',
+    },
     imageIndicators: {
       position: 'absolute',
-      bottom: 12,
+      bottom: 14,
       left: 0,
       right: 0,
       flexDirection: 'row',
@@ -641,54 +743,103 @@ const createStyles = (theme, viewMode) =>
       height: 6,
       borderRadius: 3,
       backgroundColor: 'rgba(255, 255, 255, 0.5)',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.3,
+          shadowRadius: 2,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
     },
     activeIndicator: {
       backgroundColor: '#fff',
-      width: 20,
+      width: 24,
     },
     badgesContainer: {
       position: 'absolute',
-      top: 12,
-      left: 12,
+      top: 14,
+      left: 14,
       gap: 8,
     },
     newBadge: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: theme.success,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.success,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.4,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 4,
+        },
+      }),
     },
     newBadgeText: {
       color: '#fff',
       fontSize: 11,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      fontFamily: 'Poppins-ExtraBold',
     },
     discountBadge: {
       backgroundColor: '#FF3B30',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#FF3B30',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.4,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 4,
+        },
+      }),
     },
     discountBadgeText: {
       color: '#fff',
       fontSize: 11,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      fontFamily: 'Poppins-ExtraBold',
+    },
+    favoriteButton: {
+      position: 'absolute',
+      top: 14,
+      right: 14,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.overlayColor,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.3,
+          shadowRadius: 6,
+        },
+        android: {
+          elevation: 5,
+        },
       }),
     },
     imagePlaceholder: {
       width: '100%',
-      height: 240,
+      height: 260,
       backgroundColor: theme.cardBackgroundAlt,
       justifyContent: 'center',
       alignItems: 'center',
@@ -696,166 +847,151 @@ const createStyles = (theme, viewMode) =>
       borderBottomColor: theme.borderColor,
     },
     placeholderText: {
-      marginTop: 8,
+      marginTop: 12,
       fontSize: 14,
       color: theme.textSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      fontFamily: 'Poppins-Medium',
     },
     infoSection: {
-      padding: 16,
+      padding: 18,
     },
     tagsRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
-      marginBottom: 12,
+      marginBottom: 14,
     },
     categoryBadge: {
-      backgroundColor: `${theme.accent}20`,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 8,
+      backgroundColor: `${theme.accent}18`,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: `${theme.accent}30`,
     },
     categoryBadgeText: {
       fontSize: 11,
       color: theme.accent,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      fontFamily: 'Poppins-Bold',
     },
     conditionBadge: {
-      backgroundColor: `${theme.success}20`,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: `${theme.success}18`,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: `${theme.success}30`,
     },
     conditionBadgeText: {
       fontSize: 11,
       color: theme.success,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
+      fontWeight: '700',
+      fontFamily: 'Poppins-Bold',
     },
     productName: {
-      fontSize: 20,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontSize: 22,
+      fontWeight: '800',
       color: theme.text,
-      marginBottom: 12,
-      lineHeight: 26,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
+      marginBottom: 14,
+      lineHeight: 30,
+      letterSpacing: -0.3,
+      fontFamily: 'Poppins-ExtraBold',
     },
     priceRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 12,
-      gap: 12,
+      marginBottom: 14,
+      gap: 10,
     },
     priceContainer: {
       flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      backgroundColor: theme.accent + '15',
+      alignItems: 'baseline',
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      backgroundColor: `${theme.accent}12`,
       borderRadius: 12,
+      flex: 1,
+      gap: 8,
     },
-    priceIcon: {
-      marginRight: 8,
+    priceBadge: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: `${theme.accent}20`,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     price: {
-      fontSize: 22,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
+      fontSize: 24,
+      fontWeight: '900',
       color: theme.accent,
-      fontFamily: Platform.select({
-        ios: 'Poppins-ExtraBold',
-        android: 'Poppins-Black',
-        default: 'Poppins-ExtraBold',
-      }),
+      letterSpacing: -0.5,
+      fontFamily: 'Poppins-Black',
     },
     originalPrice: {
       fontSize: 16,
       color: theme.textSecondary,
       textDecorationLine: 'line-through',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      fontFamily: 'Poppins-Regular',
     },
     description: {
       fontSize: 15,
       color: theme.textSecondary,
-      lineHeight: 22,
-      marginBottom: 12,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      lineHeight: 23,
+      marginBottom: 14,
+      fontFamily: 'Poppins-Regular',
     },
     stockRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 12,
+      marginBottom: 14,
       gap: 10,
     },
     stockBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
       gap: 6,
+      borderWidth: 1,
+      borderColor: 'transparent',
     },
     stockDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
+      width: 7,
+      height: 7,
+      borderRadius: 4,
     },
     stockText: {
       fontSize: 12,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
+      fontWeight: '700',
+      fontFamily: 'Poppins-Bold',
     },
     quantityBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
       backgroundColor: theme.cardBackgroundAlt,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
     },
     quantityText: {
       fontSize: 12,
       color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      fontWeight: '500',
+      fontFamily: 'Poppins-Medium',
     },
     sellerContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingTop: 12,
+      paddingTop: 14,
       borderTopWidth: 1,
       borderTopColor: theme.borderColor,
     },
@@ -863,9 +999,12 @@ const createStyles = (theme, viewMode) =>
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: theme.cardBackgroundAlt,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
     },
     sellerIconContainer: {
-      marginRight: 8,
+      marginRight: 12,
+      position: 'relative',
     },
     sellerInfo: {
       flex: 1,
@@ -873,61 +1012,79 @@ const createStyles = (theme, viewMode) =>
     sellerLabel: {
       fontSize: 11,
       color: theme.textSecondary,
-      marginBottom: 2,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      marginBottom: 3,
+      fontWeight: '500',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      fontFamily: 'Poppins-Medium',
     },
     sellerAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 2,
+      borderColor: theme.accent,
+    },
+    onlineIndicator: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: theme.success,
+      borderWidth: 2,
+      borderColor: theme.cardBackground,
     },
     sellerName: {
-      fontSize: 14,
+      fontSize: 15,
       color: theme.text,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
+      fontWeight: '700',
+      fontFamily: 'Poppins-Bold',
     },
     quickMessageButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: `${theme.accent}20`,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.accent,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.4,
+          shadowRadius: 6,
+        },
+        android: {
+          elevation: 5,
+        },
+      }),
     },
     actionSection: {
       flexDirection: 'row',
-      padding: 16,
+      padding: 18,
       paddingTop: 0,
-      gap: 10,
+      gap: 12,
     },
     actionButton: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+      paddingVertical: Platform.OS === 'ios' ? 15 : 13,
       paddingHorizontal: 20,
-      borderRadius: 12,
+      borderRadius: 14,
       gap: 8,
       ...Platform.select({
         ios: {
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.2,
-          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
         },
         android: {
-          elevation: 4,
+          elevation: 5,
         },
       }),
     },
@@ -940,11 +1097,8 @@ const createStyles = (theme, viewMode) =>
     actionButtonText: {
       color: '#fff',
       fontSize: 15,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
+      fontWeight: '800',
+      letterSpacing: 0.3,
+      fontFamily: 'Poppins-ExtraBold',
     },
   });

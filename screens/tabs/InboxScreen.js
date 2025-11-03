@@ -1,7 +1,8 @@
 // screens/InboxScreen.js
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -10,6 +11,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
@@ -23,12 +25,19 @@ const { width, height } = Dimensions.get('window');
 
 export default function InboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
+  const [filteredConversations, setFilteredConversations] = useState([]);
   const [userNames, setUserNames] = useState({});
   const [lastMessages, setLastMessages] = useState({});
   const [unreadMessages, setUnreadMessages] = useState({});
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
   const user = auth.currentUser;
+
+  // Animation refs
+  const searchAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
@@ -87,6 +96,7 @@ export default function InboxScreen({ navigation }) {
     });
 
     setConversations(userList);
+    setFilteredConversations(userList);
     setLastMessages(lastMsgs);
     setUnreadMessages(unreadCount);
 
@@ -102,6 +112,13 @@ export default function InboxScreen({ navigation }) {
     }
     
     setLoading(false);
+    
+    // Fade in animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
   };
 
   useEffect(() => {
@@ -110,11 +127,42 @@ export default function InboxScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Search filter
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredConversations(conversations);
+    } else {
+      const filtered = conversations.filter(item => {
+        const userData = userNames[item];
+        const name = userData?.name || item;
+        return name.toLowerCase().includes(searchQuery.toLowerCase());
+      });
+      setFilteredConversations(filtered);
+    }
+  }, [searchQuery, conversations, userNames]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchConversations();
     setRefreshing(false);
   }, [user]);
+
+  // Toggle search bar
+  const toggleSearch = () => {
+    const newValue = !searchVisible;
+    setSearchVisible(newValue);
+    
+    Animated.spring(searchAnim, {
+      toValue: newValue ? 1 : 0,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 7,
+    }).start();
+    
+    if (!newValue) {
+      setSearchQuery('');
+    }
+  };
 
   // --- Clear unread messages for a conversation ---
   const clearUnread = async (otherUser) => {
@@ -138,56 +186,136 @@ export default function InboxScreen({ navigation }) {
   // Calculate total unread messages
   const totalUnread = Object.values(unreadMessages).reduce((sum, count) => sum + count, 0);
 
+  // Format relative time
+  const getRelativeTime = (timestamp) => {
+    const now = new Date();
+    const msgDate = new Date(timestamp);
+    const diffMs = now - msgDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    
+    return msgDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Background gradient effect */}
+      {/* Gradient Background */}
       <View style={styles.backgroundGradient} />
 
-      {/* Branded logo - upper left */}
-      <View style={styles.brandedLogoContainer}>
-        <Image
-          source={require('../../assets/images/OfficialBuyNaBay.png')}
-          style={styles.brandedLogoImage}
-          resizeMode="contain"
-        />
-        <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+      {/* Top Navigation Bar */}
+      <View style={styles.topNav}>
+        <View style={styles.brandSection}>
+          <Image
+            source={require('../../assets/images/OfficialBuyNaBay.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandText}>BuyNaBay</Text>
+        </View>
+        
+        <View style={styles.navActions}>
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={toggleSearch}
+            activeOpacity={0.7}
+          >
+            <Icon name={searchVisible ? "times" : "search"} size={18} color={theme.text} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Search Bar */}
+      {searchVisible && (
+        <Animated.View 
+          style={[
+            styles.searchContainer,
+            {
+              opacity: searchAnim,
+              transform: [{
+                translateY: searchAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              }],
+            }
+          ]}
+        >
+          <Icon name="search" size={16} color={theme.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search conversations..."
+            placeholderTextColor={theme.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Icon name="times-circle" size={16} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+      )}
 
       {/* Welcome Section */}
       <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>Messages</Text>
-        <Text style={styles.userName}>
+        <Text style={styles.greetingText}>Messages</Text>
+        <Text style={styles.userNameText}>
           {user?.displayName || user?.email?.split('@')[0] || 'User'}
         </Text>
-        <Text style={styles.subtitle}>Stay connected with your chats</Text>
       </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Icon name="comments" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{conversations.length}</Text>
-          <Text style={styles.statLabel}>Chats</Text>
+      {/* Quick Stats */}
+      <View style={styles.statsRow}>
+        <View style={styles.statPill}>
+          <View style={styles.statIconContainer}>
+            <Icon name="comments" size={16} color={theme.accent} />
+          </View>
+          <View style={styles.statContent}>
+            <Text style={styles.statValue}>{conversations.length}</Text>
+            <Text style={styles.statLabel}>Active</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="envelope" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{totalUnread}</Text>
-          <Text style={styles.statLabel}>Unread</Text>
+
+        <View style={styles.statPill}>
+          <View style={[styles.statIconContainer, totalUnread > 0 && styles.statIconActive]}>
+            <Icon name="envelope" size={16} color={totalUnread > 0 ? '#fff' : theme.accent} />
+          </View>
+          <View style={styles.statContent}>
+            <Text style={[styles.statValue, totalUnread > 0 && styles.statValueActive]}>
+              {totalUnread}
+            </Text>
+            <Text style={styles.statLabel}>Unread</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="check-circle" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>
-            {conversations.length - Object.keys(unreadMessages).filter(k => unreadMessages[k] > 0).length}
-          </Text>
-          <Text style={styles.statLabel}>Read</Text>
+
+        <View style={styles.statPill}>
+          <View style={styles.statIconContainer}>
+            <Icon name="clock-o" size={16} color={theme.accent} />
+          </View>
+          <View style={styles.statContent}>
+            <Text style={styles.statValue}>
+              {conversations.length > 0 ? getRelativeTime(
+                Math.max(...Object.values(lastMessages).map(m => new Date(m.created_at).getTime()))
+              ) : '-'}
+            </Text>
+            <Text style={styles.statLabel}>Latest</Text>
+          </View>
         </View>
       </View>
 
-      {/* Section Title */}
-      {conversations.length > 0 && (
-        <View style={styles.sectionTitleContainer}>
-          <Icon name="comment" size={18} color={theme.text} />
-          <Text style={styles.sectionTitle}> Conversations</Text>
+      {/* Section Divider */}
+      {filteredConversations.length > 0 && (
+        <View style={styles.sectionDivider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>Recent Chats</Text>
+          <View style={styles.dividerLine} />
         </View>
       )}
     </View>
@@ -198,98 +326,106 @@ export default function InboxScreen({ navigation }) {
     const lastMsgData = lastMessages[item];
     const unreadCount = unreadMessages[item] || 0;
     
-    // Format time
-    const formattedTime = lastMsgData 
-      ? new Date(lastMsgData.created_at).toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }) 
-      : 'Now';
+    const relativeTime = lastMsgData ? getRelativeTime(lastMsgData.created_at) : 'Now';
     
     const lastText = lastMsgData?.text 
       ? lastMsgData.text 
-      : lastMsgData ? '[Product Inquiry]' : 'No messages yet';
+      : lastMsgData ? '📦 Product Inquiry' : 'No messages yet';
     const isUnread = unreadCount > 0;
     const isSentByMe = lastMsgData?.sender_id === user.email;
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.conversationCard,
-          isUnread && styles.conversationCardUnread,
-        ]}
-        activeOpacity={0.85}
-        onPress={() => {
-          navigation.navigate('Messaging', {
-            receiverId: item,
-            receiverName: userData?.name || item,
-          });
-          clearUnread(item);
-        }}
-      >
-        <View style={styles.avatarContainer}>
-          <Image
-            source={{
-              uri: userData?.profile_photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
-            }}
-            style={styles.avatar}
-          />
-          {isUnread && <View style={styles.avatarBadge} />}
-        </View>
-
-        <View style={styles.conversationContent}>
-          <View style={styles.conversationHeader}>
-            <Text style={styles.conversationName} numberOfLines={1}>
-              {userData?.name || item}
-            </Text>
-            <Text style={styles.conversationTime}>{formattedTime}</Text>
-          </View>
-          
-          <View style={styles.messagePreviewContainer}>
-            <Text 
-              style={[
-                styles.messagePreview,
-                isUnread && styles.messagePreviewUnread
-              ]} 
-              numberOfLines={1}
-            >
-              {isSentByMe && (
-                <Text style={styles.youPrefix}>You: </Text>
-              )}
-              {lastText}
-            </Text>
-            {isUnread && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+      <Animated.View style={{ opacity: fadeAnim }}>
+        <TouchableOpacity
+          style={[
+            styles.chatCard,
+            isUnread && styles.chatCardUnread,
+          ]}
+          activeOpacity={0.8}
+          onPress={() => {
+            navigation.navigate('Messaging', {
+              receiverId: item,
+              receiverName: userData?.name || item,
+            });
+            clearUnread(item);
+          }}
+        >
+          {/* Avatar Section */}
+          <View style={styles.avatarWrapper}>
+            <Image
+              source={{
+                uri: userData?.profile_photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+              }}
+              style={styles.avatarImage}
+            />
+            {isUnread && <View style={styles.onlineDot} />}
+            {unreadCount > 0 && (
+              <View style={styles.avatarBadge}>
+                <Text style={styles.avatarBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
             )}
           </View>
-        </View>
 
-        <Icon 
-          name="chevron-right" 
-          size={16} 
-          color={theme.textSecondary} 
-          style={styles.chevron}
-        />
-      </TouchableOpacity>
+          {/* Chat Content */}
+          <View style={styles.chatContent}>
+            <View style={styles.chatHeader}>
+              <Text style={styles.chatName} numberOfLines={1}>
+                {userData?.name || item}
+              </Text>
+              <Text style={styles.chatTime}>{relativeTime}</Text>
+            </View>
+            
+            <View style={styles.messageRow}>
+              {isSentByMe && (
+                <Icon 
+                  name="check" 
+                  size={12} 
+                  color={theme.textSecondary} 
+                  style={styles.checkIcon}
+                />
+              )}
+              <Text 
+                style={[
+                  styles.messageText,
+                  isUnread && styles.messageTextBold
+                ]} 
+                numberOfLines={1}
+              >
+                {isSentByMe && <Text style={styles.youLabel}>You: </Text>}
+                {lastText}
+              </Text>
+            </View>
+          </View>
+
+          {/* Action Indicator */}
+          <View style={styles.chevronContainer}>
+            <Icon 
+              name="chevron-right" 
+              size={14} 
+              color={theme.textTertiary} 
+            />
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Icon name="comments-o" size={64} color={theme.textSecondary} />
-      <Text style={styles.emptyTitle}>No Conversations Yet</Text>
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconCircle}>
+        <Icon name="comments-o" size={48} color={theme.accent} />
+      </View>
+      <Text style={styles.emptyTitle}>No Messages Yet</Text>
       <Text style={styles.emptySubtext}>
-        Start chatting with sellers and buyers to see your messages here!
+        Start connecting with buyers and sellers.{'\n'}Your conversations will appear here.
       </Text>
       <TouchableOpacity
-        style={styles.browseButton}
+        style={styles.ctaButton}
         onPress={() => navigation.navigate('Home')}
         activeOpacity={0.85}
       >
-        <Icon name="search" size={16} color="#fff" style={styles.buttonIcon} />
-        <Text style={styles.browseButtonText}>Browse Products</Text>
+        <Icon name="shopping-bag" size={16} color="#fff" style={styles.ctaIcon} />
+        <Text style={styles.ctaText}>Browse Products</Text>
       </TouchableOpacity>
     </View>
   );
@@ -303,9 +439,11 @@ export default function InboxScreen({ navigation }) {
           backgroundColor={theme.background}
           translucent={false}
         />
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={styles.loadingText}>Loading your messages...</Text>
+        <View style={styles.loadingScreen}>
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={theme.accent} />
+            <Text style={styles.loadingText}>Loading messages...</Text>
+          </View>
         </View>
       </>
     );
@@ -318,14 +456,14 @@ export default function InboxScreen({ navigation }) {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.container}>
         <FlatList
-          data={conversations}
+          data={filteredConversations}
           keyExtractor={(item) => item}
           renderItem={renderConversation}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -341,122 +479,108 @@ export default function InboxScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
+// Dark theme colors (Poppins-inspired, modern marketplace aesthetic)
 const darkTheme = {
-  background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
-  cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  cardBackgroundUnread: '#2a2a55',
+  background: '#0a0e27',
+  gradientBackground: '#141b3c',
+  text: '#ffffff',
+  textSecondary: '#a8b2d1',
+  textTertiary: '#6b7280',
+  cardBackground: '#1a1f3a',
+  cardBackgroundUnread: '#1e2544',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  unreadBadge: '#4CAF50',
-  error: '#d32f2f',
+  accentDark: '#e89b00',
+  success: '#10b981',
   shadowColor: '#000',
-  borderColor: '#2a2a4a',
+  border: '#252b47',
   borderUnread: '#FDAD00',
-  avatarBadge: '#4CAF50',
+  divider: '#2d3548',
+  onlineDot: '#10b981',
+  pillBackground: '#1e2544',
 };
 
-// Light theme colors (matching CartScreen)
+// Light theme colors (clean, professional marketplace design)
 const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
+  background: '#f8fafc',
+  gradientBackground: '#ffffff',
+  text: '#1e293b',
+  textSecondary: '#64748b',
+  textTertiary: '#94a3b8',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
   cardBackgroundUnread: '#fffbf0',
-  accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  unreadBadge: '#27ae60',
-  error: '#e74c3c',
+  accent: '#f59e0b',
+  accentDark: '#d97706',
+  success: '#10b981',
   shadowColor: '#000',
-  borderColor: '#e0e0ea',
-  borderUnread: '#f39c12',
-  avatarBadge: '#27ae60',
+  border: '#e2e8f0',
+  borderUnread: '#f59e0b',
+  divider: '#e2e8f0',
+  onlineDot: '#10b981',
+  pillBackground: '#f1f5f9',
 };
 
 const createStyles = (theme) => StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: theme.background,
   },
-  listContent: {
+  listContainer: {
+    paddingBottom: 24,
+    flexGrow: 1,
+  },
+  
+  // Header Styles
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 8 : 16,
     paddingBottom: 20,
+    position: 'relative',
   },
   backgroundGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 340 : 360,
+    height: Platform.OS === 'ios' ? 280 : 300,
     backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    zIndex: 0,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  headerContainer: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 20,
-    zIndex: 1,
-  },
-  brandedLogoContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 20,
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  brandedLogoImage: {
-    width: 32,
-    height: 32,
-    marginRight: 8,
-  },
-  brandedLogoText: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
-    color: theme.accentSecondary,
-    letterSpacing: -0.5,
-  },
-  welcomeSection: {
-    marginTop: 70,
-    marginBottom: 24,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: Math.min(width * 0.08, 32),
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-  },
-  statsContainer: {
+  
+  // Top Navigation
+  topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 24,
+    zIndex: 10,
+  },
+  brandSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandLogo: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
+  },
+  brandText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.accent,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    letterSpacing: -0.5,
+  },
+  navActions: {
+    flexDirection: 'row',
     gap: 12,
   },
-  statCard: {
-    flex: 1,
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 16,
+    justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
       ios: {
@@ -466,172 +590,277 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+  
+  // Search Bar
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
     color: theme.text,
-    marginTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  
+  // Welcome Section
+  welcomeSection: {
+    marginBottom: 20,
+  },
+  greetingText: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
+  userNameText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: theme.text,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    letterSpacing: -0.5,
+  },
+  
+  // Stats Row
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  statPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.pillBackground,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  statIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${theme.accent}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  statIconActive: {
+    backgroundColor: theme.accent,
+  },
+  statContent: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.text,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
+  statValueActive: {
+    color: theme.accent,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.textSecondary,
-    marginTop: 2,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    marginTop: 1,
+    fontWeight: '500',
   },
-  sectionTitleContainer: {
+  
+  // Section Divider
+  sectionDivider: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    marginTop: 8,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.divider,
   },
-  conversationCard: {
+  dividerText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Chat Card
+  chatCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
-    marginHorizontal: Math.max(width * 0.05, 20),
-    marginBottom: 12,
-    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: theme.borderColor,
+    borderWidth: 1,
+    borderColor: theme.border,
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  conversationCardUnread: {
-    borderColor: theme.borderUnread,
-    backgroundColor: theme.cardBackgroundUnread,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.06,
         shadowRadius: 8,
       },
       android: {
-        elevation: 6,
+        elevation: 2,
       },
     }),
   },
-  avatarContainer: {
+  chatCardUnread: {
+    borderColor: theme.borderUnread,
+    backgroundColor: theme.cardBackgroundUnread,
+    borderWidth: 1.5,
+  },
+  
+  // Avatar
+  avatarWrapper: {
     position: 'relative',
-    marginRight: 14,
+    marginRight: 12,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  avatarImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     borderWidth: 2,
-    borderColor: theme.borderColor,
+    borderColor: theme.border,
   },
-  avatarBadge: {
+  onlineDot: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: theme.avatarBadge,
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: theme.onlineDot,
     borderWidth: 2,
     borderColor: theme.cardBackground,
   },
-  conversationContent: {
+  avatarBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: theme.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: theme.cardBackground,
+  },
+  avatarBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  
+  // Chat Content
+  chatContent: {
     flex: 1,
   },
-  conversationHeader: {
+  chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  conversationName: {
-    fontSize: 17,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+  chatName: {
+    fontSize: 16,
+    fontWeight: '600',
     color: theme.text,
     flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
-  conversationTime: {
+  chatTime: {
     fontSize: 12,
     color: theme.textSecondary,
     marginLeft: 8,
+    fontWeight: '500',
   },
-  messagePreviewContainer: {
+  messageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  messagePreview: {
+  checkIcon: {
+    marginRight: 4,
+  },
+  messageText: {
     fontSize: 14,
     color: theme.textSecondary,
     flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
-  messagePreviewUnread: {
+  messageTextBold: {
     color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontWeight: '500',
   },
-  youPrefix: {
-    color: theme.textSecondary,
+  youLabel: {
     fontStyle: 'italic',
+    color: theme.textTertiary,
   },
-  unreadBadge: {
-    backgroundColor: theme.unreadBadge,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    minWidth: 24,
-    alignItems: 'center',
+  
+  // Chevron
+  chevronContainer: {
     marginLeft: 8,
   },
-  unreadBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-  },
-  chevron: {
-    marginLeft: 8,
-  },
-  emptyContainer: {
+  
+  // Empty State
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingVertical: 60,
-    marginTop: 40,
+    paddingVertical: 80,
+  },
+  emptyIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: `${theme.accent}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontSize: 22,
+    fontWeight: '700',
     color: theme.text,
-    marginTop: 20,
     marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   emptySubtext: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 30,
+    lineHeight: 22,
+    marginBottom: 32,
   },
-  browseButton: {
+  ctaButton: {
     backgroundColor: theme.accent,
     paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 25,
+    paddingHorizontal: 28,
+    borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
     ...Platform.select({
@@ -639,30 +868,37 @@ const createStyles = (theme) => StyleSheet.create({
         shadowColor: theme.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowRadius: 12,
       },
       android: {
         elevation: 6,
       },
     }),
   },
-  buttonIcon: {
+  ctaIcon: {
     marginRight: 8,
   },
-  browseButtonText: {
+  ctaText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
-  loadingOverlay: {
+  
+  // Loading Screen
+  loadingScreen: {
     flex: 1,
     backgroundColor: theme.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingContent: {
+    alignItems: 'center',
+  },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.textSecondary,
+    fontWeight: '500',
   },
 });

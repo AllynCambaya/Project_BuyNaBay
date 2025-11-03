@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -21,7 +22,16 @@ import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
-const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party & Events', 'Sports & Outdoors', 'Apparel', 'Vehicles', 'Other'];
+const RENTAL_CATEGORIES = [
+  'All', 
+  'Electronics', 
+  'Tools', 
+  'Party & Events', 
+  'Sports & Outdoors', 
+  'Apparel', 
+  'Vehicles', 
+  'Other'
+];
 
 export default function RentalScreen({ navigation, theme, searchQuery, isVisible }) {
   const [items, setItems] = useState([]);
@@ -31,12 +41,35 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
   const [selectedCategory, setSelectedCategory] = useState('All');
   const user = auth.currentUser;
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
 
-  // Get current theme colors based on system settings
+  // Enhanced animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
   const styles = createStyles(theme);
+
+  // Shimmer effect for loading
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   const filteredItems = useMemo(() => {
     return items.filter(item => {
@@ -46,6 +79,42 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
     });
   }, [items, searchQuery, selectedCategory]);
 
+  // Initial animations
+  useEffect(() => {
+    if (isVisible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 9,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerAnim, {
+          toValue: 1,
+          duration: 600,
+          delay: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(50);
+      scaleAnim.setValue(0.9);
+      headerAnim.setValue(0);
+    }
+  }, [isVisible]);
+
   useEffect(() => {
     if (isFocused && isVisible) fetchRentals();
   }, [isFocused, isVisible]);
@@ -54,7 +123,6 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
     try {
       if (!refreshing) setLoading(true);
       
-      // First get rental items
       const { data: rentalData, error: rentalError } = await supabase
         .from('rental_items')
         .select(
@@ -65,7 +133,6 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
 
       if (rentalError) throw rentalError;
 
-      // Then fetch seller names for each rental item
       const itemsWithNames = await Promise.all(
         rentalData.map(async (item) => {
           const { data: userData } = await supabase
@@ -91,217 +158,331 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
     }
   };
 
-  const renderListHeader = () => (
-    <>
-      {/* Section Title */}
-      {filteredItems.length > 0 && (
-        <View style={styles.sectionTitleContainer}>
-          <Icon name="th-list" size={18} color={theme.text} />
-          <Text style={styles.sectionTitle}> Available Rentals</Text>
-        </View>
-      )}
+  const renderListHeader = () => {
+    const activeFiltersCount = selectedCategory !== 'All' ? 1 : 0;
 
-      {/* Category Filters */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
-          {RENTAL_CATEGORIES.map(category => (
-            <TouchableOpacity
-              key={category}
-              style={[
-                styles.filterChip,
-                selectedCategory === category && styles.activeFilterChip
-              ]}
-              onPress={() => setSelectedCategory(category)}
+    return (
+      <Animated.View 
+        style={[
+          styles.headerContainer,
+          {
+            opacity: headerAnim,
+            transform: [{
+              translateY: headerAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-20, 0],
+              }),
+            }],
+          }
+        ]}
+      >
+        <View style={styles.headerTop}>
+          <View style={styles.titleContainer}>
+            <View style={styles.iconWrapper}>
+              <Icon name="clock-o" size={22} color={theme.accent} />
+            </View>
+            <View style={styles.titleTextContainer}>
+              <Text style={styles.headerTitle}>Rentals</Text>
+              <Text style={styles.headerSubtitle}>Affordable temporary solutions</Text>
+            </View>
+          </View>
+          
+          <View style={styles.statsContainer}>
+            <View style={styles.statBadge}>
+              <Text style={styles.statNumber}>{filteredItems.length}</Text>
+              <Text style={styles.statLabel}>Available</Text>
+            </View>
+          </View>
+        </View>
+
+        {filteredItems.length > 0 && (
+          <View style={styles.categorySection}>
+            <View style={styles.categorySectionHeader}>
+              <Icon name="filter" size={14} color={theme.textSecondary} />
+              <Text style={styles.categorySectionTitle}>Categories</Text>
+              {activeFiltersCount > 0 && (
+                <View style={styles.activeFilterBadge}>
+                  <Text style={styles.activeFilterBadgeText}>{activeFiltersCount}</Text>
+                </View>
+              )}
+            </View>
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.categoryScrollContent}
             >
-              <Text style={[
-                styles.filterChipText,
-                selectedCategory === category && styles.activeFilterChipText
-              ]}>{category}</Text>
+              {RENTAL_CATEGORIES.map((category, index) => (
+                <Animated.View
+                  key={category}
+                  style={{
+                    opacity: headerAnim,
+                    transform: [{
+                      translateY: headerAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    }],
+                  }}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.categoryChip,
+                      selectedCategory === category && styles.categoryChipActive
+                    ]}
+                    onPress={() => setSelectedCategory(category)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.categoryChipText,
+                      selectedCategory === category && styles.categoryChipTextActive
+                    ]}>
+                      {category}
+                    </Text>
+                    {selectedCategory === category && (
+                      <Icon name="check" size={11} color="#fff" style={{ marginLeft: 6 }} />
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {selectedCategory !== 'All' && (
+          <Animated.View 
+            style={[
+              styles.activeFilterContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              }
+            ]}
+          >
+            <View style={styles.activeFilterChipInline}>
+              <Icon name="tag" size={11} color={theme.accent} />
+              <Text style={styles.activeFilterTextInline}>{selectedCategory}</Text>
+              <TouchableOpacity 
+                onPress={() => setSelectedCategory('All')}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.clearFilterBtn}
+              >
+                <Icon name="times-circle" size={14} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              onPress={() => setSelectedCategory('All')}
+              style={styles.clearAllBtn}
+            >
+              <Text style={styles.clearAllText}>Clear</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    </>
-  );
+          </Animated.View>
+        )}
+      </Animated.View>
+    );
+  };
 
   const renderItem = ({ item, index }) => {
     const thumbnail = item.rental_item_image || null;
     const sellerAvatar = item.seller_avatar;
 
+    const animatedStyle = {
+      opacity: fadeAnim,
+      transform: [
+        {
+          translateY: slideAnim.interpolate({
+            inputRange: [0, 50],
+            outputRange: [0, 50 * (1 + index * 0.08)],
+          }),
+        },
+        { 
+          scale: scaleAnim.interpolate({
+            inputRange: [0.9, 1],
+            outputRange: [0.9, 1],
+          })
+        },
+      ],
+    };
+
     return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate('RentalDetails', { rentalItem: item })}
-        activeOpacity={0.85}
-      >
-        {thumbnail ? (
-          <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
-        ) : (
-          <View style={styles.thumbnailPlaceholder}>
-            <Icon name="image" size={40} color={theme.textSecondary} />
-          </View>
-        )}
-
-        <View style={styles.cardContent}>
-          <Text style={styles.itemName} numberOfLines={2}>
-            {item.item_name}
-          </Text>
-
-          <View style={styles.sellerRow}>
-            {sellerAvatar ? (
-              <Image source={{ uri: sellerAvatar }} style={styles.sellerAvatar} />
+      <Animated.View style={animatedStyle}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('RentalDetails', { rentalItem: item })}
+          activeOpacity={0.85}
+        >
+          <View style={styles.cardImageContainer}>
+            {thumbnail ? (
+              <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
             ) : (
-              <View style={[styles.sellerAvatar, styles.avatarPlaceholder]}>
-                <Icon name="user" size={12} color={theme.text} />
+              <View style={styles.thumbnailPlaceholder}>
+                <Icon name="image" size={48} color={theme.textSecondary} />
               </View>
             )}
-            <Text style={styles.sellerName} numberOfLines={1}>
-              {' '}{item.seller_name}
+            
+            <View style={styles.imageBadgeContainer}>
+              <View style={styles.conditionBadge}>
+                <Icon name="star" size={10} color="#fff" />
+                <Text style={styles.conditionBadgeText}>{item.condition}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.cardContent}>
+            <Text style={styles.itemName} numberOfLines={2}>
+              {item.item_name}
             </Text>
+
+            <View style={styles.sellerRow}>
+              {sellerAvatar ? (
+                <Image source={{ uri: sellerAvatar }} style={styles.sellerAvatar} />
+              ) : (
+                <View style={[styles.sellerAvatar, styles.avatarPlaceholder]}>
+                  <Icon name="user" size={11} color={theme.textSecondary} />
+                </View>
+              )}
+              <Text style={styles.sellerName} numberOfLines={1}>
+                {item.seller_name}
+              </Text>
+            </View>
+
+            <View style={styles.priceRow}>
+              <View style={styles.priceContainer}>
+                <Text style={styles.priceAmount}>₱{item.price}</Text>
+                <Text style={styles.priceLabel}>per {item.rental_duration}</Text>
+              </View>
+              
+              <View style={styles.quantityBadge}>
+                <Icon name="cubes" size={11} color={theme.accent} />
+                <Text style={styles.quantityText}>{item.quantity || 0}</Text>
+              </View>
+            </View>
+
+            {item.description && (
+              <Text style={styles.description} numberOfLines={2}>
+                {item.description}
+              </Text>
+            )}
+
+            <View style={styles.cardFooter}>
+              <View style={styles.categoryTag}>
+                <Icon name="tag" size={10} color={theme.textSecondary} />
+                <Text style={styles.categoryTagText}>{item.category}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.messageButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  navigation.navigate('Messaging', {
+                    receiverId: item.owner_email,
+                    receiverName: item.seller_name,
+                    productToSend: { ...item, product_name: item.item_name },
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="chatbubble" size={13} color="#fff" />
+                <Text style={styles.messageText}>Message</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <View style={styles.priceRow}>
-            <View style={styles.priceContainer}>
-              <Text style={styles.priceLabel}>Price</Text>
-              <Text style={styles.price}>₱{item.price}</Text>
-            </View>
-            <View style={styles.durationContainer}>
-              <Text style={styles.durationLabel}>Duration</Text>
-              <Text style={styles.duration}>{item.rental_duration}</Text>
-            </View>
-          </View>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaChip}>
-              <Icon name="tag" size={10} color={theme.textSecondary} />
-              <Text style={styles.metaText}> {item.category}</Text>
-            </View>
-            <View style={styles.metaChip}>
-              <Icon name="star" size={10} color={theme.textSecondary} />
-              <Text style={styles.metaText}> {item.condition}</Text>
-            </View>
-          </View>
-
-          {item.description && (
-            <Text style={styles.description} numberOfLines={2}>
-              {item.description}
-            </Text>
-          )}
-
-          <View style={styles.cardFooter}>
-            <View style={styles.quantityContainer}>
-              <Icon name="cubes" size={12} color={theme.textSecondary} />
-              <Text style={styles.quantityText}> Qty: {item.quantity || 0}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.messageButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                navigation.navigate('Messaging', {
-                  receiverId: item.owner_email,
-                  receiverName: item.seller_name,
-                  productToSend: { ...item, product_name: item.item_name }, // Pass rental item
-                });
-              }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="chatbubble" size={14} color="#fff" />
-              <Text style={styles.messageText}>Message</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Icon name="cube" size={64} color={theme.textSecondary} />
-      <Text style={styles.emptyTitle}>{searchQuery || selectedCategory !== 'All' ? 'No Results Found' : 'No Rental Items Available'}</Text>
-      {searchQuery || selectedCategory !== 'All' ? (
-        <Text style={styles.emptySubtext}>No rental items match your search criteria.</Text>
-      ) : (
-        <Text style={styles.emptySubtext}>Be the first to list an item for rent!</Text>
-      )}
+    <Animated.View
+      style={[
+        styles.emptyContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+        },
+      ]}
+    >
+      <View style={styles.emptyIllustration}>
+        <View style={styles.emptyCircle}>
+          <Icon name="clock-o" size={48} color={theme.accent} />
+        </View>
+        <View style={[styles.emptyCircleSmall, styles.emptyCircle1]} />
+        <View style={[styles.emptyCircleSmall, styles.emptyCircle2]} />
+        <View style={[styles.emptyCircleSmall, styles.emptyCircle3]} />
+      </View>
+      
+      <Text style={styles.emptyTitle}>
+        {searchQuery || selectedCategory !== 'All' ? 'No Rentals Found' : 'No Rental Items Yet'}
+      </Text>
+      <Text style={styles.emptySubtext}>
+        {searchQuery || selectedCategory !== 'All'
+          ? 'Try adjusting your filters or search terms\nto discover available rentals'
+          : 'Be the first to list an item for rent\nand start earning!'}
+      </Text>
+      
       <TouchableOpacity
-        style={styles.addItemButton} // Changed navigation
+        style={styles.emptyActionBtn}
         onPress={() => navigation.navigate('Add')}
         activeOpacity={0.85}
       >
-        <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
-        <Text style={styles.addItemButtonText}>Add Rental Item</Text>
+        <View style={styles.emptyActionBtnContent}>
+          <Icon name="plus-circle" size={18} color="#fff" />
+          <Text style={styles.emptyActionBtnText}>List Rental Item</Text>
+        </View>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 
-  // Full-screen loading overlay
   if (loading && !refreshing) {
+    const shimmerTranslate = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-width, width],
+    });
+
     return (
-      <View style={styles.loadingOverlay}>
-        <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={styles.loadingText}>Loading rental items...</Text>
+      <View style={styles.loadingContainer}>
+        <View style={styles.loadingContent}>
+          <View style={styles.loadingIconContainer}>
+            <Animated.View
+              style={[
+                styles.shimmerOverlay,
+                { transform: [{ translateX: shimmerTranslate }] }
+              ]}
+            />
+            <ActivityIndicator size="large" color={theme.accent} />
+          </View>
+          <Text style={styles.loadingTitle}>Loading Rentals</Text>
+          <Text style={styles.loadingSubtext}>Finding the best rental options for you...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.safeArea}>
-        <FlatList
-          data={filteredItems}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-          renderItem={renderItem}
-          ListHeaderComponent={renderListHeader}
-          ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                fetchRentals();
-              }}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
-            />
-          }
-        />
+      <FlatList
+        data={filteredItems}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        renderItem={renderItem}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderEmptyState}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchRentals();
+            }}
+            tintColor={theme.accent}
+            colors={[theme.accent]}
+          />
+        }
+      />
     </View>
   );
 }
-
-// Dark theme colors (matching CartScreen)
-const darkTheme = {
-  background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
-  cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  success: '#4CAF50',
-  shadowColor: '#000',
-  borderColor: '#2a2a4a',
-};
-
-// Light theme colors (matching CartScreen)
-const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
-  cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  success: '#27ae60',
-  shadowColor: '#000',
-  borderColor: '#e0e0ea',
-};
 
 const createStyles = (theme) =>
   StyleSheet.create({
@@ -310,293 +491,345 @@ const createStyles = (theme) =>
       backgroundColor: theme.background,
     },
     listContent: {
-      paddingBottom: 20,
+      paddingBottom: 24,
     },
-    backgroundGradient: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: Platform.OS === 'ios' ? 340 : 360,
-      backgroundColor: theme.gradientBackground,
-      borderBottomLeftRadius: 30,
-      borderBottomRightRadius: 30,
-      zIndex: 0,
-    },
+    
+    // Enhanced Header Styles
     headerContainer: {
-      paddingHorizontal: Math.max(width * 0.05, 20),
-      paddingTop: Platform.OS === 'ios' ? 10 : 20,
-      paddingBottom: 20,
-      zIndex: 1,
+      paddingHorizontal: Math.max(width * 0.04, 16),
+      paddingTop: 8,
+      paddingBottom: 16,
+      backgroundColor: theme.background,
     },
-    brandedLogoContainer: {
-      position: 'absolute',
-      top: Platform.OS === 'ios' ? 10 : 20,
-      left: 20,
-      flexDirection: 'row',
-      alignItems: 'center',
-      zIndex: 10,
-    },
-    brandedLogoImage: {
-      width: 32,
-      height: 32,
-      marginRight: 8,
-    },
-    brandedLogoText: {
-      fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
-      color: theme.accentSecondary,
-      letterSpacing: -0.5,
-    },
-    welcomeSection: {
-      marginTop: 70,
-      marginBottom: 24,
-    },
-    welcomeText: {
-      fontSize: 16,
-      color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-      marginBottom: 4,
-    },
-    userName: {
-      fontSize: Math.min(width * 0.08, 32),
-      color: theme.text,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
-      marginBottom: 4,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-    },
-    statsContainer: {
+    headerTop: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 24,
-      gap: 12,
+      alignItems: 'center',
+      marginBottom: 20,
     },
-    statCard: {
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
       flex: 1,
-      backgroundColor: theme.cardBackground,
-      borderRadius: 16,
-      padding: 16,
-      alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
     },
-    statValue: {
-      fontSize: 20,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
-      color: theme.text,
-      marginTop: 8,
-    },
-    statLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginTop: 2,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-    },
-    sectionTitleContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 16,
-      marginTop: 8,
-    },
-    sectionTitle: {
-      fontSize: 20,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
-      color: theme.text,
-    },
-    searchContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.cardBackground,
+    iconWrapper: {
+      width: 44,
+      height: 44,
       borderRadius: 12,
-      paddingHorizontal: 12,
-      marginVertical: 16,
-      borderWidth: 1,
-      borderColor: theme.borderColor,
+      backgroundColor: `${theme.accent}15`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
     },
-    searchIcon: {
-      marginRight: 8,
-    },
-    searchInput: {
+    titleTextContainer: {
       flex: 1,
-      height: 48,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: '800',
       color: theme.text,
-      fontSize: 15,
+      letterSpacing: -0.5,
+      marginBottom: 2,
     },
-    clearIcon: {
-      padding: 4,
-    },
-    filterContainer: {
-      paddingBottom: 16,
-    },
-    filterScrollContent: {
-      paddingHorizontal: 0,
-      gap: 8,
-    },
-    filterChip: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: theme.cardBackground,
-      borderWidth: 1,
-      borderColor: theme.borderColor,
-    },
-    activeFilterChip: {
-      backgroundColor: theme.accent,
-      borderColor: theme.accent,
-    },
-    filterChipText: {
-      color: theme.textSecondary,
+    headerSubtitle: {
       fontSize: 13,
+      color: theme.textSecondary,
       fontWeight: '500',
     },
-    activeFilterChipText: {
+    statsContainer: {
+      alignItems: 'flex-end',
+    },
+    statBadge: {
+      backgroundColor: `${theme.accent}20`,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: `${theme.accent}30`,
+      alignItems: 'center',
+    },
+    statNumber: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: theme.accent,
+      marginBottom: 2,
+    },
+    statLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    
+    // Category Section
+    categorySection: {
+      marginBottom: 12,
+    },
+    categorySectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      gap: 8,
+    },
+    categorySectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+    },
+    activeFilterBadge: {
+      backgroundColor: theme.accent,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    activeFilterBadgeText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    categoryScrollContent: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingRight: 16,
+    },
+    categoryChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1.5,
+      borderColor: theme.borderColor,
+    },
+    categoryChipActive: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    categoryChipText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    categoryChipTextActive: {
       color: '#fff',
       fontWeight: '700',
     },
+    
+    // Active Filter Display
+    activeFilterContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: `${theme.accent}40`,
+    },
+    activeFilterChipInline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flex: 1,
+    },
+    activeFilterTextInline: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      flex: 1,
+    },
+    clearFilterBtn: {
+      padding: 4,
+    },
+    clearAllBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: `${theme.accent}20`,
+      borderRadius: 8,
+    },
+    clearAllText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.accent,
+    },
+    
+    // Enhanced Card Styles
     card: {
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
       overflow: 'hidden',
       marginBottom: 16,
-      marginHorizontal: Math.max(width * 0.05, 20),
+      marginHorizontal: Math.max(width * 0.04, 16),
       borderWidth: 1,
       borderColor: theme.borderColor,
       ...Platform.select({
         ios: {
           shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
         },
         android: {
           elevation: 4,
         },
       }),
     },
+    cardImageContainer: {
+      position: 'relative',
+    },
     thumbnail: {
       width: '100%',
-      height: 180,
+      height: 200,
       resizeMode: 'cover',
     },
     thumbnailPlaceholder: {
       width: '100%',
-      height: 180,
+      height: 200,
       backgroundColor: theme.cardBackgroundAlt,
       justifyContent: 'center',
       alignItems: 'center',
       borderBottomWidth: 1,
       borderBottomColor: theme.borderColor,
     },
+    imageBadgeContainer: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+    },
+    conditionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 20,
+      gap: 5,
+      backdropFilter: 'blur(10px)',
+    },
+    conditionBadgeText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700',
+    },
     cardContent: {
       padding: 16,
     },
     itemName: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontWeight: '700',
       color: theme.text,
-      marginBottom: 8,
+      marginBottom: 10,
+      letterSpacing: -0.3,
+      lineHeight: 24,
     },
     sellerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 12,
+      marginBottom: 14,
       gap: 8,
     },
     sellerAvatar: {
-      width: 20,
-      height: 20,
-      borderRadius: 10,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 1.5,
+      borderColor: `${theme.accent}30`,
+    },
+    avatarPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt,
     },
     sellerName: {
-      fontSize: 14,
-      color: theme.accent,
-      fontWeight: Platform.OS === 'android' ? '600' : '500',
+      fontSize: 13,
+      color: theme.textSecondary,
+      fontWeight: '600',
       flex: 1,
     },
     priceRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 12,
+      alignItems: 'center',
+      marginBottom: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      backgroundColor: `${theme.accent}10`,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: `${theme.accent}20`,
     },
     priceContainer: {
       flex: 1,
     },
+    priceAmount: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: theme.accent,
+      marginBottom: 2,
+      letterSpacing: -0.5,
+    },
     priceLabel: {
       fontSize: 12,
       color: theme.textSecondary,
-      marginBottom: 4,
-      fontWeight: '400',
+      fontWeight: '500',
     },
-    price: {
-      fontSize: 20,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
-      color: theme.accent,
+    quantityBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackground,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+      gap: 6,
+      borderWidth: 1,
+      borderColor: theme.borderColor,
     },
-    durationContainer: {
-      alignItems: 'flex-end',
-    },
-    durationLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginBottom: 4,
-      fontWeight: '400',
-    },
-    duration: {
-      fontSize: 14,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+    quantityText: {
+      fontSize: 13,
+      fontWeight: '700',
       color: theme.text,
     },
-    metaRow: {
-      flexDirection: 'row',
-      gap: 8,
-      marginBottom: 12,
+    description: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      lineHeight: 20,
+      marginBottom: 14,
+      fontWeight: '400',
     },
-    metaChip: {
+    cardFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderColor,
+    },
+    categoryTag: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: theme.cardBackgroundAlt,
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 12,
+      gap: 6,
     },
-    metaText: {
+    categoryTagText: {
       fontSize: 12,
       color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-    },
-    description: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      lineHeight: 20,
-      marginBottom: 12,
-    },
-    cardFooter: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: 8,
-    },
-    quantityContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    quantityText: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '600' : '500',
+      fontWeight: '600',
     },
     messageButton: {
       flexDirection: 'row',
@@ -605,86 +838,343 @@ const createStyles = (theme) =>
       paddingVertical: 10,
       paddingHorizontal: 16,
       borderRadius: 20,
+      gap: 6,
       ...Platform.select({
         ios: {
           shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.35,
+          shadowRadius: 6,
         },
         android: {
-          elevation: 3,
+          elevation: 4,
         },
       }),
     },
     messageText: {
       color: '#fff',
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontWeight: '700',
       fontSize: 13,
-      marginLeft: 6,
+      letterSpacing: 0.2,
     },
+    
+    // Enhanced Empty State
     emptyContainer: {
-      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 80,
+      paddingHorizontal: 32,
+    },
+    emptyIllustration: {
+      position: 'relative',
+      marginBottom: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyCircle: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: `${theme.accent}15`,
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 40,
-      paddingVertical: 60,
+      borderWidth: 2,
+      borderColor: `${theme.accent}25`,
+    },
+    emptyCircleSmall: {
+      position: 'absolute',
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: `${theme.accent}20`,
+      borderWidth: 1,
+      borderColor: `${theme.accent}30`,
+    },
+    emptyCircle1: {
+      top: 8,
+      right: 12,
+    },
+    emptyCircle2: {
+      bottom: 12,
+      left: 8,
+    },
+    emptyCircle3: {
+      top: 40,
+      left: -5,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
     },
     emptyTitle: {
-      fontSize: 24,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontSize: 26,
+      fontWeight: '800',
       color: theme.text,
-      marginTop: 20,
-      marginBottom: 12,
+      marginBottom: 10,
+      textAlign: 'center',
+      letterSpacing: -0.5,
     },
     emptySubtext: {
-      fontSize: 16,
+      fontSize: 15,
       color: theme.textSecondary,
       textAlign: 'center',
-      lineHeight: 24,
-      marginBottom: 30,
+      lineHeight: 22,
+      fontWeight: '500',
+      marginBottom: 32,
     },
-    addItemButton: {
+    emptyActionBtn: {
+      borderRadius: 28,
+      overflow: 'hidden',
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    emptyActionBtnContent: {
       backgroundColor: theme.accent,
-      paddingVertical: 14,
-      paddingHorizontal: 32,
-      borderRadius: 25,
       flexDirection: 'row',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 6,
-        },
-      }),
+      paddingVertical: 16,
+      paddingHorizontal: 28,
+      gap: 10,
     },
-    buttonIcon: {
-      marginRight: 8,
-    },
-    addItemButtonText: {
+    emptyActionBtnText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontWeight: '700',
+      letterSpacing: 0.3,
     },
-    loadingOverlay: {
+    
+    // Enhanced Loading State
+    loadingContainer: {
       flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
       backgroundColor: theme.background,
+      paddingHorizontal: 32,
+    },
+    loadingContent: {
+      alignItems: 'center',
+    },
+    loadingIconContainer: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: `${theme.accent}15`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 24,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: `${theme.accent}25`,
+    },
+    shimmerOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: `${theme.accent}20`,
+      width: width * 0.5,
+    },
+    loadingTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: theme.text,
+      marginBottom: 8,
+      letterSpacing: -0.3,
+    },
+    loadingSubtext: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      fontWeight: '500',
+      lineHeight: 20,
+    },
+    
+    // Enhanced Modal Styles
+    modalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'flex-end',
+      zIndex: 1000,
+    },
+    modalContainer: {
+      backgroundColor: theme.modalBackground,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingTop: 8,
+      paddingBottom: 24,
+      maxHeight: '85%',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    modalHandle: {
+      width: 40,
+      height: 5,
+      backgroundColor: theme.borderColor,
+      borderRadius: 3,
+      alignSelf: 'center',
+      marginBottom: 16,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingBottom: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderColor,
+    },
+    modalTitleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: theme.text,
+      letterSpacing: -0.5,
+    },
+    modalCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.cardBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.borderColor,
+    },
+    modalScrollContent: {
+      paddingBottom: 16,
+    },
+    modalSection: {
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+    },
+    modalSectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.textSecondary,
+      marginBottom: 14,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    modalDivider: {
+      height: 1,
+      backgroundColor: theme.borderColor,
+      marginHorizontal: 24,
+    },
+    
+    // Sort Options
+    sortOptionItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      marginBottom: 10,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1.5,
+      borderColor: theme.borderColor,
+    },
+    sortOptionItemActive: {
+      backgroundColor: `${theme.accent}12`,
+      borderColor: theme.accent,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    sortOptionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      flex: 1,
+    },
+    sortOptionIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: theme.cardBackgroundAlt,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    loadingText: {
-      marginTop: 16,
-      fontSize: 16,
+    sortOptionIconContainerActive: {
+      backgroundColor: theme.accent,
+    },
+    sortOptionText: {
+      fontSize: 15,
+      color: theme.text,
+      fontWeight: '500',
+      flex: 1,
+    },
+    sortOptionTextActive: {
+      fontWeight: '700',
+      color: theme.text,
+    },
+    sortOptionCheck: {
+      marginLeft: 12,
+    },
+    
+    // Modal Footer
+    modalFooter: {
+      flexDirection: 'row',
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      gap: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderColor,
+    },
+    modalResetBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 14,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1.5,
+      borderColor: theme.borderColor,
+      gap: 8,
+      flex: 1,
+    },
+    modalResetBtnText: {
+      fontSize: 15,
+      fontWeight: '700',
       color: theme.textSecondary,
     },
-    avatarPlaceholder: {
-      justifyContent: 'center',
+    modalApplyBtn: {
+      flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.cardBackgroundAlt,
+      justifyContent: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 24,
+      borderRadius: 14,
+      backgroundColor: theme.accent,
+      gap: 10,
+      flex: 2,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    modalApplyBtnText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#fff',
+      letterSpacing: 0.3,
     },
   });

@@ -18,7 +18,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/FontAwesome';
 import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
@@ -35,12 +34,10 @@ export default function AdminPanel() {
   const [suspendModalVisible, setSuspendModalVisible] = useState(false);
   const [suspendDays, setSuspendDays] = useState('');
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
   const styles = createStyles(theme);
 
@@ -184,177 +181,274 @@ export default function AdminPanel() {
     fetchStatsAndRequests();
   };
 
+  const filterBySearch = (items, type) => {
+    if (!searchQuery.trim()) return items;
+    const query = searchQuery.toLowerCase();
+    
+    if (type === 'users') {
+      return items.filter(u => 
+        u.email?.toLowerCase().includes(query) || 
+        u.phone_number?.toLowerCase().includes(query) ||
+        u.student_id?.toLowerCase().includes(query)
+      );
+    }
+    
+    if (type === 'reports') {
+      return items.filter(r => 
+        r.reported_name?.toLowerCase().includes(query) || 
+        r.reporter_name?.toLowerCase().includes(query) ||
+        r.reason?.toLowerCase().includes(query)
+      );
+    }
+    
+    return items.filter(r => 
+      r.email?.toLowerCase().includes(query) || 
+      r.student_id?.toLowerCase().includes(query) ||
+      r.phone_number?.toLowerCase().includes(query)
+    );
+  };
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Background gradient effect */}
       <View style={styles.backgroundGradient} />
 
-      {/* Branded logo - upper left */}
       <View style={styles.brandedLogoContainer}>
         <View style={styles.adminIconCircle}>
-          <Ionicons name="shield-checkmark" size={24} color={theme.accent} />
+          <Ionicons name="shield-checkmark" size={28} color={theme.accent} />
         </View>
-        <Text style={styles.brandedLogoText}>Admin Panel</Text>
+        <View>
+          <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+          <Text style={styles.brandedSubtext}>Admin Dashboard</Text>
+        </View>
       </View>
 
-      {/* Welcome Section */}
       <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>Administration</Text>
-        <Text style={styles.userName}>Management Dashboard</Text>
-        <Text style={styles.subtitle}>Manage users and verification requests</Text>
+        <View style={styles.welcomeRow}>
+          <View style={styles.welcomeContent}>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.userName}>Administrator</Text>
+          </View>
+          <View style={styles.quickActionButton}>
+            <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+            {stats.pending > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationText}>{stats.pending}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        <Text style={styles.subtitle}>Manage users, verifications, and reports</Text>
       </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
+      <View style={styles.statsGrid}>
         <TouchableOpacity 
-          style={[styles.statCard, selectedStatus === 'Pending' && styles.statCardSelected]}
+          style={[styles.statCard, selectedStatus === 'Pending' && styles.statCardActive]}
           onPress={() => setSelectedStatus('Pending')}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
-          <Ionicons name="time" size={24} color="#FBC02D" />
+          <View style={styles.statIconContainer}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#FFF3E0' }]}>
+              <Ionicons name="time-outline" size={22} color="#F57C00" />
+            </View>
+            {stats.pending > 0 && <View style={styles.statPulse} />}
+          </View>
           <Text style={styles.statValue}>{stats.pending}</Text>
           <Text style={styles.statLabel}>Pending</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.statCard, selectedStatus === 'Approved' && styles.statCardSelected]}
+          style={[styles.statCard, selectedStatus === 'Approved' && styles.statCardActive]}
           onPress={() => setSelectedStatus('Approved')}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
-          <Ionicons name="checkmark-circle" size={24} color="#388E3C" />
+          <View style={styles.statIconContainer}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#E8F5E9' }]}>
+              <Ionicons name="checkmark-circle-outline" size={22} color="#4CAF50" />
+            </View>
+          </View>
           <Text style={styles.statValue}>{stats.approved}</Text>
           <Text style={styles.statLabel}>Approved</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.statCard, selectedStatus === 'Rejected' && styles.statCardSelected]}
+          style={[styles.statCard, selectedStatus === 'Rejected' && styles.statCardActive]}
           onPress={() => setSelectedStatus('Rejected')}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
-          <Ionicons name="close-circle" size={24} color="#D32F2F" />
+          <View style={styles.statIconContainer}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#FFEBEE' }]}>
+              <Ionicons name="close-circle-outline" size={22} color="#F44336" />
+            </View>
+          </View>
           <Text style={styles.statValue}>{stats.rejected}</Text>
           <Text style={styles.statLabel}>Rejected</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.statCard, selectedStatus === 'users' && styles.statCardSelected]}
+          style={[styles.statCard, selectedStatus === 'users' && styles.statCardActive]}
           onPress={() => setSelectedStatus('users')}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
-          <Ionicons name="people" size={24} color="#1976d2" />
+          <View style={styles.statIconContainer}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#E3F2FD' }]}>
+              <Ionicons name="people-outline" size={22} color="#1976D2" />
+            </View>
+          </View>
           <Text style={styles.statValue}>{stats.totalUsers}</Text>
           <Text style={styles.statLabel}>Users</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.statCard, selectedStatus === 'reports' && styles.statCardSelected]}
+          style={[styles.statCard, selectedStatus === 'reports' && styles.statCardActive]}
           onPress={() => setSelectedStatus('reports')}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
-          <Ionicons name="warning" size={24} color="#F57C00" />
+          <View style={styles.statIconContainer}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#FFF8E1' }]}>
+              <Ionicons name="flag-outline" size={22} color="#FBC02D" />
+            </View>
+            {stats.reports > 0 && <View style={styles.statPulse} />}
+          </View>
           <Text style={styles.statValue}>{stats.reports}</Text>
           <Text style={styles.statLabel}>Reports</Text>
         </TouchableOpacity>
       </View>
+    </View>
+  );
 
-      {/* Section Title */}
-      <View style={styles.sectionTitleContainer}>
-        <Icon 
-          name={selectedStatus === 'users' ? 'users' : selectedStatus === 'reports' ? 'warning' : 'clipboard'} 
-          size={18} 
-          color={theme.text} 
+  const renderSearchBar = () => (
+    <View style={styles.searchContainer}>
+      <View style={styles.searchBar}>
+        <Ionicons name="search-outline" size={20} color={theme.textSecondary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={`Search ${selectedStatus === 'users' ? 'users' : selectedStatus === 'reports' ? 'reports' : 'requests'}...`}
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+            <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+      <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
-          {' '}{selectedStatus === 'users'
-            ? 'User Management'
-            : selectedStatus === 'reports'
-            ? 'User Reports'
-            : `${selectedStatus} Requests`}
+          {selectedStatus === 'users' ? 'User Management' : 
+           selectedStatus === 'reports' ? 'User Reports' : 
+           `${selectedStatus} Requests`}
+        </Text>
+        <Text style={styles.sectionCount}>
+          {selectedStatus === 'users' ? users.length : 
+           selectedStatus === 'reports' ? reports.length : 
+           requests.filter(r => r.status.toLowerCase() === selectedStatus.toLowerCase()).length} items
         </Text>
       </View>
     </View>
   );
 
   const renderUsers = () => {
-    if (users.length === 0) {
+    const filtered = filterBySearch(users, 'users');
+    
+    if (filtered.length === 0) {
       return (
-        <View style={styles.emptyContainer}>
-          <Icon name="users" size={64} color={theme.textSecondary} />
-          <Text style={styles.emptyTitle}>No Users Found</Text>
-          <Text style={styles.emptySubtext}>Users will appear here once registered</Text>
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="people-outline" size={48} color={theme.textSecondary} />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {searchQuery ? 'No users found' : 'No users yet'}
+          </Text>
+          <Text style={styles.emptySubtext}>
+            {searchQuery ? 'Try adjusting your search' : 'Users will appear here once registered'}
+          </Text>
         </View>
       );
     }
 
-    return users.map((user) => (
-      <View key={user.id} style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.userInfoContainer}>
-            <View style={styles.userAvatar}>
-              <Icon name="user" size={20} color={theme.accent} />
+    return filtered.map((user) => (
+      <View key={user.id} style={styles.itemCard}>
+        <View style={styles.itemCardHeader}>
+          <View style={styles.userRow}>
+            <View style={styles.userAvatarLarge}>
+              <Ionicons name="person" size={24} color={theme.accent} />
             </View>
-            <View style={styles.userDetails}>
-              <Text style={styles.cardTitle}>{user.email}</Text>
-              <View style={styles.userMetaRow}>
-                <Icon name="phone" size={12} color={theme.textSecondary} />
-                <Text style={styles.cardSubtext}> {user.phone_number || 'N/A'}</Text>
+            <View style={styles.userInfo}>
+              <Text style={styles.itemTitle}>{user.email}</Text>
+              <View style={styles.metaRow}>
+                <Ionicons name="call-outline" size={12} color={theme.textSecondary} />
+                <Text style={styles.metaText}>{user.phone_number || 'N/A'}</Text>
               </View>
-              <View style={styles.statusBadgeContainer}>
-                <View style={[
-                  styles.statusBadge,
-                  user.account_status === 'frozen' && styles.statusFrozen,
-                  user.account_status === 'suspended' && styles.statusSuspended,
-                ]}>
-                  <Text style={styles.statusText}>
-                    {user.account_status || 'Active'}
-                  </Text>
-                </View>
+              <View style={styles.metaRow}>
+                <Ionicons name="card-outline" size={12} color={theme.textSecondary} />
+                <Text style={styles.metaText}>{user.student_id || 'N/A'}</Text>
               </View>
             </View>
           </View>
           <TouchableOpacity 
             onPress={() => setMenuVisible(menuVisible === user.id ? null : user.id)}
-            style={styles.menuButton}
-            activeOpacity={0.85}
+            style={styles.menuIconButton}
+            activeOpacity={0.7}
           >
-            <Ionicons name="ellipsis-vertical" size={20} color={theme.text} />
+            <Ionicons name="ellipsis-horizontal" size={20} color={theme.text} />
           </TouchableOpacity>
         </View>
 
+        <View style={styles.statusRow}>
+          <View style={[
+            styles.statusChip,
+            user.account_status === 'frozen' && styles.statusChipFrozen,
+            user.account_status === 'suspended' && styles.statusChipSuspended,
+            (!user.account_status || user.account_status === 'active') && styles.statusChipActive,
+          ]}>
+            <Ionicons 
+              name={user.account_status === 'frozen' ? 'snow-outline' : 
+                    user.account_status === 'suspended' ? 'pause-circle-outline' : 
+                    'checkmark-circle-outline'} 
+              size={14} 
+              color="#fff" 
+            />
+            <Text style={styles.statusChipText}>
+              {user.account_status || 'Active'}
+            </Text>
+          </View>
+        </View>
+
         {menuVisible === user.id && (
-          <View style={styles.menu}>
+          <View style={styles.actionMenu}>
             <TouchableOpacity 
               onPress={() => handleUserAction(user.id, 'freeze')}
-              style={styles.menuItem}
-              activeOpacity={0.85}
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
             >
-              <Icon name="snowflake-o" size={14} color={theme.text} />
-              <Text style={styles.menuItemText}>Freeze Account</Text>
+              <Ionicons name="snow-outline" size={18} color={theme.text} />
+              <Text style={styles.actionMenuText}>Freeze Account</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={() => handleUserAction(user.id, 'suspend')}
-              style={styles.menuItem}
-              activeOpacity={0.85}
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
             >
-              <Icon name="pause-circle" size={14} color={theme.text} />
-              <Text style={styles.menuItemText}>Suspend Account</Text>
+              <Ionicons name="pause-circle-outline" size={18} color={theme.text} />
+              <Text style={styles.actionMenuText}>Suspend Account</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={() => handleUserAction(user.id, 'reset')}
-              style={styles.menuItem}
-              activeOpacity={0.85}
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
             >
-              <Icon name="key" size={14} color={theme.text} />
-              <Text style={styles.menuItemText}>Reset Password</Text>
+              <Ionicons name="key-outline" size={18} color={theme.text} />
+              <Text style={styles.actionMenuText}>Reset Password</Text>
             </TouchableOpacity>
-            <View style={styles.menuDivider} />
+            <View style={styles.actionMenuDivider} />
             <TouchableOpacity 
               onPress={() => handleUserAction(user.id, 'delete')}
-              style={styles.menuItem}
-              activeOpacity={0.85}
+              style={styles.actionMenuItem}
+              activeOpacity={0.7}
             >
-              <Icon name="trash" size={14} color={theme.error} />
-              <Text style={[styles.menuItemText, { color: theme.error }]}>Delete User</Text>
+              <Ionicons name="trash-outline" size={18} color={theme.error} />
+              <Text style={[styles.actionMenuText, { color: theme.error }]}>Delete User</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -363,129 +457,169 @@ export default function AdminPanel() {
   };
 
   const renderReports = () => {
-    if (reports.length === 0) {
+    const filtered = filterBySearch(reports, 'reports');
+    
+    if (filtered.length === 0) {
       return (
-        <View style={styles.emptyContainer}>
-          <Icon name="warning" size={64} color={theme.textSecondary} />
-          <Text style={styles.emptyTitle}>No Reports Found</Text>
-          <Text style={styles.emptySubtext}>User reports will appear here</Text>
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="flag-outline" size={48} color={theme.textSecondary} />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {searchQuery ? 'No reports found' : 'No reports yet'}
+          </Text>
+          <Text style={styles.emptySubtext}>
+            {searchQuery ? 'Try adjusting your search' : 'User reports will appear here'}
+          </Text>
         </View>
       );
     }
 
-    return reports.map((r) => (
-      <View key={r.id} style={styles.card}>
-        <View style={styles.reportHeader}>
-          <Icon name="warning" size={16} color="#F57C00" />
-          <Text style={styles.reportHeaderText}>User Report</Text>
-        </View>
-        
-        <View style={styles.reportSection}>
-          <Text style={styles.reportLabel}>Reported User:</Text>
-          <Text style={styles.cardTitle}>{r.reported_name}</Text>
-          <Text style={styles.cardSubtext}>ID: {r.reported_student_id || 'N/A'}</Text>
-        </View>
-
-        <View style={styles.reportSection}>
-          <Text style={styles.reportLabel}>Reported By:</Text>
-          <Text style={styles.reportText}>{r.reporter_name}</Text>
-          <Text style={styles.cardSubtext}>ID: {r.reporter_student_id || 'N/A'}</Text>
-        </View>
-
-        <View style={styles.reportSection}>
-          <Text style={styles.reportLabel}>Reason:</Text>
-          <Text style={styles.reportReason}>{r.reason}</Text>
-        </View>
-
-        {r.details ? (
-          <View style={styles.reportSection}>
-            <Text style={styles.reportLabel}>Details:</Text>
-            <Text style={styles.reportDetails}>{r.details}</Text>
+    return filtered.map((r) => (
+      <View key={r.id} style={styles.itemCard}>
+        <View style={styles.reportBanner}>
+          <Ionicons name="flag" size={16} color="#F57C00" />
+          <Text style={styles.reportBannerText}>Report #{r.id}</Text>
+          <View style={styles.reportBadge}>
+            <Text style={styles.reportBadgeText}>{r.reason}</Text>
           </View>
-        ) : null}
+        </View>
+
+        <View style={styles.reportContent}>
+          <View style={styles.reportSection}>
+            <Text style={styles.reportSectionLabel}>Reported User</Text>
+            <View style={styles.reportUserRow}>
+              <View style={styles.reportUserAvatar}>
+                <Ionicons name="person-outline" size={16} color={theme.text} />
+              </View>
+              <View>
+                <Text style={styles.reportUserName}>{r.reported_name}</Text>
+                <Text style={styles.reportUserId}>ID: {r.reported_student_id || 'N/A'}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.reportDivider} />
+
+          <View style={styles.reportSection}>
+            <Text style={styles.reportSectionLabel}>Reported By</Text>
+            <View style={styles.reportUserRow}>
+              <View style={styles.reportUserAvatar}>
+                <Ionicons name="person-outline" size={16} color={theme.text} />
+              </View>
+              <View>
+                <Text style={styles.reportUserName}>{r.reporter_name}</Text>
+                <Text style={styles.reportUserId}>ID: {r.reporter_student_id || 'N/A'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {r.details && (
+            <>
+              <View style={styles.reportDivider} />
+              <View style={styles.reportSection}>
+                <Text style={styles.reportSectionLabel}>Details</Text>
+                <Text style={styles.reportDetails}>{r.details}</Text>
+              </View>
+            </>
+          )}
+        </View>
 
         <View style={styles.reportFooter}>
-          <Icon name="clock-o" size={12} color={theme.textSecondary} />
-          <Text style={styles.reportDate}> {new Date(r.created_at).toLocaleString()}</Text>
+          <Ionicons name="time-outline" size={14} color={theme.textSecondary} />
+          <Text style={styles.reportTime}>{new Date(r.created_at).toLocaleString()}</Text>
         </View>
       </View>
     ));
   };
 
   const renderRequests = () => {
-    const filtered = selectedStatus
-      ? requests.filter((r) => r.status.toLowerCase() === selectedStatus.toLowerCase())
-      : requests;
+    const filtered = filterBySearch(
+      requests.filter((r) => r.status.toLowerCase() === selectedStatus.toLowerCase()),
+      'requests'
+    );
 
     if (filtered.length === 0) {
       return (
-        <View style={styles.emptyContainer}>
-          <Icon name="clipboard" size={64} color={theme.textSecondary} />
-          <Text style={styles.emptyTitle}>No {selectedStatus} Requests</Text>
-          <Text style={styles.emptySubtext}>Verification requests will appear here</Text>
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="document-text-outline" size={48} color={theme.textSecondary} />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {searchQuery ? 'No requests found' : `No ${selectedStatus.toLowerCase()} requests`}
+          </Text>
+          <Text style={styles.emptySubtext}>
+            {searchQuery ? 'Try adjusting your search' : 'Verification requests will appear here'}
+          </Text>
         </View>
       );
     }
 
     return filtered.map((req) => (
-      <View key={req.id} style={styles.card}>
+      <View key={req.id} style={styles.itemCard}>
         <View style={styles.requestHeader}>
-          <View>
-            <Text style={styles.cardTitle}>{req.email}</Text>
-            <View style={styles.requestMetaRow}>
-              <Icon name="phone" size={12} color={theme.textSecondary} />
-              <Text style={styles.cardSubtext}> {req.phone_number}</Text>
+          <View style={styles.requestInfo}>
+            <Text style={styles.itemTitle}>{req.email}</Text>
+            <View style={styles.metaRow}>
+              <Ionicons name="call-outline" size={12} color={theme.textSecondary} />
+              <Text style={styles.metaText}>{req.phone_number}</Text>
             </View>
-            <View style={styles.requestMetaRow}>
-              <Icon name="id-card" size={12} color={theme.textSecondary} />
-              <Text style={styles.cardSubtext}> {req.student_id}</Text>
+            <View style={styles.metaRow}>
+              <Ionicons name="card-outline" size={12} color={theme.textSecondary} />
+              <Text style={styles.metaText}>{req.student_id}</Text>
             </View>
           </View>
           <View style={[
-            styles.statusBadge,
-            req.status === 'pending' && styles.statusPending,
-            req.status === 'approved' && styles.statusApproved,
-            req.status === 'rejected' && styles.statusRejected,
+            styles.requestStatusChip,
+            req.status === 'pending' && styles.requestStatusPending,
+            req.status === 'approved' && styles.requestStatusApproved,
+            req.status === 'rejected' && styles.requestStatusRejected,
           ]}>
-            <Text style={styles.statusText}>{req.status}</Text>
+            <Text style={styles.requestStatusText}>{req.status}</Text>
           </View>
         </View>
 
         {(req.id_image || req.cor_image) && (
-          <View style={styles.imageContainer}>
+          <View style={styles.imagesGrid}>
             {req.id_image && (
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: req.id_image }} style={styles.verificationImage} />
-                <Text style={styles.imageLabel}>ID</Text>
+              <View style={styles.imageBox}>
+                <Image source={{ uri: req.id_image }} style={styles.verificationImg} />
+                <View style={styles.imageTag}>
+                  <Ionicons name="card-outline" size={12} color="#fff" />
+                  <Text style={styles.imageTagText}>ID Card</Text>
+                </View>
               </View>
             )}
             {req.cor_image && (
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: req.cor_image }} style={styles.verificationImage} />
-                <Text style={styles.imageLabel}>COR</Text>
+              <View style={styles.imageBox}>
+                <Image source={{ uri: req.cor_image }} style={styles.verificationImg} />
+                <View style={styles.imageTag}>
+                  <Ionicons name="document-text-outline" size={12} color="#fff" />
+                  <Text style={styles.imageTagText}>COR</Text>
+                </View>
               </View>
             )}
           </View>
         )}
 
         {req.status === 'pending' && (
-          <View style={styles.actionRow}>
+          <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.approveButton]}
+              style={[styles.actionBtn, styles.approveBtn]}
               onPress={() => handleAction(req.id, 'approved')}
-              activeOpacity={0.85}
+              activeOpacity={0.7}
             >
               <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.actionText}>Approve</Text>
+              <Text style={styles.actionBtnText}>Approve</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
+              style={[styles.actionBtn, styles.rejectBtn]}
               onPress={() => handleAction(req.id, 'rejected')}
-              activeOpacity={0.85}
+              activeOpacity={0.7}
             >
               <Ionicons name="close-circle" size={18} color="#fff" />
-              <Text style={styles.actionText}>Reject</Text>
+              <Text style={styles.actionBtnText}>Reject</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -499,12 +633,13 @@ export default function AdminPanel() {
     return renderRequests();
   };
 
-  // Full-screen loading overlay
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingOverlay}>
-        <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={styles.loadingText}>Loading admin panel...</Text>
+      <View style={styles.loadingScreen}>
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={styles.loadingText}>Loading Dashboard...</Text>
+        </View>
       </View>
     );
   }
@@ -514,12 +649,11 @@ export default function AdminPanel() {
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.background}
-        translucent={false}
       />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
-          style={styles.container}
-          contentContainerStyle={styles.contentContainer}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -534,44 +668,55 @@ export default function AdminPanel() {
           }
         >
           {renderHeader()}
-          <View style={styles.contentBox}>
+          {renderSearchBar()}
+          <View style={styles.mainContent}>
             {renderContent()}
           </View>
         </ScrollView>
 
-        {/* Suspend Modal */}
-        <Modal visible={suspendModalVisible} transparent animationType="fade">
+        <Modal visible={suspendModalVisible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
+            <View style={styles.modalCard}>
               <View style={styles.modalHeader}>
-                <Icon name="pause-circle" size={24} color={theme.accent} />
+                <View style={styles.modalIconCircle}>
+                  <Ionicons name="pause-circle" size={24} color={theme.accent} />
+                </View>
                 <Text style={styles.modalTitle}>Suspend User</Text>
               </View>
               
-              <Text style={styles.modalLabel}>Suspension Duration (days)</Text>
-              <TextInput
-                style={styles.modalInput}
-                keyboardType="numeric"
-                value={suspendDays}
-                onChangeText={setSuspendDays}
-                placeholder="Enter number of days"
-                placeholderTextColor={theme.textSecondary}
-              />
+              <Text style={styles.modalDescription}>
+                Enter the number of days to suspend this user's account
+              </Text>
+              
+              <View style={styles.modalInputContainer}>
+                <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
+                <TextInput
+                  style={styles.modalTextInput}
+                  keyboardType="numeric"
+                  value={suspendDays}
+                  onChangeText={setSuspendDays}
+                  placeholder="Number of days"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
               
               <View style={styles.modalActions}>
                 <TouchableOpacity 
-                  onPress={() => setSuspendModalVisible(false)}
-                  style={[styles.modalButton, styles.modalCancelButton]}
-                  activeOpacity={0.85}
+                  onPress={() => {
+                    setSuspendModalVisible(false);
+                    setSuspendDays('');
+                  }}
+                  style={[styles.modalBtn, styles.modalCancelBtn]}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   onPress={confirmSuspend}
-                  style={[styles.modalButton, styles.modalConfirmButton]}
-                  activeOpacity={0.85}
+                  style={[styles.modalBtn, styles.modalConfirmBtn]}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.modalConfirmText}>Confirm</Text>
+                  <Text style={styles.modalConfirmText}>Suspend</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -582,44 +727,36 @@ export default function AdminPanel() {
   );
 }
 
-// Dark theme colors
 const darkTheme = {
   background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
+  gradientBackground: '#1B1B41',
+  text: '#ffffff',
+  textSecondary: '#a0a0c0',
   cardBackground: '#1e1e3f',
   cardBackgroundAlt: '#252550',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
   success: '#4CAF50',
-  error: '#d32f2f',
+  error: '#F44336',
   warning: '#F57C00',
+  borderColor: '#2a2a50',
   shadowColor: '#000',
-  borderColor: '#2a2a4a',
-  modalBackground: '#1e1e3f',
-  modalOverlay: 'rgba(0, 0, 0, 0.7)',
+  modalOverlay: 'rgba(0, 0, 0, 0.8)',
 };
 
-// Light theme colors
 const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
+  background: '#f8f9fc',
+  gradientBackground: '#1B1B41',
   text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
+  textSecondary: '#64748b',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  success: '#27ae60',
-  error: '#e74c3c',
-  warning: '#f39c12',
+  cardBackgroundAlt: '#f1f5f9',
+  accent: '#FDAD00',
+  success: '#10b981',
+  error: '#ef4444',
+  warning: '#f59e0b',
+  borderColor: '#e2e8f0',
   shadowColor: '#000',
-  borderColor: '#e0e0ea',
-  modalBackground: '#ffffff',
-  modalOverlay: 'rgba(0, 0, 0, 0.5)',
+  modalOverlay: 'rgba(0, 0, 0, 0.6)',
 };
 
 const createStyles = (theme) => StyleSheet.create({
@@ -627,152 +764,211 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.background,
   },
-  container: {
+  scrollView: {
     flex: 1,
     backgroundColor: theme.background,
   },
-  contentContainer: {
+  scrollContent: {
     paddingBottom: 40,
+  },
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: theme.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.textSecondary,
   },
   backgroundGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 450 : 470,
+    height: Platform.OS === 'ios' ? 380 : 400,
     backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    zIndex: 0,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerContainer: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
+    paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 20,
-    zIndex: 1,
+    paddingBottom: 24,
+    position: 'relative',
   },
   brandedLogoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   adminIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.cardBackground,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    borderWidth: 2,
+    borderColor: theme.accent,
   },
   brandedLogoText: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
-    color: theme.text,
+    fontSize: 22,
+    fontWeight: '800',
+    color: theme.accent,
     letterSpacing: -0.5,
+  },
+  brandedSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#ffffff',
+    opacity: 0.8,
   },
   welcomeSection: {
     marginBottom: 24,
   },
+  welcomeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  welcomeContent: {
+    flex: 1,
+  },
   welcomeText: {
-    fontSize: 16,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    marginBottom: 4,
+    fontSize: 14,
+    color: '#ffffff',
+    opacity: 0.8,
+    fontWeight: '500',
   },
   userName: {
-    fontSize: Math.min(width * 0.07, 28),
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
-    marginBottom: 4,
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    color: '#ffffff',
+    opacity: 0.7,
   },
-  statsContainer: {
+  quickActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  notificationText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 24,
     gap: 12,
+    marginBottom: 16,
   },
   statCard: {
-    width: '47%',
-    backgroundColor: theme.cardBackground,
-    borderRadius: 16,
+    width: (width - 52) / 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 20,
     padding: 16,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: theme.borderColor,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
   },
-  statCardSelected: {
-    borderColor: theme.accent,
-    backgroundColor: theme.cardBackgroundAlt,
+  statCardActive: {
+    backgroundColor: 'rgba(253, 173, 0, 0.2)',
+    borderColor: '#FDAD00',
+    borderWidth: 2,
     ...Platform.select({
       ios: {
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 5,
+        elevation: 6,
       },
     }),
+  },
+  statIconContainer: {
+    position: 'relative',
+    marginBottom: 8,
+  },
+  statIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statPulse: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#F44336',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   statValue: {
     fontSize: 24,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-    marginTop: 8,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
-    color: theme.textSecondary,
-    marginTop: 2,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    color: '#ffffff',
+    opacity: 0.8,
+    fontWeight: '500',
   },
-  sectionTitleContainer: {
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-  },
-  contentBox: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
-    paddingTop: 10,
-  },
-  card: {
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
@@ -780,86 +976,99 @@ const createStyles = (theme) => StyleSheet.create({
       ios: {
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: theme.text,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.text,
+  },
+  sectionCount: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: '500',
+  },
+  mainContent: {
+    paddingHorizontal: 20,
+  },
+  itemCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
       },
       android: {
         elevation: 4,
       },
     }),
   },
-  cardHeader: {
+  itemCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  userInfoContainer: {
+  userRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     flex: 1,
   },
-  userAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  userAvatarLarge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: theme.cardBackgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
     borderWidth: 2,
     borderColor: theme.accent,
   },
-  userDetails: {
+  userInfo: {
     flex: 1,
   },
-  cardTitle: {
+  itemTitle: {
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '700',
     color: theme.text,
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  cardSubtext: {
-    fontSize: 13,
-    color: theme.textSecondary,
-  },
-  userMetaRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
   },
-  statusBadgeContainer: {
-    marginTop: 8,
+  metaText: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    marginLeft: 6,
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: theme.success,
-  },
-  statusPending: {
-    backgroundColor: '#FBC02D',
-  },
-  statusApproved: {
-    backgroundColor: '#4CAF50',
-  },
-  statusRejected: {
-    backgroundColor: '#D32F2F',
-  },
-  statusFrozen: {
-    backgroundColor: '#42A5F5',
-  },
-  statusSuspended: {
-    backgroundColor: '#FF9800',
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    textTransform: 'capitalize',
-  },
-  menuButton: {
+  menuIconButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -867,87 +1076,152 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  menu: {
-    backgroundColor: theme.cardBackground,
+  statusRow: {
+    marginTop: 8,
+  },
+  statusChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
+    backgroundColor: theme.success,
+    gap: 4,
+  },
+  statusChipActive: {
+    backgroundColor: '#10b981',
+  },
+  statusChipFrozen: {
+    backgroundColor: '#3b82f6',
+  },
+  statusChipSuspended: {
+    backgroundColor: '#f59e0b',
+  },
+  statusChipText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  actionMenu: {
+    backgroundColor: theme.cardBackgroundAlt,
+    borderRadius: 16,
     marginTop: 12,
+    padding: 8,
     borderWidth: 1,
     borderColor: theme.borderColor,
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
       },
       android: {
         elevation: 6,
       },
     }),
   },
-  menuItem: {
+  actionMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    borderRadius: 10,
   },
-  menuItemText: {
+  actionMenuText: {
     marginLeft: 12,
     fontSize: 14,
     color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontWeight: '600',
   },
-  menuDivider: {
+  actionMenuDivider: {
     height: 1,
     backgroundColor: theme.borderColor,
-    marginHorizontal: 16,
+    marginVertical: 4,
+    marginHorizontal: 8,
   },
-  reportHeader: {
+  reportBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
+    marginBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
+    gap: 8,
   },
-  reportHeaderText: {
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+  reportBannerText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: theme.warning,
-    marginLeft: 8,
+    flex: 1,
+  },
+  reportBadge: {
+    backgroundColor: theme.warning,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  reportBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  reportContent: {
+    gap: 12,
   },
   reportSection: {
-    marginBottom: 12,
+    gap: 6,
   },
-  reportLabel: {
+  reportSectionLabel: {
     fontSize: 12,
     color: theme.textSecondary,
-    marginBottom: 4,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  reportText: {
-    fontSize: 14,
-    color: theme.text,
+  reportUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  reportReason: {
+  reportUserAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportUserName: {
     fontSize: 15,
+    fontWeight: '600',
     color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+  },
+  reportUserId: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  reportDivider: {
+    height: 1,
+    backgroundColor: theme.borderColor,
   },
   reportDetails: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.text,
     lineHeight: 20,
   },
   reportFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: theme.borderColor,
+    gap: 6,
   },
-  reportDate: {
+  reportTime: {
     fontSize: 12,
     color: theme.textSecondary,
   },
@@ -957,85 +1231,118 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  requestMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  imageContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 12,
-    gap: 12,
-  },
-  imageWrapper: {
+  requestInfo: {
     flex: 1,
-    alignItems: 'center',
   },
-  verificationImage: {
-    width: '100%',
-    height: 140,
+  requestStatusChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 12,
+    marginLeft: 12,
+  },
+  requestStatusPending: {
+    backgroundColor: '#fef3c7',
+  },
+  requestStatusApproved: {
+    backgroundColor: '#d1fae5',
+  },
+  requestStatusRejected: {
+    backgroundColor: '#fee2e2',
+  },
+  requestStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    color: '#1a1a2e',
+  },
+  imagesGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginVertical: 12,
+  },
+  imageBox: {
+    flex: 1,
+    position: 'relative',
+  },
+  verificationImg: {
+    width: '100%',
+    height: 160,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    resizeMode: 'cover',
   },
-  imageLabel: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    marginTop: 6,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-  },
-  actionRow: {
+  imageTag: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-    gap: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
   },
-  actionButton: {
+  imageTagText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+  },
+  actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 6,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
       },
       android: {
         elevation: 4,
       },
     }),
   },
-  approveButton: {
+  approveBtn: {
     backgroundColor: theme.success,
   },
-  rejectButton: {
+  rejectBtn: {
     backgroundColor: theme.error,
   },
-  actionText: {
+  actionBtnText: {
     color: '#fff',
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontSize: 14,
-    marginLeft: 6,
+    fontWeight: '700',
+    fontSize: 15,
   },
-  emptyContainer: {
-    flex: 1,
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: theme.cardBackgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
+    marginBottom: 20,
   },
   emptyTitle: {
     fontSize: 22,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.text,
-    marginTop: 20,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 15,
@@ -1043,88 +1350,90 @@ const createStyles = (theme) => StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: theme.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: theme.textSecondary,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: theme.modalOverlay,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
-  modalContainer: {
-    backgroundColor: theme.modalBackground,
-    borderRadius: 20,
+  modalCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 24,
     padding: 24,
     width: '100%',
     maxWidth: 400,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
-        shadowRadius: 12,
+        shadowRadius: 16,
       },
       android: {
-        elevation: 8,
+        elevation: 12,
       },
     }),
   },
   modalHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-    marginLeft: 12,
+  modalIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  modalLabel: {
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: theme.text,
+  },
+  modalDescription: {
     fontSize: 14,
     color: theme.textSecondary,
-    marginBottom: 8,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
   },
-  modalInput: {
+  modalInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.cardBackgroundAlt,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    marginBottom: 24,
+    gap: 10,
+  },
+  modalTextInput: {
+    flex: 1,
     fontSize: 16,
     color: theme.text,
-    marginBottom: 20,
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: 12,
   },
-  modalButton: {
+  modalBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalCancelButton: {
+  modalCancelBtn: {
     backgroundColor: theme.cardBackgroundAlt,
     borderWidth: 1,
     borderColor: theme.borderColor,
   },
-  modalConfirmButton: {
+  modalConfirmBtn: {
     backgroundColor: theme.accent,
     ...Platform.select({
       ios: {
@@ -1141,11 +1450,11 @@ const createStyles = (theme) => StyleSheet.create({
   modalCancelText: {
     color: theme.text,
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '700',
   },
   modalConfirmText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '700',
   },
 });

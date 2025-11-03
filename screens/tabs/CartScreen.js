@@ -32,25 +32,23 @@ export const handleDirectCheckout = async (product, buyer, buyerName) => {
   }
 
   try {
-    // Add item to checkout history
     const { error: historyError } = await supabase
       .from("checkout_history")
       .insert([{
         buyer_email: buyer.email,
         product_name: product.product_name,
         price: product.price,
-        quantity: 1, // Assuming checkout of 1 item
+        quantity: 1,
         seller_name: product.seller_name || 'Unknown Seller',
         checkout_date: new Date().toISOString(),
       }]);
 
     if (historyError) throw historyError;
 
-    // Get current product data to ensure quantity is up-to-date
     const { data: currentProduct, error: productError } = await supabase
       .from("products")
       .select("quantity, email")
-      .eq("id", product.id || product.product_id) // Handle both product objects
+      .eq("id", product.id || product.product_id)
       .single();
 
     if (productError || !currentProduct) {
@@ -62,7 +60,6 @@ export const handleDirectCheckout = async (product, buyer, buyerName) => {
       return false;
     }
 
-    // Update product quantity
     const newQuantity = currentProduct.quantity - 1;
     const { error: updateError } = await supabase
       .from("products")
@@ -74,7 +71,6 @@ export const handleDirectCheckout = async (product, buyer, buyerName) => {
 
     if (updateError) throw updateError;
 
-    // Send notification to seller
     await supabase.from("notifications").insert({
       sender_id: buyer.email,
       receiver_id: currentProduct.email,
@@ -100,21 +96,28 @@ export default function CartScreen({ navigation }) {
   const [userProfileImage, setUserProfileImage] = useState(null);
   
   const user = auth.currentUser;
-  
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-  
-  // Animation values - FIXED: Start with full opacity
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const headerSlideAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Fetch buyer name
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   useEffect(() => {
     const fetchBuyerName = async () => {
       if (!user?.email) return;
@@ -142,7 +145,6 @@ export default function CartScreen({ navigation }) {
     fetchBuyerName();
   }, [user]);
 
-  // Fetch cart items
   const fetchCart = useCallback(async () => {
     if (!buyerName) return;
     if (!refreshing) setLoading(true);
@@ -150,7 +152,6 @@ export default function CartScreen({ navigation }) {
     const { data, error } = await supabase.from("cart").select("*");
 
     if (!error) {
-      // Enrich with product images
       const enrichedData = await Promise.all(
         data.map(async (item) => {
           const { data: productData, error: productError } = await supabase
@@ -187,7 +188,6 @@ export default function CartScreen({ navigation }) {
     if (buyerName) fetchCart();
   }, [buyerName, fetchCart]);
 
-  // Remove item
   const removeFromCart = async (id) => {
     Alert.alert('Remove Item', 'Are you sure you want to remove this item?', [
       { text: 'Cancel', style: 'cancel' },
@@ -226,8 +226,6 @@ export default function CartScreen({ navigation }) {
       const success = await handleDirectCheckout(productToCheckout, user, buyerName);
       if (!success) {
         allCheckoutsSuccessful = false;
-        // The handleDirectCheckout function already shows an alert on failure.
-        // We can break here or continue trying other items. Let's continue.
       }
     }
     
@@ -261,7 +259,6 @@ export default function CartScreen({ navigation }) {
     else setSelectedIds(cartItems.map((c) => c.id));
   };
 
-  // Calculate total price of selected items
   const calculateTotal = () => {
     return cartItems
       .filter(item => selectedIds.includes(item.id))
@@ -272,93 +269,100 @@ export default function CartScreen({ navigation }) {
   const styles = createStyles(theme);
 
   const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      {/* Background gradient effect */}
-      <View style={styles.backgroundGradient} />
-
-      {/* Branded logo - upper left */}
-      <View style={styles.brandedLogoContainer}>
-        <Image
-          source={require('../../assets/images/OfficialBuyNaBay.png')}
-          style={styles.brandedLogoImage}
-          resizeMode="contain"
-        />
-        <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+    <Animated.View 
+      style={[
+        styles.headerContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
+      <View style={styles.headerBackground}>
+        <View style={styles.gradientOverlay} />
       </View>
 
-      {/* Action buttons - upper right */}
-      <View style={styles.headerActionsContainer}>
-        {/* History Button */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CheckoutScreen')}
-          style={[styles.actionButton, styles.historyButton]}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="receipt-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("ProfileScreen")}>
+      <View style={styles.topBar}>
+        <View style={styles.brandContainer}>
           <Image
-            source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              borderWidth: 1,
-              borderColor: theme.borderColor
-            }}
+            source={require('../../assets/images/OfficialBuyNaBay.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
           />
-        </TouchableOpacity>
+          <Text style={styles.brandText}>BuyNaBay</Text>
+        </View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('CheckoutScreen')}
+            style={[styles.iconButton, styles.historyButton]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="receipt-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate("ProfileScreen")}
+            activeOpacity={0.8}
+          >
+            <Image
+              source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
+              style={styles.profileImage}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Welcome Section */}
-      <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>My Shopping Cart</Text>
-        <Text style={styles.userName}>
+      <View style={styles.welcomeContainer}>
+        <Text style={styles.greetingText}>Shopping Cart</Text>
+        <Text style={styles.userNameText}>
           {buyerName || user?.displayName || user?.email?.split('@')[0] || 'Shopper'}
         </Text>
-        <Text style={styles.subtitle}>Review and checkout your items</Text>
+        <Text style={styles.descriptionText}>Review your items before checkout</Text>
       </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Icon name="shopping-cart" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{cartItems.length}</Text>
-          <Text style={styles.statLabel}>Items</Text>
+      <View style={styles.summaryCards}>
+        <View style={styles.summaryCard}>
+          <View style={styles.cardIconContainer}>
+            <Icon name="shopping-cart" size={18} color={theme.accent} />
+          </View>
+          <Text style={styles.cardValue}>{cartItems.length}</Text>
+          <Text style={styles.cardLabel}>Items</Text>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="check-circle" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{selectedIds.length}</Text>
-          <Text style={styles.statLabel}>Selected</Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.cardIconContainer}>
+            <Icon name="check-circle" size={18} color={theme.accent} />
+          </View>
+          <Text style={styles.cardValue}>{selectedIds.length}</Text>
+          <Text style={styles.cardLabel}>Selected</Text>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="money" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>₱{calculateTotal()}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.cardIconContainer}>
+            <Icon name="money" size={18} color={theme.accent} />
+          </View>
+          <Text style={styles.cardValue}>₱{calculateTotal()}</Text>
+          <Text style={styles.cardLabel}>Total</Text>
         </View>
       </View>
 
-      {/* Select All Section */}
       {cartItems.length > 0 && (
-        <View style={styles.selectAllContainer}>
+        <TouchableOpacity 
+          style={styles.selectAllBar}
+          onPress={toggleSelectAll}
+          activeOpacity={0.7}
+        >
           <ExpoCheckbox
             value={allSelected}
             onValueChange={toggleSelectAll}
             color={allSelected ? theme.accent : undefined}
             style={styles.checkbox}
           />
-          <Text style={styles.selectAllText}>Select All Items</Text>
-        </View>
+          <Text style={styles.selectAllLabel}>Select All Items</Text>
+          <View style={styles.selectAllBadge}>
+            <Text style={styles.badgeText}>{cartItems.length}</Text>
+          </View>
+        </TouchableOpacity>
       )}
-
-      {/* Section Title */}
-      {cartItems.length > 0 && (
-        <View style={styles.sectionTitleContainer}>
-          <Icon name="shopping-bag" size={18} color={theme.text} />
-          <Text style={styles.sectionTitle}> Cart Items</Text>
-        </View>
-      )}
-    </View>
+    </Animated.View>
   );
 
   const renderItem = ({ item, index }) => {
@@ -366,93 +370,119 @@ export default function CartScreen({ navigation }) {
     const isSelected = selectedIds.includes(item.id);
 
     return (
-      <View style={styles.cardRow}>
-        <View style={styles.cardLeft}>
-          <ExpoCheckbox
-            value={isSelected}
-            onValueChange={() => toggleSelect(item.id)}
-            color={isSelected ? theme.accent : undefined}
-            style={styles.checkbox}
-          />
-        </View>
-
+      <Animated.View 
+        style={[
+          styles.itemContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ 
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 50],
+                outputRange: [0, 50 + index * 10]
+              })
+            }]
+          }
+        ]}
+      >
         <TouchableOpacity
-          style={[
-            styles.card,
-            isSelected && styles.cardSelected,
-          ]}
-          activeOpacity={0.85}
+          style={[styles.itemCard, isSelected && styles.itemCardSelected]}
+          activeOpacity={0.9}
           onPress={() =>
             item.productData && navigation.navigate("ProductDetails", { product: item.productData })
           }
         >
-          {thumbnail ? (
-            <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
-          ) : (
-            <View style={styles.thumbnailPlaceholder}>
-              <Icon name="image" size={40} color={theme.textSecondary} />
-            </View>
-          )}
+          <TouchableOpacity 
+            style={styles.checkboxContainer}
+            onPress={() => toggleSelect(item.id)}
+            activeOpacity={0.7}
+          >
+            <ExpoCheckbox
+              value={isSelected}
+              onValueChange={() => toggleSelect(item.id)}
+              color={isSelected ? theme.accent : undefined}
+              style={styles.itemCheckbox}
+            />
+          </TouchableOpacity>
 
-          <View style={styles.cardContent}>
-            <Text style={styles.productName} numberOfLines={2}>
+          <View style={styles.imageContainer}>
+            {thumbnail ? (
+              <Image source={{ uri: thumbnail }} style={styles.productImage} />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Icon name="image" size={32} color={theme.iconPlaceholder} />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.detailsContainer}>
+            <Text style={styles.productTitle} numberOfLines={2}>
               {item.product_name}
             </Text>
             
-            <View style={styles.priceQuantityRow}>
-              <View style={styles.priceContainer}>
-                <Text style={styles.priceLabel}>Price</Text>
-                <Text style={styles.price}>₱{item.price}</Text>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Price</Text>
+                <Text style={styles.priceText}>₱{item.price}</Text>
               </View>
-              <View style={styles.quantityContainer}>
-                <Text style={styles.quantityLabel}>Quantity</Text>
-                <Text style={styles.quantity}>{item.quantity}</Text>
+              <View style={styles.metaDivider} />
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Qty</Text>
+                <Text style={styles.quantityText}>×{item.quantity}</Text>
               </View>
             </View>
 
-            <View style={styles.cardFooter}>
-              <View style={styles.subtotalContainer}>
-                <Text style={styles.subtotalLabel}>Subtotal:</Text>
-                <Text style={styles.subtotal}>
+            <View style={styles.footerRow}>
+              <View style={styles.totalContainer}>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+                <Text style={styles.totalAmount}>
                   ₱{(parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)}
                 </Text>
               </View>
               <TouchableOpacity 
-                style={styles.removeBtn} 
+                style={styles.deleteButton} 
                 onPress={() => removeFromCart(item.id)}
-                activeOpacity={0.85}
+                activeOpacity={0.7}
               >
-                <Icon name="trash" size={14} color="#fff" />
+                <Icon name="trash-o" size={16} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     );
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Icon name="shopping-cart" size={64} color={theme.textSecondary} />
+    <Animated.View 
+      style={[
+        styles.emptyState,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
+      <View style={styles.emptyIconContainer}>
+        <Icon name="shopping-cart" size={72} color={theme.iconPlaceholder} />
+      </View>
       <Text style={styles.emptyTitle}>Your Cart is Empty</Text>
-      <Text style={styles.emptySubtext}>
-        Start adding products to your cart and enjoy shopping!
+      <Text style={styles.emptyDescription}>
+        Discover amazing products and start adding them to your cart
       </Text>
       <TouchableOpacity
-        style={styles.shopNowButton}
+        style={styles.shopButton}
         onPress={() => navigation.navigate('Home')}
-        activeOpacity={0.85}
+        activeOpacity={0.8}
       >
-        <Icon name="shopping-bag" size={16} color="#fff" style={styles.buttonIcon} />
-        <Text style={styles.shopNowButtonText}>Shop Now</Text>
+        <Icon name="shopping-bag" size={18} color="#fff" style={{ marginRight: 10 }} />
+        <Text style={styles.shopButtonText}>Start Shopping</Text>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 
-  // Full-screen loading overlay
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingOverlay}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.accent} />
         <Text style={styles.loadingText}>Loading your cart...</Text>
       </View>
@@ -468,7 +498,7 @@ export default function CartScreen({ navigation }) {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.container}>
         <FlatList
           data={cartItems}
           keyExtractor={(item) => item.id.toString()}
@@ -490,36 +520,35 @@ export default function CartScreen({ navigation }) {
           }
         />
 
-        {/* Checkout Footer */}
         {cartItems.length > 0 && (
-          <View style={styles.checkoutContainer}>
-            <View style={styles.checkoutSummary}>
+          <View style={styles.checkoutFooter}>
+            <View style={styles.summaryRow}>
               <View>
-                <Text style={styles.summaryLabel}>Total Amount</Text>
-                <Text style={styles.summaryValue}>₱{calculateTotal()}</Text>
+                <Text style={styles.totalText}>Total Amount</Text>
+                <Text style={styles.totalPrice}>₱{calculateTotal()}</Text>
               </View>
-              <Text style={styles.selectedCount}>
-                {selectedCount} {selectedCount === 1 ? 'item' : 'items'} selected
+              <Text style={styles.itemCount}>
+                {selectedCount} {selectedCount === 1 ? 'item' : 'items'}
               </Text>
             </View>
             <TouchableOpacity
               style={[
-                styles.checkoutBtn,
-                (selectedCount === 0 || isCheckingOut) && styles.checkoutBtnDisabled,
+                styles.checkoutButton,
+                (selectedCount === 0 || isCheckingOut) && styles.checkoutButtonDisabled,
               ]}
               onPress={handleCheckout}
               disabled={selectedCount === 0 || isCheckingOut}
-              activeOpacity={0.85}
+              activeOpacity={0.8}
             >
               {isCheckingOut ? (
-                <View style={styles.checkoutLoadingContainer}>
+                <View style={styles.loadingRow}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.checkoutText, { marginLeft: 10 }]}>Processing...</Text>
+                  <Text style={[styles.checkoutButtonText, { marginLeft: 10 }]}>Processing...</Text>
                 </View>
               ) : (
                 <>
-                  <Icon name="shopping-bag" size={18} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.checkoutText}>Checkout Now</Text>
+                  <Icon name="check-circle" size={20} color="#fff" style={{ marginRight: 10 }} />
+                  <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -530,168 +559,151 @@ export default function CartScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching HomeScreen)
 const darkTheme = {
   background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
+  headerBackground: '#1b1b41',
+  text: '#ffffff',
+  textSecondary: '#a8a8c8',
   cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  cardBackgroundSelected: '#2a2a55',
+  cardSelected: '#2a2a55',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  historyColor: '#4CAF50',
-  error: '#d32f2f',
-  shadowColor: '#000',
-  borderColor: '#2a2a4a',
+  error: '#ef4444',
+  border: '#2a2a4a',
   borderSelected: '#FDAD00',
-  buttonDisabled: '#555',
+  iconPlaceholder: '#4a4a6a',
+  buttonDisabled: '#3a3a5a',
+  imagePlaceholder: '#252545',
 };
 
-// Light theme colors (matching HomeScreen)
 const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
+  background: '#f8f9fa',
+  headerBackground: '#e8ecf1',
   text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
+  textSecondary: '#6b7280',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  cardBackgroundSelected: '#fffbf0',
+  cardSelected: '#fffbf0',
   accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  historyColor: '#27ae60',
-  error: '#e74c3c',
-  shadowColor: '#000',
-  borderColor: '#e0e0ea',
+  error: '#ef4444',
+  border: '#e5e7eb',
   borderSelected: '#f39c12',
-  buttonDisabled: '#ccc',
+  iconPlaceholder: '#9ca3af',
+  buttonDisabled: '#d1d5db',
+  imagePlaceholder: '#f3f4f6',
 };
 
 const createStyles = (theme) => StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: theme.background,
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
-  backgroundGradient: {
+  headerContainer: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  headerBackground: {
+    height: Platform.OS === 'ios' ? 320 : 340,
+    backgroundColor: theme.headerBackground,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
+  },
+  gradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.03,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 12 : 20,
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 340 : 360,
-    backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    zIndex: 0,
-  },
-  headerContainer: {
-    paddingHorizontal: Math.max(width * 0.05, 20),
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 20,
-    zIndex: 1,
-  },
-  brandedLogoContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 20,
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
     zIndex: 10,
   },
-  brandedLogoImage: {
-    width: 32,
-    height: 32,
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandLogo: {
+    width: 28,
+    height: 28,
     marginRight: 8,
   },
-  brandedLogoText: {
-    fontSize: 18,
+  brandText: {
+    fontSize: 17,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
-    color: theme.accentSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
-    letterSpacing: -0.5,
+    color: theme.text,
+    letterSpacing: -0.3,
   },
-  headerActionsContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 20,
-    right: 20,
+  actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    zIndex: 10,
   },
-  actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 4,
+        elevation: 3,
       },
     }),
   },
   historyButton: {
-    backgroundColor: theme.historyColor,
+    backgroundColor: '#10b981',
   },
-  welcomeSection: {
-    marginTop: 70,
-    marginBottom: 24,
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: theme.border,
   },
-  welcomeText: {
-    fontSize: 16,
+  welcomeContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 70,
+    paddingBottom: 24,
+  },
+  greetingText: {
+    fontSize: 15,
     color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500',
     marginBottom: 4,
   },
-  userName: {
-    fontSize: Math.min(width * 0.08, 32),
-    color: theme.text,
+  userNameText: {
+    fontSize: Math.min(width * 0.075, 30),
     fontWeight: Platform.OS === 'android' ? '900' : '800',
-    fontFamily: Platform.select({
-      ios: 'Poppins-ExtraBold',
-      android: 'Poppins-Black',
-      default: 'Poppins-ExtraBold',
-    }),
-    marginBottom: 4,
+    color: theme.text,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
-  subtitle: {
+  descriptionText: {
     fontSize: 14,
     color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '400',
   },
-  statsContainer: {
+  summaryCards: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    paddingHorizontal: 20,
     gap: 12,
+    marginBottom: 20,
   },
-  statCard: {
+  summaryCard: {
     flex: 1,
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
@@ -699,259 +711,223 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
-  statValue: {
+  cardIconContainer: {
+    marginBottom: 8,
+  },
+  cardValue: {
     fontSize: 20,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    marginTop: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
+    marginTop: 4,
   },
-  statLabel: {
-    fontSize: 12,
+  cardLabel: {
+    fontSize: 11,
     color: theme.textSecondary,
     marginTop: 2,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500',
   },
-  selectAllContainer: {
+  selectAllBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.cardBackground,
+    marginHorizontal: 20,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 14,
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
     borderRadius: 6,
   },
-  selectAllText: {
+  selectAllLabel: {
+    flex: 1,
     marginLeft: 12,
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontSize: 15,
+    fontWeight: '600',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
+  selectAllBadge: {
+    backgroundColor: theme.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    paddingHorizontal: Math.max(width * 0.05, 20),
+  itemContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
   },
-  cardLeft: {
-    width: 40,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  card: {
+  itemCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 16,
     overflow: 'hidden',
-    flex: 1,
-    marginLeft: 8,
     borderWidth: 2,
-    borderColor: theme.borderColor,
+    borderColor: theme.border,
     ...Platform.select({
       ios: {
-        shadowColor: theme.shadowColor,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  itemCardSelected: {
+    borderColor: theme.borderSelected,
+    backgroundColor: theme.cardSelected,
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
       },
       android: {
         elevation: 4,
       },
     }),
   },
-  cardSelected: {
-    borderColor: theme.borderSelected,
-    backgroundColor: theme.cardBackgroundSelected,
+  checkboxContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 10,
+    backgroundColor: theme.cardBackground,
+    borderRadius: 8,
+    padding: 6,
     ...Platform.select({
       ios: {
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 6,
+        elevation: 2,
       },
     }),
   },
-  thumbnail: {
+  itemCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+  },
+  imageContainer: {
     width: '100%',
-    height: 140,
+    height: 160,
+    overflow: 'hidden',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
     resizeMode: 'cover',
   },
-  thumbnailPlaceholder: {
+  imagePlaceholder: {
     width: '100%',
-    height: 140,
-    backgroundColor: theme.cardBackgroundAlt,
+    height: '100%',
+    backgroundColor: theme.imagePlaceholder,
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: theme.borderColor,
   },
-  cardContent: {
+  detailsContainer: {
     padding: 16,
   },
-  productName: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+  productTitle: {
+    fontSize: 17,
+    fontWeight: '700',
     color: theme.text,
     marginBottom: 12,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
+    lineHeight: 22,
   },
-  priceQuantityRow: {
+  metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 14,
   },
-  priceContainer: {
+  metaItem: {
     flex: 1,
   },
-  priceLabel: {
+  metaDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: theme.border,
+    marginHorizontal: 12,
+  },
+  metaLabel: {
     fontSize: 12,
     color: theme.textSecondary,
     marginBottom: 4,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500',
   },
-  price: {
+  priceText: {
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.accent,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
-  quantityContainer: {
-    alignItems: 'flex-end',
-  },
-  quantityLabel: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    marginBottom: 4,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
-  },
-  quantity: {
+  quantityText: {
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '600',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
-  cardFooter: {
+  footerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
   },
-  subtotalContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  totalContainer: {
+    flex: 1,
   },
-  subtotalLabel: {
-    fontSize: 14,
+  totalLabel: {
+    fontSize: 12,
     color: theme.textSecondary,
-    marginRight: 8,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    marginBottom: 4,
+    fontWeight: '500',
   },
-  subtotal: {
-    fontSize: 16,
+  totalAmount: {
+    fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.accent,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
-  removeBtn: {
+  deleteButton: {
     backgroundColor: theme.error,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 10,
     ...Platform.select({
       ios: {
         shadowColor: theme.error,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.25,
         shadowRadius: 4,
       },
       android: {
@@ -959,52 +935,53 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  removeText: {
-    color: '#fff',
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontSize: 14,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
-  },
-  emptyContainer: {
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingVertical: 60,
+    paddingVertical: 80,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.cardBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   emptyTitle: {
     fontSize: 24,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    marginTop: 20,
     marginBottom: 12,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
+    textAlign: 'center',
   },
-  emptySubtext: {
-    fontSize: 16,
+  emptyDescription: {
+    fontSize: 15,
     color: theme.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 30,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 20,
   },
-  shopNowButton: {
+  shopButton: {
     backgroundColor: theme.accent,
     paddingVertical: 14,
     paddingHorizontal: 32,
-    borderRadius: 25,
+    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
     ...Platform.select({
@@ -1019,20 +996,12 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  shopNowButtonText: {
+  shopButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
-  loadingOverlay: {
+  loadingContainer: {
     flex: 1,
     backgroundColor: theme.background,
     justifyContent: 'center',
@@ -1040,71 +1009,56 @@ const createStyles = (theme) => StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500',
   },
-  checkoutContainer: {
+  checkoutFooter: {
     backgroundColor: theme.cardBackground,
-    paddingHorizontal: Math.max(width * 0.05, 20),
+    paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
     borderTopWidth: 1,
-    borderTopColor: theme.borderColor,
+    borderTopColor: theme.border,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
       },
       android: {
         elevation: 8,
       },
     }),
   },
-  checkoutSummary: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  summaryLabel: {
-    fontSize: 16,
-    color: theme.textSecondary,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.accent,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
-  },
-  selectedCount: {
+  totalText: {
     fontSize: 14,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500',
+    marginBottom: 4,
   },
-  checkoutBtn: {
+  totalPrice: {
+    fontSize: 26,
+    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    color: theme.accent,
+    letterSpacing: -0.5,
+  },
+  itemCount: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    fontWeight: '500',
+  },
+  checkoutButton: {
     backgroundColor: theme.accent,
-    paddingVertical: Platform.OS === 'ios' ? 18 : 16,
-    borderRadius: 16,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1120,7 +1074,7 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  checkoutBtnDisabled: {
+  checkoutButtonDisabled: {
     backgroundColor: theme.buttonDisabled,
     ...Platform.select({
       ios: {
@@ -1134,17 +1088,13 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  checkoutText: {
+  checkoutButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
+    letterSpacing: 0.2,
   },
-  checkoutLoadingContainer: {
+  loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },

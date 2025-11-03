@@ -26,18 +26,17 @@ const { width, height } = Dimensions.get('window');
 export default function HomeScreen({ navigation }) {
   const currentUser = auth.currentUser;
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState('products'); // 'products' or 'rentals'
-
+  const [activeView, setActiveView] = useState('products');
   const [userProfileImage, setUserProfileImage] = useState(null);
-  // Automatically detect system theme
+  const [searchFocused, setSearchFocused] = useState(false);
+  
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
+  const searchScaleAnim = useRef(new Animated.Value(1)).current;
+  const segmentSlideAnim = useRef(new Animated.Value(0)).current;
 
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
-
-  // Get safe area insets for better positioning
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -55,15 +54,52 @@ export default function HomeScreen({ navigation }) {
     };
     fetchUserProfile();
   }, [currentUser]);
-  // Initial animations
+
   useEffect(() => {
-    Animated.timing(headerSlideAnim, {
-      toValue: 0,
-      duration: 500,
+    Animated.parallel([
+      Animated.timing(headerSlideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(segmentSlideAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  useEffect(() => {
+    Animated.spring(searchScaleAnim, {
+      toValue: searchFocused ? 1.02 : 1,
+      tension: 100,
+      friction: 7,
       useNativeDriver: true,
     }).start();
-  }, []);
-  
+  }, [searchFocused]);
+
+  const handleSearchFocus = () => setSearchFocused(true);
+  const handleSearchBlur = () => setSearchFocused(false);
+
+  const handleSegmentChange = (view) => {
+    Animated.sequence([
+      Animated.timing(segmentSlideAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(segmentSlideAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setActiveView(view);
+  };
+
   const styles = createStyles(theme, insets);
 
   const renderHeader = () => (
@@ -75,41 +111,44 @@ export default function HomeScreen({ navigation }) {
         },
       ]}
     >
-      {/* Background gradient effect */}
-      <View style={styles.backgroundGradient} />
-
-      {/* Branded logo - upper left */}
-      <View style={styles.brandedLogoContainer}>
-        <Image
-          source={require('../../assets/images/OfficialBuyNaBay.png')}
-          style={styles.brandedLogoImage}
-          resizeMode="contain"
-        />
-        <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+      <View style={styles.backgroundGradient}>
+        <View style={styles.gradientOverlay} />
       </View>
 
-      {/* Action buttons - upper right */}
-      <View style={styles.headerActionsContainer}>
-        {/* Notifications Button */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Notifications')}
-          style={[styles.actionButton, styles.notificationButton]}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="notifications-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("ProfileScreen")}>
-          <Image
-            source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              borderWidth: 1,
-              borderColor: theme.borderColor
-            }}
-          />
-        </TouchableOpacity>
+      {/* Top Navigation Bar */}
+      <View style={styles.topNavBar}>
+        <View style={styles.brandedLogoContainer}>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../../assets/images/OfficialBuyNaBay.png')}
+              style={styles.brandedLogoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+        </View>
+
+        <View style={styles.headerActionsContainer}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Notifications')}
+            style={[styles.actionButton, styles.notificationButton]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={22} color="#fff" />
+            <View style={styles.notificationBadge} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate("ProfileScreen")}
+            activeOpacity={0.8}
+          >
+            <View style={styles.profileImageWrapper}>
+              <Image
+                source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
+                style={styles.profileImage}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Welcome Section */}
@@ -122,44 +161,81 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={18} color={theme.inputIcon} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search products..."
-          placeholderTextColor={theme.placeholder}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity 
-            onPress={() => setSearchQuery('')} 
-            style={styles.clearButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close-circle" size={20} color={theme.inputIcon} />
-          </TouchableOpacity>
-        )}
-      </View>
+      <Animated.View 
+        style={[
+          styles.searchContainer,
+          {
+            transform: [{ scale: searchScaleAnim }]
+          }
+        ]}
+      >
+        <View style={styles.searchInputWrapper}>
+          <Icon name="search" size={18} color={theme.inputIcon} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={`Search ${activeView === 'products' ? 'products' : 'rentals'}...`}
+            placeholderTextColor={theme.placeholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={handleSearchFocus}
+            onBlur={handleSearchBlur}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => setSearchQuery('')} 
+              style={styles.clearButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close-circle" size={20} color={theme.inputIcon} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </Animated.View>
 
       {/* Segmented Control */}
-      <View style={styles.segmentedControlContainer}>
+      <Animated.View 
+        style={[
+          styles.segmentedControlContainer,
+          {
+            transform: [{ scale: segmentSlideAnim }]
+          }
+        ]}
+      >
         <TouchableOpacity
           style={[styles.segmentButton, activeView === 'products' && styles.segmentActive]}
-          onPress={() => setActiveView('products')}
+          onPress={() => handleSegmentChange('products')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="cube-outline" size={20} color={activeView === 'products' ? '#fff' : theme.text} />
-          <Text style={[styles.segmentText, activeView === 'products' && styles.segmentTextActive]}>Products</Text>
+          <View style={styles.segmentContent}>
+            <Ionicons 
+              name={activeView === 'products' ? 'cube' : 'cube-outline'} 
+              size={20} 
+              color={activeView === 'products' ? '#fff' : theme.text} 
+            />
+            <Text style={[styles.segmentText, activeView === 'products' && styles.segmentTextActive]}>
+              Products
+            </Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.segmentButton, activeView === 'rentals' && styles.segmentActive]}
-          onPress={() => setActiveView('rentals')}
+          onPress={() => handleSegmentChange('rentals')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="home-outline" size={20} color={activeView === 'rentals' ? '#fff' : theme.text} />
-          <Text style={[styles.segmentText, activeView === 'rentals' && styles.segmentTextActive]}>Rentals</Text>
+          <View style={styles.segmentContent}>
+            <Ionicons 
+              name={activeView === 'rentals' ? 'home' : 'home-outline'} 
+              size={20} 
+              color={activeView === 'rentals' ? '#fff' : theme.text} 
+            />
+            <Text style={[styles.segmentText, activeView === 'rentals' && styles.segmentTextActive]}>
+              Rentals
+            </Text>
+          </View>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </Animated.View>
   );
 
@@ -173,19 +249,30 @@ export default function HomeScreen({ navigation }) {
       <SafeAreaView style={styles.safeArea}>
         {renderHeader()}
         {activeView === 'products' ? (
-          <ProductScreen navigation={navigation} theme={theme} searchQuery={searchQuery} isVisible={activeView === 'products'} />
+          <ProductScreen 
+            navigation={navigation} 
+            theme={theme} 
+            searchQuery={searchQuery} 
+            isVisible={activeView === 'products'} 
+          />
         ) : (
-          <RentalScreen navigation={navigation} theme={theme} searchQuery={searchQuery} isVisible={activeView === 'rentals'} />
+          <RentalScreen 
+            navigation={navigation} 
+            theme={theme} 
+            searchQuery={searchQuery} 
+            isVisible={activeView === 'rentals'} 
+          />
         )}
       </SafeAreaView>
     </>
   );
 }
 
-// Dark theme colors
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
+  gradientStart: '#1b1b41',
+  gradientEnd: '#0f0f2e',
   text: '#fff',
   textSecondary: '#bbb',
   textTertiary: '#ccc',
@@ -204,10 +291,11 @@ const darkTheme = {
   overlayBackground: 'rgba(0, 0, 0, 0.7)',
 };
 
-// Light theme colors
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
+  gradientStart: '#e8ecf1',
+  gradientEnd: '#f5f7fa',
   text: '#1a1a2e',
   textSecondary: '#4a4a6a',
   textTertiary: '#2c2c44',
@@ -237,45 +325,71 @@ const createStyles = (theme, insets) =>
       top: 0,
       left: 0,
       right: 0,
-      height: height * 0.4, // Use a percentage of the screen height
+      height: height * 0.45,
       backgroundColor: theme.gradientBackground,
-      borderBottomLeftRadius: 30,
-      borderBottomRightRadius: 30,
-      zIndex: 0,
+      borderBottomLeftRadius: 32,
+      borderBottomRightRadius: 32,
+      overflow: 'hidden',
+    },
+    gradientOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      opacity: 0.1,
     },
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.05, 20),
-      paddingTop: 20,
-      paddingBottom: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
       zIndex: 1,
     },
-    brandedLogoContainer: {
-      position: 'absolute',
-      top: 20,
-      left: Math.max(width * 0.04, 16),
+    topNavBar: {
       flexDirection: 'row',
+      justifyContent: 'space-between',
       alignItems: 'center',
+      marginBottom: 28,
       zIndex: 10,
     },
+    brandedLogoContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    logoWrapper: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
     brandedLogoImage: {
-      width: 32,
-      height: 32,
-      marginRight: 8,
+      width: 26,
+      height: 26,
     },
     brandedLogoText: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.accentSecondary,
       letterSpacing: -0.5,
     },
     headerActionsContainer: {
-      position: 'absolute',
-      top: 20,
-      right: Math.max(width * 0.04, 16),
       flexDirection: 'row',
-      alignItems: 'center', // Changed
+      alignItems: 'center',
       gap: 12,
-      zIndex: 10,
     },
     actionButton: {
       width: 44,
@@ -287,60 +401,98 @@ const createStyles = (theme, insets) =>
         ios: {
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
+          shadowOpacity: 0.25,
           shadowRadius: 8,
+        },
+        android: {
+          elevation: 5,
+        },
+      }),
+    },
+    notificationButton: {
+      backgroundColor: theme.notificationColor,
+      position: 'relative',
+    },
+    notificationBadge: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: '#fff',
+      borderWidth: 1.5,
+      borderColor: theme.notificationColor,
+    },
+    profileImageWrapper: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 2,
+      borderColor: theme.accent,
+      padding: 2,
+      backgroundColor: theme.cardBackground,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 6,
         },
         android: {
           elevation: 4,
         },
       }),
     },
-    notificationButton: {
-      backgroundColor: theme.notificationColor,
-    },
-    logoutButton: {
-      backgroundColor: theme.logoutColor,
+    profileImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 19,
     },
     welcomeSection: {
-      marginTop: 60,
       marginBottom: 24,
     },
     welcomeText: {
-      fontSize: 16,
+      fontSize: 15,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
       marginBottom: 4,
+      letterSpacing: 0.3,
     },
     userName: {
-      fontSize: Math.min(width * 0.075, 30),
+      fontSize: Math.min(width * 0.08, 32),
       color: theme.text,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
-      marginBottom: 4,
+      marginBottom: 6,
+      letterSpacing: -0.5,
     },
     subtitle: {
       fontSize: 14,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
+      opacity: 0.9,
     },
     searchContainer: {
+      marginBottom: 20,
+    },
+    searchInputWrapper: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: theme.inputBackground,
       borderRadius: 16,
-      paddingHorizontal: 12,
+      paddingHorizontal: 16,
       paddingVertical: Platform.OS === 'ios' ? 4 : 2,
-      marginBottom: 20,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: theme.borderColor,
       ...Platform.select({
         ios: {
           shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.12,
+          shadowRadius: 6,
         },
         android: {
-          elevation: 2,
+          elevation: 3,
         },
       }),
     },
@@ -360,29 +512,54 @@ const createStyles = (theme, insets) =>
     segmentedControlContainer: {
       flexDirection: 'row',
       backgroundColor: theme.cardBackground,
-      borderRadius: 12,
-      padding: 4,
-      marginHorizontal: Math.max(width * 0.05, 20),
-      marginBottom: 16,
+      borderRadius: 14,
+      padding: 5,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+        },
+        android: {
+          elevation: 3,
+        },
+      }),
     },
     segmentButton: {
       flex: 1,
-      paddingVertical: 12,
-      borderRadius: 8,
+      paddingVertical: 13,
+      borderRadius: 10,
       justifyContent: 'center',
       alignItems: 'center',
-      flexDirection: 'row',
-      gap: 8,
     },
     segmentActive: {
       backgroundColor: theme.accent,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.accent,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.3,
+          shadowRadius: 6,
+        },
+        android: {
+          elevation: 4,
+        },
+      }),
+    },
+    segmentContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     segmentText: {
       fontSize: 15,
       fontWeight: '600',
       color: theme.textSecondary,
+      letterSpacing: 0.2,
     },
     segmentTextActive: {
       color: '#fff',
+      fontWeight: '700',
     },
   });

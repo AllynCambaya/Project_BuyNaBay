@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+// screens/MessagingScreen.js
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -51,6 +51,10 @@ export default function MessagingScreen({ route }) {
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
+  // Typing indicator
+  const [isTyping, setIsTyping] = useState(false);
+  const typingDotAnim = useRef(new Animated.Value(0)).current;
+
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -60,6 +64,35 @@ export default function MessagingScreen({ route }) {
   const styles = createStyles(theme);
 
   const flatListRef = useRef(null);
+
+  // Fetch avatars
+  useEffect(() => {
+    const fetchAvatars = async () => {
+      if (!user?.email || !receiverId) return;
+
+      // Fetch receiver avatar
+      const { data: receiverData } = await supabase
+        .from('users')
+        .select('profile_photo')
+        .eq('email', receiverId)
+        .single();
+      if (receiverData?.profile_photo) {
+        setReceiverAvatar(receiverData.profile_photo);
+      }
+
+      // Fetch current user avatar
+      const { data: userData } = await supabase
+        .from('users')
+        .select('profile_photo')
+        .eq('email', user.email)
+        .single();
+      if (userData?.profile_photo) {
+        setUserAvatar(userData.profile_photo);
+      }
+    };
+
+    fetchAvatars();
+  }, [user, receiverId]);
 
   useEffect(() => {
     const fetchBuyerName = async () => {
@@ -73,6 +106,26 @@ export default function MessagingScreen({ route }) {
     };
     fetchBuyerName();
   }, [user]);
+
+  // Typing indicator animation
+  useEffect(() => {
+    if (isTyping) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(typingDotAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(typingDotAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [isTyping]);
 
   const showMessageOptions = (message) => {
     setSelectedMessage(message);
@@ -174,6 +227,10 @@ export default function MessagingScreen({ route }) {
       quality: 0.8,
     });
 
+    if (!result.canceled && result.assets) {
+      const uris = result.assets.map((asset) => asset.uri);
+      setImages((prev) => [...prev, ...uris]);
+    }
   };
 
   // --- Upload images ---
@@ -268,8 +325,23 @@ export default function MessagingScreen({ route }) {
     );
   };
 
+  // Format message time
+  const formatMessageTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Check if messages should be grouped
+  const shouldGroupMessage = (currentMsg, prevMsg) => {
+    if (!prevMsg) return false;
+    if (currentMsg.sender_id !== prevMsg.sender_id) return false;
+    
+    const timeDiff = new Date(currentMsg.created_at) - new Date(prevMsg.created_at);
+    return timeDiff < 60000; // Group if within 1 minute
+  };
+
   // --- Render item with swipe & animated movement ---
-  const renderItem = ({ item }) => {
+  const renderItem = ({ item, index }) => {
     const isMine = item.sender_id === user.email;
     const avatarSource = isMine ? userAvatar : receiverAvatar;
     const isProductMessage = !!item.product_context;
@@ -289,7 +361,9 @@ export default function MessagingScreen({ route }) {
     }
 
     const repliedMessage = messages.find(m => m.id === item.reply_to);
-    const translateX = new Animated.Value(0);
+    const prevMessage = index > 0 ? messages[index - 1] : null;
+    const isGrouped = shouldGroupMessage(item, prevMessage);
+    const showAvatar = !isGrouped;
 
     return (
       <Swipeable
@@ -305,9 +379,10 @@ export default function MessagingScreen({ route }) {
             extrapolate: 'clamp',
           });
           return (
-            <Animated.View style={[styles.swipeReply, { transform: [{ translateX: trans }] }]}>
-              <Icon name="reply" size={18} color="#fff" />
-              <Text style={styles.swipeText}>Reply</Text>
+            <Animated.View style={[styles.swipeAction, { transform: [{ translateX: trans }] }]}>
+              <View style={styles.swipeIconContainer}>
+                <Icon name="reply" size={18} color="#fff" />
+              </View>
             </Animated.View>
           );
         }}
@@ -318,55 +393,88 @@ export default function MessagingScreen({ route }) {
             extrapolate: 'clamp',
           });
           return (
-            <Animated.View style={[styles.swipeReply, { transform: [{ translateX: trans }] }]}>
-              <Icon name="reply" size={18} color="#fff" />
-              <Text style={styles.swipeText}>Reply</Text>
+            <Animated.View style={[styles.swipeAction, { transform: [{ translateX: trans }] }]}>
+              <View style={styles.swipeIconContainer}>
+                <Icon name="reply" size={18} color="#fff" />
+              </View>
             </Animated.View>
           );
         }}
       >
-        <Animated.View style={{ transform: [{ translateX }] }}>
+        <View style={[styles.messageWrapper, isMine ? styles.myWrapper : styles.otherWrapper]}>
+          {/* Avatar (only show if not grouped) */}
+          {!isMine && (
+            <View style={styles.avatarContainer}>
+              {showAvatar && avatarSource ? (
+                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+              ) : (
+                <View style={styles.avatarSpacer} />
+              )}
+            </View>
+          )}
+
           <TouchableOpacity
-            activeOpacity={0.8}
+            activeOpacity={0.9}
             onLongPress={() => showMessageOptions(item)}
-            style={[styles.messageWrapper, isMine ? styles.myWrapper : styles.otherWrapper]}
+            style={styles.messageContentWrapper}
           >
-            {!isMine && avatarSource && (
-              <Image source={{ uri: avatarSource }} style={styles.avatar} />
-            )}
-            <View style={styles.messageContent}>
-              {repliedMessage && (
-                <View style={styles.replyBubble}>
+            {/* Reply indicator */}
+            {repliedMessage && (
+              <View style={[styles.replyIndicator, isMine && styles.replyIndicatorMine]}>
+                <View style={styles.replyLine} />
+                <View style={styles.replyContent}>
                   <Text style={styles.replyLabel}>
-                    Replying to {repliedMessage.sender_id === user.email ? 'yourself' : receiverName}
+                    {repliedMessage.sender_id === user.email ? 'You' : receiverName}
                   </Text>
                   {repliedMessage.text ? (
                     <Text numberOfLines={1} style={styles.replyText}>
                       {repliedMessage.text}
                     </Text>
                   ) : repliedMessage.messages_image_url ? (
-                    <View style={styles.replyPhotoContainer}>
-                      <Icon name="camera" size={12} color={theme.accent} />
+                    <View style={styles.replyPhotoRow}>
+                      <Icon name="camera" size={10} color={theme.textTertiary} />
                       <Text style={styles.replyText}> Photo</Text>
                     </View>
                   ) : null}
                 </View>
-              )}
-              <View style={[styles.messageContainer, isMine ? styles.myMessage : styles.otherMessage]}>
-                {item.text ? <Text style={styles.messageText}>{item.text}</Text> : null}
-                {imageUrls.length > 0 &&
-                  imageUrls.map((url, index) => (
-                    <TouchableOpacity key={index} onPress={() => setSelectedImage(url)}>
-                      <Image source={{ uri: url }} style={styles.messageImage} />
-                    </TouchableOpacity>
-                  ))}
               </View>
-            </View>
-            {isMine && avatarSource && (
-              <Image source={{ uri: avatarSource }} style={styles.avatar} />
             )}
+
+            {/* Message bubble */}
+            <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.otherBubble]}>
+              {item.text ? (
+                <Text style={[styles.bubbleText, isMine && styles.myBubbleText]}>
+                  {item.text}
+                </Text>
+              ) : null}
+              
+              {imageUrls.length > 0 && imageUrls.map((url, idx) => (
+                <TouchableOpacity key={idx} onPress={() => setSelectedImage(url)}>
+                  <Image source={{ uri: url }} style={styles.messageImage} />
+                </TouchableOpacity>
+              ))}
+
+              {/* Timestamp */}
+              <Text style={[styles.messageTime, isMine && styles.myMessageTime]}>
+                {formatMessageTime(item.created_at)}
+                {isMine && (
+                  <Text style={styles.checkMark}> ✓✓</Text>
+                )}
+              </Text>
+            </View>
           </TouchableOpacity>
-        </Animated.View>
+
+          {/* Avatar for sent messages */}
+          {isMine && (
+            <View style={styles.avatarContainer}>
+              {showAvatar && avatarSource ? (
+                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+              ) : (
+                <View style={styles.avatarSpacer} />
+              )}
+            </View>
+          )}
+        </View>
       </Swipeable>
     );
   };
@@ -386,81 +494,92 @@ export default function MessagingScreen({ route }) {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
+            <View style={styles.headerContent}>
               <TouchableOpacity 
                 onPress={() => navigation.goBack()} 
                 style={styles.backButton}
                 activeOpacity={0.7}
               >
-                <Ionicons name="arrow-back" size={24} color={theme.text} />
+                <Icon name="chevron-left" size={24} color={theme.text} />
               </TouchableOpacity>
-              {receiverAvatar && (
-                <Image source={{ uri: receiverAvatar }} style={styles.headerAvatar} />
-              )}
-              <View style={styles.headerInfo}>
-                <Text style={styles.headerName}>{receiverName || 'User'}</Text>
-                <View style={styles.statusContainer}>
-                  <View style={styles.activeIndicator} />
-                  <Text style={styles.headerStatus}>Active now</Text>
+              
+              <View style={styles.headerUser}>
+                {receiverAvatar ? (
+                  <Image source={{ uri: receiverAvatar }} style={styles.headerAvatar} />
+                ) : (
+                  <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+                    <Icon name="user" size={20} color={theme.textSecondary} />
+                  </View>
+                )}
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.headerName}>{receiverName || 'User'}</Text>
+                  <View style={styles.statusRow}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.statusText}>Active now</Text>
+                  </View>
                 </View>
               </View>
+
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate('ReportScreen', {
+                      reported_student_id: receiverId,
+                      reported_name: receiverName,
+                    })
+                  }
+                  style={styles.headerIconButton}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="flag" size={18} color={theme.error} />
+                </TouchableOpacity>
+              </View>
             </View>
-            {/* Report button - navigates to ReportScreen with reported user info */}
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate('ReportScreen', {
-                  reported_student_id: receiverId,
-                  reported_name: receiverName,
-                })
-              }
-              style={styles.reportButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="flag" size={22} color={theme.error} />
-            </TouchableOpacity>
           </View>
 
           {/* FLOATING PRODUCT CARD */}
           {activeProduct && (
-            <View style={styles.floatingProductContainer}>
-              <TouchableOpacity 
-                style={styles.floatingProductClose}
-                onPress={() => setActiveProduct(null)}
-              >
-                <Ionicons name="close-circle" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
+            <View style={styles.floatingProductCard}>
               <Image
                 source={{
                   uri: (() => {
                     const imageUrl = activeProduct.product_image_url || activeProduct.rental_item_image;
                     if (!imageUrl) return null;
                     if (typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
-                      // It's a single URL string
                       return imageUrl;
                     }
-                    // It's likely a JSON string array
                     return JSON.parse(imageUrl || '[]')[0];
                   })(),
                 }}
                 style={styles.floatingProductImage}
               />
-              <View style={styles.floatingProductDetails}>
-                <Text style={styles.floatingProductName} numberOfLines={1}>{activeProduct.product_name || activeProduct.item_name}</Text>
+              <View style={styles.floatingProductInfo}>
+                <Text style={styles.floatingProductName} numberOfLines={1}>
+                  {activeProduct.product_name || activeProduct.item_name}
+                </Text>
                 <Text style={styles.floatingProductPrice}>
                   ₱{activeProduct.price}
-                  {activeProduct.rental_duration && <Text style={styles.rentalDurationText}> / {activeProduct.rental_duration}</Text>}
+                  {activeProduct.rental_duration && (
+                    <Text style={styles.rentalDuration}> / {activeProduct.rental_duration}</Text>
+                  )}
                 </Text>
               </View>
-              {/* Only show checkout for products, not rentals */}
               {!activeProduct.rental_duration && user.email !== activeProduct.email && (
                 <TouchableOpacity 
-                  style={styles.floatingCheckoutButton}
+                  style={styles.productCheckoutButton}
                   onPress={() => onProductCheckout(activeProduct)}
+                  activeOpacity={0.85}
                 >
-                  <Icon name="shopping-cart" size={16} color="#fff" />
-                  <Text style={styles.floatingCheckoutText}>Checkout</Text>
+                  <Icon name="shopping-cart" size={14} color="#fff" />
                 </TouchableOpacity>
               )}
+              <TouchableOpacity 
+                style={styles.productCloseButton}
+                onPress={() => setActiveProduct(null)}
+                activeOpacity={0.7}
+              >
+                <Icon name="times" size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -470,20 +589,33 @@ export default function MessagingScreen({ route }) {
             data={messages}
             renderItem={renderItem}
             keyExtractor={(item) => item.id?.toString()}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
+            style={styles.messagesList}
+            contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
 
+          {/* Typing Indicator */}
+          {isTyping && (
+            <View style={styles.typingContainer}>
+              <Image 
+                source={{ uri: receiverAvatar || 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }} 
+                style={styles.typingAvatar} 
+              />
+              <View style={styles.typingBubble}>
+                <Animated.View style={[styles.typingDot, { opacity: typingDotAnim }]} />
+                <Animated.View style={[styles.typingDot, { opacity: typingDotAnim }]} />
+                <Animated.View style={[styles.typingDot, { opacity: typingDotAnim }]} />
+              </View>
+            </View>
+          )}
+
           {/* Reply Preview */}
           {replyTo && (
-            <View style={styles.replyPreview}>
-              <View style={styles.replyPreviewLeft}>
-                <Icon name="reply" size={16} color={theme.accent} />
-              </View>
+            <View style={styles.replyPreviewBar}>
+              <View style={styles.replyPreviewIndicator} />
               <View style={styles.replyPreviewContent}>
-                <Text style={styles.replyingTo}>
+                <Text style={styles.replyPreviewLabel}>
                   Replying to {replyTo.sender_id === user.email ? 'yourself' : receiverName}
                 </Text>
                 {replyTo.text ? (
@@ -491,33 +623,34 @@ export default function MessagingScreen({ route }) {
                     {replyTo.text}
                   </Text>
                 ) : (
-                  <View style={styles.replyPhotoContainer}>
-                    <Icon name="camera" size={12} color={theme.textSecondary} />
+                  <View style={styles.replyPhotoRow}>
+                    <Icon name="camera" size={12} color={theme.textTertiary} />
                     <Text style={styles.replyPreviewText}> Photo</Text>
                   </View>
                 )}
               </View>
-              <TouchableOpacity onPress={cancelReply} style={styles.cancelReplyButton}>
-                <Ionicons name="close-circle" size={24} color={theme.textSecondary} />
+              <TouchableOpacity onPress={cancelReply} style={styles.replyPreviewClose}>
+                <Icon name="times" size={18} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
           )}
 
           {/* Image Preview */}
           {images.length > 0 && (
-            <View style={styles.imagePreviewContainer}>
+            <View style={styles.imagePreviewSection}>
               <FlatList
                 horizontal
                 data={images}
                 keyExtractor={(item, index) => index.toString()}
                 renderItem={({ item, index }) => (
-                  <View style={styles.imagePreviewWrapper}>
-                    <Image source={{ uri: item }} style={styles.imagePreview} />
+                  <View style={styles.previewImageWrapper}>
+                    <Image source={{ uri: item }} style={styles.previewImage} />
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => setImages(images.filter((_, i) => i !== index))}
+                      activeOpacity={0.8}
                     >
-                      <Ionicons name="close-circle" size={24} color="#fff" />
+                      <Icon name="times-circle" size={22} color="#fff" />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -526,26 +659,28 @@ export default function MessagingScreen({ route }) {
             </View>
           )}
 
-          {/* Input */}
-          <View style={styles.inputContainer}>
+          {/* Input Bar */}
+          <View style={styles.inputBar}>
             <TouchableOpacity 
               onPress={pickImage} 
-              style={styles.imageButton}
+              style={styles.attachButton}
               activeOpacity={0.7}
             >
-              <Ionicons name="image-outline" size={26} color={theme.accent} />
+              <Icon name="image" size={22} color={theme.accent} />
             </TouchableOpacity>
 
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder={uploading ? 'Uploading image...' : replyTo ? 'Reply...' : 'Send message...'}
-              placeholderTextColor={theme.textSecondary}
-              editable={!uploading}
-              multiline
-              maxLength={500}
-            />
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.textInput}
+                value={input}
+                onChangeText={setInput}
+                placeholder={uploading ? 'Uploading...' : 'Message...'}
+                placeholderTextColor={theme.textTertiary}
+                editable={!uploading}
+                multiline
+                maxLength={500}
+              />
+            </View>
 
             <TouchableOpacity
               onPress={sendMessage}
@@ -556,61 +691,76 @@ export default function MessagingScreen({ route }) {
               disabled={uploading || (!input.trim() && images.length === 0)}
               activeOpacity={0.85}
             >
-              <Ionicons name="send" size={20} color="#fff" />
+              <Icon 
+                name="send" 
+                size={16} 
+                color="#fff" 
+                style={styles.sendIcon}
+              />
             </TouchableOpacity>
           </View>
 
           {/* Image Modal */}
           <Modal visible={!!selectedImage} transparent onRequestClose={() => setSelectedImage(null)}>
-            <View style={styles.modalBackground}>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedImage(null)}>
-                <Ionicons name="close-circle" size={40} color="#fff" />
+            <View style={styles.imageModal}>
+              <TouchableOpacity 
+                style={styles.modalCloseButton} 
+                onPress={() => setSelectedImage(null)}
+                activeOpacity={0.8}
+              >
+                <Icon name="times" size={28} color="#fff" />
               </TouchableOpacity>
-              <Image source={{ uri: selectedImage }} style={styles.fullscreenImage} resizeMode="contain" />
+              <Image 
+                source={{ uri: selectedImage }} 
+                style={styles.modalImage} 
+                resizeMode="contain" 
+              />
             </View>
           </Modal>
 
           {/* Long-press options modal */}
           <Modal transparent visible={optionsVisible} animationType="fade">
             <TouchableOpacity
-              style={styles.modalOverlay}
+              style={styles.optionsModalOverlay}
               activeOpacity={1}
               onPress={() => setOptionsVisible(false)}
             >
-              <View style={styles.optionsModal}>
-                <Text style={styles.optionsTitle}>Message Options</Text>
+              <View style={styles.optionsModalContent}>
+                <View style={styles.optionsHandle} />
                 
                 <TouchableOpacity
                   onPress={() => {
                     handleReply(selectedMessage);
                     setOptionsVisible(false);
                   }}
-                  style={styles.optionButton}
+                  style={styles.optionItem}
                   activeOpacity={0.7}
                 >
-                  <Icon name="reply" size={18} color={theme.accent} />
-                  <Text style={styles.optionText}>Reply</Text>
+                  <View style={styles.optionIconContainer}>
+                    <Icon name="reply" size={18} color={theme.accent} />
+                  </View>
+                  <Text style={styles.optionLabel}>Reply</Text>
                 </TouchableOpacity>
 
-                {/* Only show unsend if it is the current user's message */}
                 {selectedMessage?.sender_id === user.email && (
                   <TouchableOpacity 
                     onPress={handleUnsend} 
-                    style={styles.optionButton}
+                    style={styles.optionItem}
                     activeOpacity={0.7}
                   >
-                    <Icon name="trash" size={18} color={theme.error} />
-                    <Text style={[styles.optionText, { color: theme.error }]}>Unsend</Text>
+                    <View style={[styles.optionIconContainer, styles.optionIconDanger]}>
+                      <Icon name="trash" size={18} color={theme.error} />
+                    </View>
+                    <Text style={[styles.optionLabel, styles.optionLabelDanger]}>Unsend</Text>
                   </TouchableOpacity>
                 )}
 
                 <TouchableOpacity 
                   onPress={() => setOptionsVisible(false)} 
-                  style={[styles.optionButton, styles.cancelButton]}
+                  style={[styles.optionItem, styles.optionItemCancel]}
                   activeOpacity={0.7}
                 >
-                  <Icon name="times" size={18} color={theme.textSecondary} />
-                  <Text style={[styles.optionText, { color: theme.textSecondary }]}>Cancel</Text>
+                  <Text style={styles.optionLabelCancel}>Cancel</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -621,52 +771,44 @@ export default function MessagingScreen({ route }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
+// Dark theme colors (matching InboxScreen)
 const darkTheme = {
-  background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
-  cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  messageBackground: '#252550',
-  myMessageBackground: '#2a4a7c',
-  otherMessageBackground: '#1e1e3f',
+  background: '#0a0e27',
+  cardBackground: '#141b3c',
+  text: '#ffffff',
+  textSecondary: '#a8b2d1',
+  textTertiary: '#6b7280',
+  myBubble: '#0084ff',
+  otherBubble: '#2d3548',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  historyColor: '#4CAF50',
-  error: '#d32f2f',
+  success: '#10b981',
+  error: '#ef4444',
+  border: '#252b47',
+  inputBackground: '#1e2544',
+  statusDot: '#10b981',
+  replyLine: '#0084ff',
+  swipeBackground: '#3b82f6',
   shadowColor: '#000',
-  borderColor: '#2a2a4a',
-  inputBackground: '#1e1e3f',
-  activeIndicator: '#4CAF50',
-  replyBackground: '#2a2a55',
-  swipeBackground: '#3a7bd5',
 };
 
-// Light theme colors (matching CartScreen)
+// Light theme colors (matching InboxScreen)
 const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
+  background: '#f8fafc',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  messageBackground: '#ffffff',
-  myMessageBackground: '#DCF8C6',
-  otherMessageBackground: '#F2F2F2',
-  accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  historyColor: '#27ae60',
-  error: '#e74c3c',
+  text: '#1e293b',
+  textSecondary: '#64748b',
+  textTertiary: '#94a3b8',
+  myBubble: '#0084ff',
+  otherBubble: '#e5e7eb',
+  accent: '#f59e0b',
+  success: '#10b981',
+  error: '#ef4444',
+  border: '#e2e8f0',
+  inputBackground: '#f1f5f9',
+  statusDot: '#10b981',
+  replyLine: '#0084ff',
+  swipeBackground: '#3b82f6',
   shadowColor: '#000',
-  borderColor: '#e0e0ea',
-  inputBackground: '#f1f1f1',
-  activeIndicator: '#27ae60',
-  replyBackground: '#E8F0FE',
-  swipeBackground: '#3a7bd5',
 };
 
 const createStyles = (theme) => StyleSheet.create({
@@ -678,15 +820,99 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1, 
     backgroundColor: theme.background,
   },
+  
+  // Header
   header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    paddingVertical: 14, 
-    paddingHorizontal: Math.max(width * 0.04, 16), 
-    borderBottomWidth: 1, 
-    borderColor: theme.borderColor, 
     backgroundColor: theme.cardBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
+  headerUser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerAvatar: { 
+    width: 42, 
+    height: 42, 
+    borderRadius: 21,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: theme.accent,
+  },
+  headerAvatarPlaceholder: {
+    backgroundColor: theme.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerName: { 
+    fontSize: 17, 
+    fontWeight: '700',
+    color: theme.text,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.statusDot,
+    marginRight: 6,
+  },
+  statusText: { 
+    fontSize: 13, 
+    color: theme.textSecondary,
+    fontWeight: '500',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  // Floating Product Card
+  floatingProductCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
@@ -695,193 +921,262 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 4,
-      },
-    }),
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  backButton: {
-    marginRight: 12,
-    padding: 4,
-  },
-  headerAvatar: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: theme.accent,
-  },
-  headerInfo: { 
-    flex: 1,
-  },
-  headerName: { 
-    fontSize: 18, 
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    color: theme.text,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  activeIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.activeIndicator,
-    marginRight: 6,
-  },
-  headerStatus: { 
-    fontSize: 13, 
-    color: theme.textSecondary,
-  },
-  reportButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  list: { 
-    flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: Math.max(width * 0.04, 16),
-    paddingTop: 10,
-    paddingBottom: 10,
-  },
-  messageWrapper: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-end', 
-    marginVertical: 6,
-  },
-  myWrapper: { 
-    alignSelf: 'flex-end',
-  },
-  otherWrapper: { 
-    alignSelf: 'flex-start',
-  },
-  avatar: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    marginHorizontal: 6,
-    borderWidth: 1.5,
-    borderColor: theme.borderColor,
-  },
-  messageContent: { 
-    maxWidth: '75%',
-  },
-  messageContainer: { 
-    padding: 12, 
-    borderRadius: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
         elevation: 2,
       },
     }),
   },
-  myMessage: { 
-    backgroundColor: theme.myMessageBackground, 
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
+  floatingProductImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    marginRight: 12,
   },
-  otherMessage: { 
-    backgroundColor: theme.otherMessageBackground, 
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
+  floatingProductInfo: {
+    flex: 1,
   },
-  messageText: { 
+  floatingProductName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 2,
+  },
+  floatingProductPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.accent,
+  },
+  rentalDuration: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    fontWeight: '500',
+  },
+  productCheckoutButton: {
+    backgroundColor: theme.success,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  productCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  
+  // Messages List
+  messagesList: { 
+    flex: 1,
+  },
+  messagesContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  
+  // Message Wrapper
+  messageWrapper: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-end',
+    marginVertical: 2,
+  },
+  myWrapper: { 
+    justifyContent: 'flex-end',
+  },
+  otherWrapper: { 
+    justifyContent: 'flex-start',
+  },
+  avatarContainer: {
+    width: 32,
+    marginHorizontal: 4,
+  },
+  messageAvatar: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+  },
+  avatarSpacer: {
+    width: 32,
+    height: 32,
+  },
+  messageContentWrapper: {
+    maxWidth: '75%',
+  },
+  
+  // Message Bubble
+  messageBubble: { 
+    paddingHorizontal: 14, 
+    paddingVertical: 10,
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  myBubble: { 
+    backgroundColor: theme.myBubble,
+    borderBottomRightRadius: 6,
+  },
+  otherBubble: { 
+    backgroundColor: theme.otherBubble,
+    borderBottomLeftRadius: 6,
+  },
+  bubbleText: { 
     fontSize: 15, 
     color: theme.text,
     lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  myBubbleText: {
+    color: '#ffffff',
   },
   messageImage: { 
-    width: 200, 
-    height: 200, 
-    borderRadius: 12, 
-    marginTop: 8,
+    width: 220, 
+    height: 220, 
+    borderRadius: 14, 
+    marginTop: 6,
   },
-  replyBubble: { 
-    backgroundColor: theme.replyBackground, 
+  messageTime: {
+    fontSize: 11,
+    color: theme.textTertiary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  myMessageTime: {
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'right',
+  },
+  checkMark: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  
+  // Reply Indicator
+  replyIndicator: { 
+    backgroundColor: theme.otherBubble,
     borderLeftWidth: 3, 
-    borderLeftColor: theme.accent, 
-    padding: 8, 
-    borderRadius: 8, 
-    marginBottom: 6,
+    borderLeftColor: theme.replyLine,
+    padding: 8,
+    borderRadius: 10,
+    marginBottom: 4,
+    flexDirection: 'row',
+  },
+  replyIndicatorMine: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  replyLine: {
+    width: 3,
+    backgroundColor: theme.replyLine,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  replyContent: {
+    flex: 1,
   },
   replyLabel: { 
     fontSize: 12, 
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '600',
     color: theme.accent,
     marginBottom: 2,
   },
   replyText: { 
     fontSize: 13, 
-    color: theme.text,
+    color: theme.textSecondary,
   },
-  replyPhotoContainer: {
+  replyPhotoRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  replyPreview: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: theme.cardBackground, 
-    padding: 12, 
-    borderTopWidth: 1, 
-    borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+  
+  // Typing Indicator
+  typingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
-  replyPreviewLeft: {
+  typingAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    backgroundColor: theme.otherBubble,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 4,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.textTertiary,
+  },
+  
+  // Reply Preview Bar
+  replyPreviewBar: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+  },
+  replyPreviewIndicator: {
+    width: 3,
+    height: 36,
+    backgroundColor: theme.accent,
+    borderRadius: 2,
     marginRight: 12,
   },
   replyPreviewContent: { 
     flex: 1,
   },
-  replyingTo: { 
-    fontSize: 12, 
+  replyPreviewLabel: { 
+    fontSize: 13, 
     color: theme.accent, 
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '600',
     marginBottom: 2,
   },
   replyPreviewText: { 
-    fontSize: 13, 
+    fontSize: 14, 
     color: theme.textSecondary,
   },
-  cancelReplyButton: {
+  replyPreviewClose: {
     padding: 4,
+    marginLeft: 8,
   },
-  imagePreviewContainer: {
+  
+  // Image Preview Section
+  imagePreviewSection: {
     backgroundColor: theme.cardBackground,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderColor: theme.borderColor,
+    borderTopColor: theme.border,
   },
-  imagePreviewWrapper: {
+  previewImageWrapper: {
     position: 'relative',
     marginRight: 12,
   },
-  imagePreview: {
+  previewImage: {
     width: 80,
     height: 80,
     borderRadius: 12,
@@ -891,20 +1186,27 @@ const createStyles = (theme) => StyleSheet.create({
     top: -8,
     right: -8,
     backgroundColor: theme.error,
-    borderRadius: 12,
+    borderRadius: 11,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  inputContainer: { 
+  
+  // Input Bar
+  inputBar: { 
     flexDirection: 'row', 
-    alignItems: 'center', 
-    borderTopWidth: 1, 
-    borderColor: theme.borderColor, 
-    padding: 12, 
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: theme.cardBackground,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 4,
       },
       android: {
@@ -912,24 +1214,37 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  imageButton: {
-    padding: 8,
+  attachButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 8,
   },
-  input: { 
-    flex: 1, 
-    backgroundColor: theme.inputBackground, 
-    borderRadius: 20, 
-    paddingHorizontal: 16, 
-    paddingVertical: 10, 
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: theme.inputBackground,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  textInput: { 
     fontSize: 15,
     color: theme.text,
     maxHeight: 100,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   sendButton: { 
-    backgroundColor: theme.accent, 
-    borderRadius: 20, 
-    padding: 12,
+    backgroundColor: theme.accent,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 8,
     ...Platform.select({
       ios: {
@@ -939,68 +1254,76 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 4,
+        elevation: 3,
       },
     }),
   },
   sendButtonDisabled: {
-    backgroundColor: theme.textSecondary,
-    opacity: 0.5,
+    backgroundColor: theme.textTertiary,
+    opacity: 0.6,
   },
-  modalBackground: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.95)', 
-    justifyContent: 'center', 
+  sendIcon: {
+    marginLeft: 2,
+  },
+  
+  // Swipe Action
+  swipeAction: { 
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 70,
+    marginVertical: 2,
+  },
+  swipeIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.swipeBackground,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  fullscreenImage: { 
+  
+  // Image Modal
+  imageModal: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImage: { 
     width: '100%', 
     height: '100%',
   },
-  closeButton: { 
-    position: 'absolute', 
-    top: Platform.OS === 'ios' ? 60 : 40, 
-    right: 20, 
-    zIndex: 1,
-    padding: 8,
-  },
-
-  // Swipe styles
-  swipeReply: { 
-    backgroundColor: theme.swipeBackground, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    width: 80, 
-    borderRadius: 12, 
-    marginVertical: 6,
-    marginHorizontal: 4,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  swipeText: { 
-    color: '#fff', 
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontSize: 14,
-  },
-
-  // Long-press modal
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'center', 
+  modalCloseButton: { 
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  optionsModal: { 
-    backgroundColor: theme.cardBackground, 
-    padding: 20, 
-    borderRadius: 20, 
-    width: width * 0.8,
-    maxWidth: 320,
+  
+  // Options Modal
+  optionsModalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  optionsModalContent: { 
+    backgroundColor: theme.cardBackground,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.15,
         shadowRadius: 12,
       },
       android: {
@@ -1008,127 +1331,55 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
-  optionsTitle: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-    marginBottom: 16,
-    textAlign: 'center',
+  optionsHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: theme.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
-  optionButton: {
+  optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 8,
-    backgroundColor: theme.cardBackgroundAlt,
-  },
-  cancelButton: {
     backgroundColor: theme.inputBackground,
-    marginTop: 4,
   },
-  optionText: { 
-    fontSize: 16, 
-    paddingLeft: 12,
-    color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+  optionItemCancel: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginTop: 8,
   },
-  floatingProductContainer: {
-    flexDirection: 'row',
+  optionIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${theme.accent}20`,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: theme.cardBackground,
-    borderBottomWidth: 1,
-    borderColor: theme.borderColor,
+    marginRight: 14,
   },
-  floatingProductImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    marginRight: 12,
+  optionIconDanger: {
+    backgroundColor: `${theme.error}20`,
   },
-  floatingProductDetails: {
+  optionLabel: { 
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.text,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
+  optionLabelDanger: {
+    color: theme.error,
+  },
+  optionLabelCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.textSecondary,
+    textAlign: 'center',
     flex: 1,
   },
-  floatingProductName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.text,
-  },
-  floatingProductPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.accent,
-    marginTop: 2,
-  },
-  rentalDurationText: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    fontWeight: '500',
-  },
-  floatingCheckoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.historyColor,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 8,
-  },
-  floatingCheckoutText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  floatingProductClose: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    padding: 8,
-    zIndex: 1,
-    backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-  },
-  productMessageContainer: {
-    backgroundColor: theme.cardBackgroundAlt,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-  },
-  productMessageImage: {
-    width: '100%',
-    height: 120,
-  },
-  productMessageDetails: {
-    padding: 12,
-  },
-  productMessageName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.text,
-    marginBottom: 4,
-  },
-  productMessagePrice: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.accent,
-  },
-  checkoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.historyColor,
-    paddingVertical: 12,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    gap: 8,
-  },
-  checkoutButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-})
+});

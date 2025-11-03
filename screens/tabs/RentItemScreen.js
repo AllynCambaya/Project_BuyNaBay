@@ -1,3 +1,4 @@
+// screens/RentItemScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -7,6 +8,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -42,29 +44,24 @@ export default function RentItemScreen({ navigation }) {
   const [quantity, setQuantity] = useState('1');
   const [uploading, setUploading] = useState(false);
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    // Trigger animations on mount
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 500,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
         tension: 50,
-        friction: 7,
+        friction: 8,
         useNativeDriver: true,
       }),
     ]).start();
@@ -72,7 +69,7 @@ export default function RentItemScreen({ navigation }) {
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return Alert.alert('Permission required', 'We need access to your photos');
+    if (!permission.granted) return Alert.alert('Permission Required', 'We need access to your photos to continue');
 
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
     if (!res.canceled) {
@@ -100,8 +97,13 @@ export default function RentItemScreen({ navigation }) {
   };
 
   const submit = async () => {
-    if (!itemName.trim() || !price.trim()) return Alert.alert('Missing', 'Please enter item name and price');
+    if (!itemName.trim() || !price.trim()) {
+      return Alert.alert('Missing Information', 'Please enter item name and rental price');
+    }
+    
+    Keyboard.dismiss();
     setUploading(true);
+    
     try {
       let publicUrl = null;
       if (imageUri) publicUrl = await uploadImage(imageUri);
@@ -121,42 +123,123 @@ export default function RentItemScreen({ navigation }) {
       const { error } = await supabase.from('rental_items').insert([payload]);
       if (error) throw error;
 
-      Alert.alert('Published', 'Your rental item has been published.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert('Success', 'Your rental item has been published! 🎉', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
     } catch (err) {
       console.error('Publish error', err.message || err);
-      Alert.alert('Error', 'Failed to publish item');
+      Alert.alert('Error', 'Failed to publish item. Please try again.');
     } finally {
       setUploading(false);
     }
   };
 
-  // Enhanced selector component
-  const Selector = ({ label, value, options, onSelect, icon }) => {
+  const formatPrice = (value) => {
+    const numericValue = value.replace(/[^0-9.]/g, '');
+    const parts = numericValue.split('.');
+    if (parts.length > 2) {
+      return parts[0] + '.' + parts.slice(1).join('');
+    }
+    return numericValue;
+  };
+
+  const handlePriceChange = (value) => {
+    setPrice(formatPrice(value));
+  };
+
+  const increaseQuantity = () => setQuantity(String(parseInt(quantity || '0', 10) + 1));
+  const decreaseQuantity = () => { 
+    if (parseInt(quantity) > 1) setQuantity(String(parseInt(quantity) - 1)); 
+  };
+  const handleQuantityChange = (value) => { 
+    if (/^\d*$/.test(value)) setQuantity(value); 
+  };
+
+  const getCategoryIcon = (cat) => {
+    const icons = {
+      'Electronics': 'mobile',
+      'Tools': 'wrench',
+      'Party&Events': 'glass',
+      'Sports&outdoors': 'futbol-o',
+      'apparel': 'shopping-bag',
+      'vehicles': 'car',
+      'other': 'ellipsis-h',
+    };
+    return icons[cat] || 'tag';
+  };
+
+  const getDurationIcon = (dur) => {
+    const icons = {
+      'perday': 'sun-o',
+      'per week': 'calendar',
+      'per month': 'calendar-o',
+    };
+    return icons[dur] || 'clock-o';
+  };
+
+  const Selector = ({ label, value, options, onSelect, icon, getOptionIcon }) => {
     const [open, setOpen] = useState(false);
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+
+    const handlePress = () => {
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.97,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      setOpen(true);
+    };
+
     return (
       <View style={styles.selectorContainer}>
-        <Text style={styles.label}>{label}</Text>
-        <TouchableOpacity 
-          style={styles.selector} 
-          onPress={() => setOpen(true)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.selectorContent}>
-            {icon && <Icon name={icon} size={16} color={theme.accent} style={{ marginRight: 10 }} />}
-            <Text style={styles.selectorText}>{value}</Text>
-          </View>
-          <Ionicons name="chevron-down" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
+        <Text style={styles.label}>
+          {label} <Text style={styles.requiredStar}>*</Text>
+        </Text>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity 
+            style={styles.selector} 
+            onPress={handlePress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.selectorContent}>
+              <View style={styles.selectorIconCircle}>
+                <Icon name={icon} size={16} color={theme.accent} />
+              </View>
+              <Text style={styles.selectorText}>{value}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+        </Animated.View>
+        
         <Modal visible={open} transparent animationType="fade">
           <TouchableOpacity 
             style={styles.modalOverlay} 
             activeOpacity={1}
             onPress={() => setOpen(false)}
           >
-            <View style={styles.modalBox}>
+            <Animated.View 
+              style={[
+                styles.modalBox,
+                { 
+                  opacity: fadeAnim,
+                  transform: [{ scale: fadeAnim }]
+                }
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select {label}</Text>
-                <TouchableOpacity onPress={() => setOpen(false)}>
+                <TouchableOpacity 
+                  onPress={() => setOpen(false)}
+                  style={styles.modalCloseButton}
+                  activeOpacity={0.7}
+                >
                   <Ionicons name="close-circle" size={28} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -171,19 +254,33 @@ export default function RentItemScreen({ navigation }) {
                     ]}
                     activeOpacity={0.7}
                   >
-                    <Text style={[
-                      styles.optionText,
-                      value === opt && styles.optionTextSelected
-                    ]}>
-                      {opt}
-                    </Text>
+                    <View style={styles.optionContent}>
+                      {getOptionIcon && (
+                        <View style={[
+                          styles.optionIconCircle,
+                          value === opt && styles.optionIconCircleSelected
+                        ]}>
+                          <Icon 
+                            name={getOptionIcon(opt)} 
+                            size={16} 
+                            color={value === opt ? '#fff' : theme.accent} 
+                          />
+                        </View>
+                      )}
+                      <Text style={[
+                        styles.optionText,
+                        value === opt && styles.optionTextSelected
+                      ]}>
+                        {opt}
+                      </Text>
+                    </View>
                     {value === opt && (
-                      <Icon name="check" size={18} color={theme.accent} />
+                      <Icon name="check-circle" size={20} color={theme.accent} />
                     )}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            </View>
+            </Animated.View>
           </TouchableOpacity>
         </Modal>
       </View>
@@ -206,22 +303,39 @@ export default function RentItemScreen({ navigation }) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity 
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Add Rental Item</Text>
-            <View style={styles.headerSpacer} />
+          <View style={styles.headerContainer}>
+            <View style={styles.backgroundGradient} />
+            
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                onPress={() => navigation.goBack()}
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={24} color={theme.text} />
+              </TouchableOpacity>
+              
+              <View style={styles.headerTextContainer}>
+                <View style={styles.headerTitleRow}>
+                  <View style={styles.iconCircle}>
+                    <Icon name="handshake-o" size={22} color="#fff" />
+                  </View>
+                  <View style={styles.headerTitles}>
+                    <Text style={styles.headerTitle}>List Rental Item</Text>
+                    <Text style={styles.headerSubtitle}>
+                      Share your items and earn extra income
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
           </View>
 
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.container}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <Animated.View
               style={{
@@ -229,11 +343,18 @@ export default function RentItemScreen({ navigation }) {
                 transform: [{ translateY: slideAnim }],
               }}
             >
-              {/* Image Picker Section */}
+              {/* Image Section */}
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="camera" size={18} color={theme.text} />
-                  <Text style={styles.sectionTitle}> Item Photo</Text>
+                  <View style={styles.sectionIconWrapper}>
+                    <Icon name="camera" size={18} color={theme.accent} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Item Photo</Text>
+                  <View style={styles.sectionBadge}>
+                    <Text style={styles.sectionBadgeText}>
+                      {imageUri ? 'Added' : 'Optional'}
+                    </Text>
+                  </View>
                 </View>
                 
                 <TouchableOpacity 
@@ -245,114 +366,232 @@ export default function RentItemScreen({ navigation }) {
                     <View style={styles.imagePreviewContainer}>
                       <Image source={{ uri: imageUri }} style={styles.imagePreview} />
                       <View style={styles.changeImageOverlay}>
-                        <Icon name="camera" size={24} color="#fff" />
-                        <Text style={styles.changeImageText}>Change Photo</Text>
+                        <View style={styles.changeImageButton}>
+                          <Icon name="camera" size={20} color="#fff" />
+                          <Text style={styles.changeImageText}>Change Photo</Text>
+                        </View>
                       </View>
                     </View>
                   ) : (
                     <View style={styles.imagePlaceholder}>
                       <View style={styles.cameraIconContainer}>
-                        <Icon name="camera" size={40} color={theme.accent} />
+                        <Icon name="camera" size={36} color={theme.accent} />
                       </View>
-                      <Text style={styles.imagePlaceholderText}>Tap to add photo</Text>
-                      <Text style={styles.imagePlaceholderSubtext}>Show renters what you're offering</Text>
+                      <Text style={styles.imagePlaceholderText}>Add Item Photo</Text>
+                      <Text style={styles.imagePlaceholderSubtext}>
+                        Help renters see what you're offering
+                      </Text>
                     </View>
                   )}
                 </TouchableOpacity>
               </View>
 
-              {/* Basic Info Section */}
-              <View style={styles.section}>
+              {/* Basic Info Card */}
+              <View style={styles.card}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="info-circle" size={18} color={theme.text} />
-                  <Text style={styles.sectionTitle}> Basic Information</Text>
+                  <View style={styles.sectionIconWrapper}>
+                    <Icon name="info-circle" size={18} color={theme.accent} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Basic Information</Text>
                 </View>
 
-                <View style={styles.card}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Item Name *</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    Item Name <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <View style={[styles.inputWrapper, itemName && styles.inputWrapperFocused]}>
+                    <Icon name="tag" size={16} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput 
                       style={styles.input} 
                       value={itemName} 
                       onChangeText={setItemName} 
                       placeholder="e.g. DSLR Camera, Power Drill"
                       placeholderTextColor={theme.textSecondary}
+                      maxLength={100}
                     />
                   </View>
+                  {itemName && (
+                    <Text style={styles.characterCount}>{itemName.length}/100</Text>
+                  )}
+                </View>
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Rental Price (₱) *</Text>
-                    <View style={styles.inputWithIcon}>
-                      <Icon name="tag" size={18} color={theme.accent} style={styles.inputIcon} />
+                <View style={styles.rowGroup}>
+                  <View style={[styles.inputGroup, styles.halfWidth]}>
+                    <Text style={styles.label}>
+                      Rental Price (₱) <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <View style={[styles.inputWrapper, price && styles.inputWrapperFocused]}>
+                      <Icon name="money" size={16} color={theme.textSecondary} style={styles.inputIcon} />
                       <TextInput 
-                        style={[styles.input, styles.inputWithIconPadding]} 
+                        style={[styles.input, styles.priceInput]} 
                         value={price} 
-                        onChangeText={setPrice} 
-                        keyboardType="numeric" 
-                        placeholder="e.g. 250"
+                        onChangeText={handlePriceChange} 
+                        keyboardType="decimal-pad" 
+                        placeholder="0.00"
                         placeholderTextColor={theme.textSecondary}
                       />
                     </View>
                   </View>
 
-                  <Selector 
-                    label="Rental Duration" 
-                    value={rentalDuration} 
-                    options={DURATION_OPTIONS} 
-                    onSelect={setRentalDuration}
-                    icon="clock-o"
-                  />
-                </View>
-              </View>
-
-              {/* Details Section */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Icon name="list" size={18} color={theme.text} />
-                  <Text style={styles.sectionTitle}> Item Details</Text>
-                </View>
-
-                <View style={styles.card}>
-                  <Selector 
-                    label="Category" 
-                    value={category} 
-                    options={CATEGORY_OPTIONS} 
-                    onSelect={setCategory}
-                    icon="folder-open"
-                  />
-
-                  <Selector 
-                    label="Condition" 
-                    value={condition} 
-                    options={CONDITION_OPTIONS} 
-                    onSelect={setCondition}
-                    icon="certificate"
-                  />
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Available Quantity</Text>
-                    <View style={styles.inputWithIcon}>
-                      <Icon name="cubes" size={18} color={theme.accent} style={styles.inputIcon} />
-                      <TextInput 
-                        style={[styles.input, styles.inputWithIconPadding]} 
-                        value={quantity} 
-                        onChangeText={setQuantity} 
+                  <View style={[styles.inputGroup, styles.halfWidth]}>
+                    <Text style={styles.label}>
+                      Quantity <Text style={styles.requiredStar}>*</Text>
+                    </Text>
+                    <View style={styles.quantityContainer}>
+                      <TouchableOpacity 
+                        onPress={decreaseQuantity} 
+                        style={[
+                          styles.quantityButton,
+                          parseInt(quantity) <= 1 && styles.quantityButtonDisabled
+                        ]}
+                        activeOpacity={0.7}
+                        disabled={parseInt(quantity) <= 1}
+                      >
+                        <Icon 
+                          name="minus" 
+                          size={14} 
+                          color={parseInt(quantity) <= 1 ? theme.textSecondary : theme.text} 
+                        />
+                      </TouchableOpacity>
+                      <TextInput
+                        value={quantity}
+                        onChangeText={handleQuantityChange}
                         keyboardType="numeric"
-                        placeholderTextColor={theme.textSecondary}
+                        style={styles.quantityInput}
+                        textAlign="center"
+                        maxLength={3}
                       />
+                      <TouchableOpacity 
+                        onPress={increaseQuantity} 
+                        style={styles.quantityButton}
+                        activeOpacity={0.7}
+                      >
+                        <Icon name="plus" size={14} color={theme.text} />
+                      </TouchableOpacity>
                     </View>
+                  </View>
+                </View>
+
+                <Selector 
+                  label="Rental Duration" 
+                  value={rentalDuration} 
+                  options={DURATION_OPTIONS} 
+                  onSelect={setRentalDuration}
+                  icon="clock-o"
+                  getOptionIcon={getDurationIcon}
+                />
+              </View>
+
+              {/* Item Details Card */}
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionIconWrapper}>
+                    <Icon name="list-ul" size={18} color={theme.accent} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Item Details</Text>
+                </View>
+
+                <Selector 
+                  label="Category" 
+                  value={category} 
+                  options={CATEGORY_OPTIONS} 
+                  onSelect={setCategory}
+                  icon="folder-open"
+                  getOptionIcon={getCategoryIcon}
+                />
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    Condition <Text style={styles.requiredStar}>*</Text>
+                  </Text>
+                  <View style={styles.conditionContainer}>
+                    <TouchableOpacity
+                      onPress={() => setCondition('new')}
+                      style={[
+                        styles.conditionButton,
+                        condition === 'new' && styles.conditionButtonActive
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.conditionIconCircle,
+                        condition === 'new' && styles.conditionIconCircleActive
+                      ]}>
+                        <Icon 
+                          name="star" 
+                          size={16} 
+                          color={condition === 'new' ? '#fff' : theme.accent} 
+                        />
+                      </View>
+                      <View style={styles.conditionTextContainer}>
+                        <Text style={[
+                          styles.conditionText,
+                          condition === 'new' && styles.conditionTextActive
+                        ]}>
+                          Brand New
+                        </Text>
+                        <Text style={[
+                          styles.conditionSubtext,
+                          condition === 'new' && styles.conditionSubtextActive
+                        ]}>
+                          Unused condition
+                        </Text>
+                      </View>
+                      {condition === 'new' && (
+                        <Icon name="check-circle" size={20} color="#fff" style={styles.checkIcon} />
+                      )}
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={() => setCondition('used')}
+                      style={[
+                        styles.conditionButton,
+                        condition === 'used' && styles.conditionButtonActive
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.conditionIconCircle,
+                        condition === 'used' && styles.conditionIconCircleActive
+                      ]}>
+                        <Icon 
+                          name="history" 
+                          size={16} 
+                          color={condition === 'used' ? '#fff' : theme.accent} 
+                        />
+                      </View>
+                      <View style={styles.conditionTextContainer}>
+                        <Text style={[
+                          styles.conditionText,
+                          condition === 'used' && styles.conditionTextActive
+                        ]}>
+                          Used
+                        </Text>
+                        <Text style={[
+                          styles.conditionSubtext,
+                          condition === 'used' && styles.conditionSubtextActive
+                        ]}>
+                          Pre-owned item
+                        </Text>
+                      </View>
+                      {condition === 'used' && (
+                        <Icon name="check-circle" size={20} color="#fff" style={styles.checkIcon} />
+                      )}
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
 
-              {/* Description Section */}
-              <View style={styles.section}>
+              {/* Description Card */}
+              <View style={styles.card}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="align-left" size={18} color={theme.text} />
-                  <Text style={styles.sectionTitle}> Description</Text>
+                  <View style={styles.sectionIconWrapper}>
+                    <Icon name="align-left" size={18} color={theme.accent} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Description</Text>
                 </View>
 
-                <View style={styles.card}>
+                <View style={[styles.inputWrapper, styles.textAreaWrapper, description && styles.inputWrapperFocused]}>
                   <TextInput 
                     style={styles.textArea} 
                     value={description} 
@@ -362,15 +601,21 @@ export default function RentItemScreen({ navigation }) {
                     placeholder="Describe your item, rental terms, and any special instructions..."
                     placeholderTextColor={theme.textSecondary}
                     textAlignVertical="top"
+                    maxLength={500}
                   />
                 </View>
+                {description && (
+                  <Text style={styles.characterCount}>{description.length}/500</Text>
+                )}
               </View>
 
               {/* Info Banner */}
               <View style={styles.infoBanner}>
-                <Icon name="lightbulb-o" size={20} color={theme.accent} />
+                <View style={styles.infoBannerIconContainer}>
+                  <Icon name="lightbulb-o" size={20} color={theme.accent} />
+                </View>
                 <Text style={styles.infoBannerText}>
-                  Add clear photos and detailed descriptions to attract more renters!
+                  Clear photos and detailed descriptions attract more renters!
                 </Text>
               </View>
             </Animated.View>
@@ -390,14 +635,14 @@ export default function RentItemScreen({ navigation }) {
               {uploading ? (
                 <View style={styles.buttonLoadingContainer}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.publishButtonText, { marginLeft: 10 }]}>Publishing...</Text>
+                  <Text style={[styles.publishButtonText, { marginLeft: 12 }]}>Publishing...</Text>
                 </View>
               ) : (
-                <>
-                  <Icon name="rocket" size={20} color="#fff" style={{ marginRight: 10 }} />
+                <View style={styles.publishButtonContent}>
+                  <Icon name="rocket" size={20} color="#fff" />
                   <Text style={styles.publishButtonText}>Publish Rental Item</Text>
-                  <Icon name="arrow-right" size={16} color="#fff" style={{ marginLeft: 10 }} />
-                </>
+                  <Icon name="arrow-right" size={16} color="#fff" />
+                </View>
               )}
             </TouchableOpacity>
           </View>
@@ -407,45 +652,43 @@ export default function RentItemScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
-  cardBackground: '#1e1e3f',
+  text: '#ffffff',
+  textSecondary: '#9ca3af',
+  textTertiary: '#d1d5db',
+  cardBackground: '#1a1a3e',
   cardBackgroundAlt: '#252550',
-  inputBackground: '#1e1e3f',
+  inputBackground: '#1a1a3e',
   accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  historyColor: '#4CAF50',
-  error: '#d32f2f',
+  accentDark: '#e09b00',
+  error: '#ef4444',
+  success: '#10b981',
   shadowColor: '#000',
-  borderColor: '#2a2a4a',
-  buttonDisabled: '#555',
-  overlayBackground: 'rgba(0,0,0,0.9)',
+  borderColor: '#2d2d5a',
+  buttonDisabled: '#4b5563',
+  overlayBackground: 'rgba(0, 0, 0, 0.85)',
   infoBannerBg: '#2a2a55',
 };
 
-// Light theme colors (matching CartScreen)
 const lightTheme = {
-  background: '#f5f7fa',
+  background: '#f8fafc',
   gradientBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
+  text: '#1e293b',
+  textSecondary: '#64748b',
+  textTertiary: '#475569',
   cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  inputBackground: '#f9f9fc',
+  cardBackgroundAlt: '#f1f5f9',
+  inputBackground: '#ffffff',
   accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  historyColor: '#27ae60',
-  error: '#e74c3c',
+  accentDark: '#d68910',
+  error: '#ef4444',
+  success: '#10b981',
   shadowColor: '#000',
-  borderColor: '#e0e0ea',
-  buttonDisabled: '#ccc',
-  overlayBackground: 'rgba(0,0,0,0.5)',
+  borderColor: '#e2e8f0',
+  buttonDisabled: '#cbd5e1',
+  overlayBackground: 'rgba(0, 0, 0, 0.5)',
   infoBannerBg: '#fffbf0',
 };
 
@@ -457,65 +700,35 @@ const createStyles = (theme) => StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Math.max(width * 0.04, 16),
-    paddingVertical: 16,
-    backgroundColor: theme.cardBackground,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+  headerContainer: {
+    position: 'relative',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 12 : 16,
+    paddingBottom: 24,
+    marginBottom: 8,
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 160 : 180,
+    backgroundColor: theme.gradientBackground,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    zIndex: 0,
+  },
+  headerContent: {
+    zIndex: 1,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    color: theme.text,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  container: {
-    padding: Math.max(width * 0.04, 16),
-    paddingBottom: 100,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
-    color: theme.text,
-  },
-  card: {
-    backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
     ...Platform.select({
@@ -530,9 +743,123 @@ const createStyles = (theme) => StyleSheet.create({
       },
     }),
   },
+  headerTextContainer: {
+    marginTop: 12,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  headerTitles: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    color: theme.text,
+    fontWeight: '700',
+    marginBottom: 4,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Bold',
+      android: 'Poppins-ExtraBold',
+      default: 'Poppins-Bold',
+    }),
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    fontWeight: '400',
+    lineHeight: 18,
+    fontFamily: 'Poppins-Regular',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  container: {
+    padding: 20,
+    paddingBottom: 120,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.text,
+    flex: 1,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Bold',
+      android: 'Poppins-ExtraBold',
+      default: 'Poppins-Bold',
+    }),
+  },
+  sectionBadge: {
+    backgroundColor: theme.cardBackgroundAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  sectionBadgeText: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  card: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
   imagePicker: {
     width: '100%',
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   imagePreviewContainer: {
@@ -547,21 +874,30 @@ const createStyles = (theme) => StyleSheet.create({
   },
   changeImageOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor:'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    opacity: 0.9,
+  },
+  changeImageButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backdropFilter: 'blur(10px)',
   },
   changeImageText: {
     color: '#fff',
-    fontSize: 14,
-    marginTop: 8,
-    fontWeight: '500',
+    fontSize: 15,
+    marginLeft: 10,
+    fontWeight: '600',
+    fontFamily: 'Poppins-SemiBold',
   },
   imagePlaceholder: {
     width: '100%',
     height: 240,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: theme.borderColor,
     borderStyle: 'dashed',
@@ -573,106 +909,229 @@ const createStyles = (theme) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: `${theme.accent}20`,
+    backgroundColor: theme.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 3,
+    borderColor: theme.borderColor,
   },
   imagePlaceholderText: {
-    fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontSize: 17,
+    fontWeight: '600',
     color: theme.text,
     marginTop: 8,
+    fontFamily: 'Poppins-SemiBold',
   },
   imagePlaceholderSubtext: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    lineHeight: 18,
+    fontFamily: 'Poppins-Regular',
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontWeight: '600',
     color: theme.text,
-    marginBottom: 8,
+    marginBottom: 10,
+    fontFamily: 'Poppins-SemiBold',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-    borderRadius: 12,
-    padding: 14,
+  requiredStar: {
+    color: theme.error,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.inputBackground,
-    fontSize: 15,
-    color: theme.text,
+    borderWidth: 1.5,
+    borderColor: theme.borderColor,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
-  inputWithIcon: {
-    position: 'relative',
+  inputWrapperFocused: {
+    borderColor: theme.accent,
+    borderWidth: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   inputIcon: {
-    position: 'absolute',
-    left: 14,
-    top: '50%',
-    transform: [{ translateY: -9 }],
-    zIndex: 1,
+    marginRight: 12,
+    opacity: 0.6,
   },
-  inputWithIconPadding: {
-    paddingLeft: 44,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-    borderRadius: 12,
-    padding: 14,
-    backgroundColor: theme.inputBackground,
+  input: {
+    flex: 1,
     fontSize: 15,
     color: theme.text,
-    minHeight: 120,
+    paddingVertical: 14,
+    fontFamily: 'Poppins-Regular',
   },
-  selectorContainer: {
-    marginBottom: 16,
+  characterCount: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    textAlign: 'right',
+    marginTop: 6,
+    fontFamily: 'Poppins-Regular',
   },
-  selector: {
-    borderWidth: 1,
+  rowGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  halfWidth: {
+    flex: 1,
+  },
+  priceInput: {
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'Poppins-Bold',
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  quantityButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: theme.cardBackgroundAlt,
+    borderWidth: 1.5,
+    borderColor: theme.borderColor,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  quantityButtonDisabled: {
+    opacity: 0.5,
+  },
+  quantityInput: {
+    backgroundColor: theme.inputBackground,
+    borderWidth: 1.5,
     borderColor: theme.borderColor,
     borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.text,
+    minWidth: 70,
+    fontFamily: 'Poppins-Bold',
+  },
+  textAreaWrapper: {
+    alignItems: 'flex-start',
+    paddingTop: 4,
+  },
+  textArea: {
+    flex: 1,
+    width: '100%',
+    fontSize: 15,
+    color: theme.text,
+    paddingVertical: 12,
+    minHeight: 120,
+    fontFamily: 'Poppins-Regular',
+  },
+  selectorContainer: {
+    marginBottom: 20,
+  },
+  selector: {
+    borderWidth: 1.5,
+    borderColor: theme.borderColor,
+    borderRadius: 14,
     padding: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: theme.inputBackground,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   selectorContent: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  selectorIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   selectorText: {
     fontSize: 15,
     color: theme.text,
+    fontWeight: '500',
+    fontFamily: 'Poppins-Medium',
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: theme.overlayBackground,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   modalBox: {
-    width: '85%',
-    maxHeight: '70%',
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '75%',
     backgroundColor: theme.cardBackground,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
-        shadowRadius: 16,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 8,
+        elevation: 10,
       },
     }),
   },
@@ -683,11 +1142,20 @@ const createStyles = (theme) => StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
+    backgroundColor: theme.cardBackgroundAlt,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.text,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Bold',
+      android: 'Poppins-ExtraBold',
+      default: 'Poppins-Bold',
+    }),
+  },
+  modalCloseButton: {
+    padding: 4,
   },
   optionsScroll: {
     maxHeight: 400,
@@ -703,55 +1171,173 @@ const createStyles = (theme) => StyleSheet.create({
   optionSelected: {
     backgroundColor: theme.cardBackgroundAlt,
   },
+  optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  optionIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: theme.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  optionIconCircleSelected: {
+    backgroundColor: theme.accent,
+  },
   optionText: {
     fontSize: 15,
     color: theme.text,
+    fontWeight: '500',
+    fontFamily: 'Poppins-Medium',
   },
   optionTextSelected: {
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: '700',
     color: theme.accent,
+    fontFamily: 'Poppins-Bold',
+  },
+  conditionContainer: {
+    gap: 12,
+  },
+  conditionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: theme.cardBackgroundAlt,
+    borderWidth: 1.5,
+    borderColor: theme.borderColor,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  conditionButtonActive: {
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  conditionIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.inputBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  conditionIconCircleActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  conditionTextContainer: {
+    flex: 1,
+  },
+  conditionText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.text,
+    marginBottom: 2,
+    fontFamily: 'Poppins-Bold',
+  },
+  conditionTextActive: {
+    color: '#fff',
+  },
+  conditionSubtext: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontFamily: 'Poppins-Regular',
+  },
+  conditionSubtextActive: {
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  checkIcon: {
+    marginLeft: 8,
   },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.infoBannerBg,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
     marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  infoBannerIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.cardBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   infoBannerText: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
+    fontSize: 13,
     color: theme.text,
-    lineHeight: 20,
+    lineHeight: 19,
+    fontWeight: '500',
+    fontFamily: 'Poppins-Medium',
   },
   bottomContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: theme.cardBackground,
-    paddingHorizontal: Math.max(width * 0.04, 16),
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     borderTopWidth: 1,
     borderTopColor: theme.borderColor,
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 8,
+        elevation: 10,
       },
     }),
   },
   publishButton: {
     backgroundColor: theme.accent,
-    paddingVertical: Platform.OS === 'ios' ? 18 : 16,
+    paddingVertical: 18,
     borderRadius: 16,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
@@ -771,17 +1357,25 @@ const createStyles = (theme) => StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: theme.shadowColor,
-        shadowOpacity: 0.2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
       android: {
         elevation: 2,
       },
     }),
   },
+  publishButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   publishButtonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontSize: 17,
+    fontWeight: '700',
+    fontFamily: 'Poppins-Bold',
   },
   buttonLoadingContainer: {
     flexDirection: 'row',
