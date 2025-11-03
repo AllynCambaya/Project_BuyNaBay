@@ -152,6 +152,7 @@ export default function CommunityScreen({ navigation }) {
   // UI/theme
   const systemColorScheme = useColorScheme();
   const isDark = systemColorScheme === 'dark';
+  const [userProfileImage, setUserProfileImage] = useState(null);
   const theme = isDark ? darkTheme : lightTheme;
 
   // Animations
@@ -178,6 +179,22 @@ export default function CommunityScreen({ navigation }) {
         useNativeDriver: true,
       }),
     ]).start();
+  }, []);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user?.email) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('profile_photo')
+          .eq('email', user.email)
+          .single();
+        if (!error && data) {
+          setUserProfileImage(data.profile_photo);
+        }
+      }
+    };
+    fetchUserProfile();
   }, []);
 
   useEffect(() => {
@@ -1369,13 +1386,26 @@ export default function CommunityScreen({ navigation }) {
           />
           <Text style={[styles.headerTitle, { color: theme.text }]}>Community</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.filterBtn, { backgroundColor: theme.cardBackground }]}
-          onPress={() => setSortPickerVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="options-outline" size={22} color={theme.accent} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.filterBtn, { backgroundColor: theme.cardBackground }]}
+            onPress={() => setSortPickerVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="options-outline" size={22} color={theme.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("ProfileScreen")}>
+            <Image
+              source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: theme.borderColor
+              }} />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -1848,6 +1878,11 @@ const createStyles = (theme) =>
       justifyContent: 'space-between',
     },
     headerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,

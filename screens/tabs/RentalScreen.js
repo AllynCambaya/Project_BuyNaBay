@@ -9,36 +9,33 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
-const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party&Events', 'Sports&outdoors', 'Apparel', 'Vehicles', 'Other'];
+const RENTAL_CATEGORIES = ['All', 'Electronics', 'Tools', 'Party & Events', 'Sports & Outdoors', 'Apparel', 'Vehicles', 'Other'];
 
-export default function RentalScreen({ navigation }) {
+export default function RentalScreen({ navigation, theme, searchQuery, isVisible }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFocused = useIsFocused();
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const user = auth.currentUser;
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
 
   // Get current theme colors based on system settings
-  const theme = isDarkMode ? darkTheme : lightTheme;
   const styles = createStyles(theme);
 
   const filteredItems = useMemo(() => {
@@ -50,9 +47,9 @@ export default function RentalScreen({ navigation }) {
   }, [items, searchQuery, selectedCategory]);
 
   useEffect(() => {
-    if (isFocused) fetchRentals();
-  }, [isFocused]);
-
+    if (isFocused && isVisible) fetchRentals();
+  }, [isFocused, isVisible]);
+  
   const fetchRentals = async () => {
     try {
       if (!refreshing) setLoading(true);
@@ -94,60 +91,8 @@ export default function RentalScreen({ navigation }) {
     }
   };
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      {/* Background gradient effect */}
-      <View style={styles.backgroundGradient} />
-
-      {/* Branded logo - upper left */}
-      <View style={styles.brandedLogoContainer}>
-        <Image
-          source={require('../../assets/images/OfficialBuyNaBay.png')}
-          style={styles.brandedLogoImage}
-          resizeMode="contain"
-        />
-        <Text style={styles.brandedLogoText}>BuyNaBay</Text>
-      </View>
-
-      {/* Add Button - upper right */}
-      <TouchableOpacity
-        onPress={() => navigation.navigate('RentItemScreen')}
-        style={styles.addButton}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add-circle" size={22} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Welcome Section */}
-      <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>Discover</Text>
-        <Text style={styles.userName}>Rental Items</Text>
-        <Text style={styles.subtitle}>Browse available items for rent</Text>
-      </View>
-
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Icon name="cube" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>{filteredItems.length}</Text>
-          <Text style={styles.statLabel}>Items</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Icon name="tags" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>
-            {[...new Set(items.map((i) => i.category))].length}
-          </Text>
-          <Text style={styles.statLabel}>Categories</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Icon name="users" size={20} color={theme.accent} />
-          <Text style={styles.statValue}>
-            {[...new Set(items.map((i) => i.owner_email))].length}
-          </Text>
-          <Text style={styles.statLabel}>Sellers</Text>
-        </View>
-      </View>
-
+  const renderListHeader = () => (
+    <>
       {/* Section Title */}
       {filteredItems.length > 0 && (
         <View style={styles.sectionTitleContainer}>
@@ -156,20 +101,7 @@ export default function RentalScreen({ navigation }) {
         </View>
       )}
 
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search rentals..."
-          placeholderTextColor={theme.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIcon}><Ionicons name="close-circle" size={20} color={theme.textSecondary} /></TouchableOpacity>
-        )}
-      </View>
-
+      {/* Category Filters */}
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
           {RENTAL_CATEGORIES.map(category => (
@@ -189,7 +121,7 @@ export default function RentalScreen({ navigation }) {
           ))}
         </ScrollView>
       </View>
-    </View>
+    </>
   );
 
   const renderItem = ({ item, index }) => {
@@ -293,8 +225,8 @@ export default function RentalScreen({ navigation }) {
         <Text style={styles.emptySubtext}>Be the first to list an item for rent!</Text>
       )}
       <TouchableOpacity
-        style={styles.addItemButton}
-        onPress={() => navigation.navigate('RentItemScreen')}
+        style={styles.addItemButton} // Changed navigation
+        onPress={() => navigation.navigate('Add')}
         activeOpacity={0.85}
       >
         <Icon name="plus" size={16} color="#fff" style={styles.buttonIcon} />
@@ -314,18 +246,12 @@ export default function RentalScreen({ navigation }) {
   }
 
   return (
-    <>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.background}
-        translucent={false}
-      />
-      <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
         <FlatList
           data={filteredItems}
           keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
           renderItem={renderItem}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={renderListHeader}
           ListEmptyComponent={renderEmptyState}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -341,8 +267,7 @@ export default function RentalScreen({ navigation }) {
             />
           }
         />
-      </SafeAreaView>
-    </>
+    </View>
   );
 }
 
@@ -422,29 +347,6 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.accentSecondary,
       letterSpacing: -0.5,
-    },
-    addButton: {
-      position: 'absolute',
-      top: Platform.OS === 'ios' ? 10 : 20,
-      right: 20,
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: theme.success,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
     },
     welcomeSection: {
       marginTop: 70,

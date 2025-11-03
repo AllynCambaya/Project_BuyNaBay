@@ -359,24 +359,18 @@ export default function ProfileScreen({ navigation, route }) {
   // Render Header with Custom App Header
   const renderHeader = () => (
     <View>
-      {/* Custom App Header - Consistent Design */}
+      {/* Custom App Header - Consistent Design with Back Button */}
       <View style={styles.appHeader}>
+        <TouchableOpacity 
+          style={styles.backIconBtn}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
         <View style={styles.headerLeft}>
-          <Image 
-            source={require('../../assets/images/OfficialBuyNaBay.png')} 
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
           <Text style={styles.headerTitle}>Profile</Text>
         </View>
-        {!isMyProfile && (
-          <TouchableOpacity 
-            style={styles.backIconBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerRightPlaceholder} />
       </View>
 
       {/* Profile Hero Section with Gradient */}
@@ -962,9 +956,9 @@ const createStyles = (theme) => StyleSheet.create({
   appHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between', // Changed to space-between
     paddingHorizontal: 16,
-    paddingVertical: 1,
+    paddingVertical: 12, // Adjusted padding
     backgroundColor: theme.background,
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
@@ -972,6 +966,8 @@ const createStyles = (theme) => StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'absolute', // Center the title
+    left: 0, right: 0, justifyContent: 'center',
   },
   headerLogo: {
     width: 32,
@@ -979,18 +975,21 @@ const createStyles = (theme) => StyleSheet.create({
     marginRight: 12,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18, // Adjusted size
     fontWeight: '700',
     color: theme.text,
     letterSpacing: 0.5,
   },
   backIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.cardBackgroundAlt,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerRightPlaceholder: {
+    width: 44, // Match the back button width
   },
 
   // Hero Section

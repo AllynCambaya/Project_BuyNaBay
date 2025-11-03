@@ -97,6 +97,7 @@ export default function CartScreen({ navigation }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [buyerName, setBuyerName] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [userProfileImage, setUserProfileImage] = useState(null);
   
   const user = auth.currentUser;
   
@@ -124,6 +125,20 @@ export default function CartScreen({ navigation }) {
         .maybeSingle();
       if (!error && data?.name) setBuyerName(data.name);
     };
+    const fetchUserProfile = async () => {
+      if (user?.email) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('profile_photo')
+          .eq('email', user.email)
+          .single();
+        if (!error && data) {
+          setUserProfileImage(data.profile_photo);
+        }
+      }
+    };
+
+    fetchUserProfile();
     fetchBuyerName();
   }, [user]);
 
@@ -280,6 +295,18 @@ export default function CartScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <Ionicons name="receipt-outline" size={22} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate("ProfileScreen")}>
+          <Image
+            source={userProfileImage ? { uri: userProfileImage } : require("../../assets/images/OfficialBuyNaBay.png")}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: theme.borderColor
+            }}
+          />
         </TouchableOpacity>
       </View>
 

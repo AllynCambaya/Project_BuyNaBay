@@ -7,6 +7,7 @@ import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 import AddProductScreen from './AddProductScreen';
+import AddScreen from './AddScreen';
 import AdminPanel from './AdminPanel';
 import CartScreen from './CartScreen';
 import CheckoutScreen from './CheckoutScreen';
@@ -15,6 +16,7 @@ import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
 import MessagingScreen from './MessagingScreen';
 import NotVerifiedScreen from './NotVerifiedScreen';
+import ProductScreen from './ProductScreen';
 import ProfileScreen from './ProfileScreen';
 import RentalScreen from './RentalScreen';
 import RentItemScreen from './RentItemScreen';
@@ -150,7 +152,7 @@ function Tabs({ showAdmin, userStatus }) {
 
       <Tab.Screen
         name="Add"
-        component={AddProductScreen}
+        component={AddScreen}
         options={{
           tabBarLabel: 'Add',
           tabBarIconStyle: {
@@ -171,22 +173,6 @@ function Tabs({ showAdmin, userStatus }) {
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Inbox'),
         })}
-      />
-
-      <Tab.Screen 
-        name="Rentals" 
-        component={RentalScreen}
-        options={{
-          tabBarLabel: 'Rentals',
-        }}
-      />
-
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Profile',
-        }}
       />
 
       {showAdmin && (
@@ -337,7 +323,15 @@ export default function MainTabNavigator({ route }) {
       />
       <Stack.Screen 
         name="UserProfile" 
-        component={ProfileScreen}
+        component={ProfileScreen} // This is kept for backward compatibility if any other part uses it.
+      />
+      <Stack.Screen
+        name="AddProductScreen"
+        component={AddProductScreen}
+      />
+      <Stack.Screen
+        name="ProductScreen"
+        component={ProductScreen}
       />
       <Stack.Screen 
         name="NotVerified" 
@@ -351,6 +345,10 @@ export default function MainTabNavigator({ route }) {
       <Stack.Screen 
         name="CheckoutScreen" 
         component={CheckoutScreen}
+      />
+      <Stack.Screen
+        name="ProfileScreen"
+        component={ProfileScreen}
       />
     </Stack.Navigator>
   );
