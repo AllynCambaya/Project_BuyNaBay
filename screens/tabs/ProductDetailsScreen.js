@@ -28,6 +28,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const user = auth.currentUser;
   const [adding, setAdding] = useState(false);
   const [sellerName, setSellerName] = useState('');
+  const [sellerAvatar, setSellerAvatar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -66,11 +67,14 @@ export default function ProductDetailsScreen({ route, navigation }) {
       }
       const { data, error } = await supabase
         .from('users')
-        .select('name')
+        .select('name, profile_photo')
         .eq('email', product.email)
         .single();
       
-      if (!error && data?.name && mounted) setSellerName(data.name);
+      if (!error && data && mounted) {
+        setSellerName(data.name);
+        setSellerAvatar(data.profile_photo);
+      }
       if (error) console.log('Seller fetch error', error.message || error);
       
       if (mounted) {
@@ -302,9 +306,13 @@ export default function ProductDetailsScreen({ route, navigation }) {
                   <Text style={styles.sellerTitle}> Seller Information</Text>
                 </View>
                 <View style={styles.sellerCard}>
-                  <View style={styles.sellerAvatar}>
-                    <Icon name="user-circle" size={40} color={theme.accent} />
-                  </View>
+                  {sellerAvatar ? (
+                    <Image source={{ uri: sellerAvatar }} style={styles.sellerAvatarImage} />
+                  ) : (
+                    <View style={[styles.sellerAvatarImage, styles.avatarPlaceholder]}>
+                      <Icon name="user" size={24} color={theme.text} />
+                    </View>
+                  )}
                   <View style={styles.sellerInfoWrapper}>
                     <View style={styles.sellerInfo}>
                       <Text style={styles.sellerName}>{sellerName || 'Seller'}</Text>
@@ -667,8 +675,18 @@ const createStyles = (theme) => StyleSheet.create({
   sellerInfoWrapper: {
     flex: 1,
   },
-  sellerAvatar: {
+  sellerAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 16,
+  },
+  avatarPlaceholder: {
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.borderColor,
   },
   sellerInfo: {
     flex: 1,

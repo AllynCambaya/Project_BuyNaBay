@@ -7,7 +7,6 @@ import {
   Dimensions,
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,6 +16,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -439,11 +439,6 @@ const createStyles = (theme) =>
       fontSize: 18,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.accentSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
       letterSpacing: -0.5,
     },
     welcomeSection: {
@@ -474,33 +469,18 @@ const createStyles = (theme) =>
       fontSize: 16,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
       marginBottom: 4,
     },
     userName: {
       fontSize: Math.min(width * 0.08, 32),
       color: theme.text,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
-      fontFamily: Platform.select({
-        ios: 'Poppins-ExtraBold',
-        android: 'Poppins-Black',
-        default: 'Poppins-ExtraBold',
-      }),
       marginBottom: 4,
     },
     subtitle: {
       fontSize: 14,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
       textAlign: 'center',
     },
     banner: {
@@ -532,21 +512,11 @@ const createStyles = (theme) =>
       fontSize: 16,
       fontWeight: Platform.OS === 'android' ? '700' : '600',
       color: theme.error,
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
     },
     bannerText: {
       fontSize: 14,
       color: theme.text,
       lineHeight: 20,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     formContainer: {
       paddingHorizontal: Math.max(width * 0.05, 20),
@@ -582,11 +552,6 @@ const createStyles = (theme) =>
       fontSize: 16,
       fontWeight: Platform.OS === 'android' ? '700' : '600',
       color: theme.text,
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
     },
     instructionItem: {
       flexDirection: 'row',
@@ -596,11 +561,6 @@ const createStyles = (theme) =>
     instructionText: {
       fontSize: 14,
       color: theme.textSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     inputContainer: {
       marginBottom: 20,
@@ -610,11 +570,6 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '600' : '500',
       color: theme.text,
       marginBottom: 8,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Medium',
-        android: 'Poppins-SemiBold',
-        default: 'Poppins-Medium',
-      }),
     },
     inputWrapper: {
       flexDirection: 'row',
@@ -644,11 +599,6 @@ const createStyles = (theme) =>
       fontSize: 16,
       color: theme.text,
       paddingVertical: Platform.OS === 'ios' ? 16 : 14,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     uploadSection: {
       marginBottom: 24,
@@ -658,11 +608,6 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '600' : '500',
       color: theme.text,
       marginBottom: 12,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Medium',
-        android: 'Poppins-SemiBold',
-        default: 'Poppins-Medium',
-      }),
     },
     uploadButton: {
       flexDirection: 'row',
@@ -690,11 +635,6 @@ const createStyles = (theme) =>
       color: '#fff',
       fontSize: 16,
       fontWeight: Platform.OS === 'android' ? '700' : '600',
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
     },
     previewContainer: {
       marginTop: 16,
@@ -766,11 +706,6 @@ const createStyles = (theme) =>
       color: '#fff',
       fontSize: 18,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     submitLoadingContainer: {
       flexDirection: 'row',
@@ -787,10 +722,5 @@ const createStyles = (theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       lineHeight: 18,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
   });

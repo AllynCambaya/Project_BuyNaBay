@@ -6,7 +6,6 @@ import {
   Dimensions,
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -24,6 +24,8 @@ const { width, height } = Dimensions.get('window');
 export default function RentalDetailsScreen({ route, navigation }) {
   const { rentalItem } = route.params;
   const [loading, setLoading] = useState(false);
+  const [sellerAvatar, setSellerAvatar] = useState(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const currentUser = auth.currentUser;
 
   // Automatically detect system theme
@@ -37,6 +39,19 @@ export default function RentalDetailsScreen({ route, navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  // Parse image URLs from JSON if multiple images
+  const imageUrls = rentalItem?.rental_item_image
+    ? Array.isArray(rentalItem.rental_item_image)
+      ? rentalItem.rental_item_image
+      : (() => {
+          try {
+            return JSON.parse(rentalItem.rental_item_image);
+          } catch {
+            return [rentalItem.rental_item_image];
+          }
+        })()
+    : [];
 
   useEffect(() => {
     // Trigger animations on mount
@@ -59,6 +74,14 @@ export default function RentalDetailsScreen({ route, navigation }) {
         useNativeDriver: true,
       }),
     ]).start();
+
+    const fetchSellerAvatar = async () => {
+      const { data } = await supabase.from('users').select('profile_photo').eq('email', rentalItem.owner_email).single();
+      if (data) {
+        setSellerAvatar(data.profile_photo);
+      }
+    };
+    fetchSellerAvatar();
   }, []);
 
   const handleRentItem = async () => {
@@ -127,13 +150,43 @@ export default function RentalDetailsScreen({ route, navigation }) {
             }}
           >
             {/* Image Section */}
-            {rentalItem.rental_item_image ? (
+            {imageUrls.length > 0 ? (
               <View style={styles.imageSection}>
-                <Image 
-                  source={{ uri: rentalItem.rental_item_image }} 
-                  style={styles.image}
-                  resizeMode="cover"
-                />
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(e) => {
+                    const index = Math.round(e.nativeEvent.contentOffset.x / (width - 32));
+                    setActiveImageIndex(index);
+                  }}
+                  style={styles.imageScroll}
+                >
+                  {imageUrls.map((uri, index) => (
+                    <View key={index} style={styles.imageContainer}>
+                      <Image
+                        source={{ uri }}
+                        style={styles.image}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+                
+                {/* Image indicators */}
+                {imageUrls.length > 1 && (
+                  <View style={styles.indicatorContainer}>
+                    {imageUrls.map((_, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.indicator,
+                          activeImageIndex === index && styles.indicatorActive,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
             ) : (
               <View style={styles.noImageContainer}>
@@ -147,12 +200,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
               {/* Title Section */}
               <View style={styles.titleSection}>
                 <Text style={styles.title}>{rentalItem.item_name}</Text>
-                
-                {/* Seller Badge */}
-                <View style={styles.sellerBadge}>
-                  <Icon name="user-circle" size={16} color={theme.accent} />
-                  <Text style={styles.sellerText}> Posted by: {rentalItem.seller_name}</Text>
-                </View>
               </View>
 
               {/* Price and Duration Section */}
@@ -202,6 +249,36 @@ export default function RentalDetailsScreen({ route, navigation }) {
                   <Text style={styles.sectionTitle}> Description</Text>
                 </View>
                 <Text style={styles.description}>{rentalItem.description}</Text>
+              </View>
+
+              {/* Renter Info */}
+              <View style={styles.renterSection}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="user" size={18} color={theme.text} />
+                  <Text style={styles.sectionTitle}> Renter Information</Text>
+                </View>
+                <View style={styles.renterCard}>
+                  {sellerAvatar ? (
+                    <Image source={{ uri: sellerAvatar }} style={styles.renterAvatarImage} />
+                  ) : (
+                    <View style={[styles.renterAvatarImage, styles.avatarPlaceholder]}>
+                      <Icon name="user" size={24} color={theme.text} />
+                    </View>
+                  )}
+                  <View style={styles.renterInfoWrapper}>
+                    <View style={styles.renterInfo}>
+                      <Text style={styles.renterName}>{rentalItem.seller_name || 'Renter'}</Text>
+                      <Text style={styles.renterEmail}>{rentalItem.owner_email}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.viewProfileButton}
+                    onPress={() => navigation.navigate('UserProfile', { userId: rentalItem.owner_email })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.viewProfileButtonText}>View Profile</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Rental Info Banner */}
@@ -339,14 +416,43 @@ const createStyles = (theme) => StyleSheet.create({
   imageSection: {
     marginBottom: 20,
   },
-  image: {
-    width: width,
-    height: width * 0.8,
+  imageScroll: {
+    height: width - 32,
+  },
+  imageContainer: {
+    width: width - 32,
+    height: width - 32,
+    marginHorizontal: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
     backgroundColor: theme.cardBackgroundAlt,
   },
+  image: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: theme.cardBackgroundAlt,
+  },
+  indicatorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.indicatorInactive || '#ddd',
+  },
+  indicatorActive: {
+    width: 24,
+    backgroundColor: theme.accent,
+  },
   noImageContainer: {
-    width: width,
-    height: width * 0.8,
+    width: width - 32,
+    height: width - 32,
+    marginHorizontal: 16,
     backgroundColor: theme.cardBackgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
@@ -647,6 +753,72 @@ const createStyles = (theme) => StyleSheet.create({
   },
   buttonLoadingContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  renterSection: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: theme.borderColor,
+  },
+  renterCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.quickInfoBackground,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.borderColor,
+  },
+  renterInfoWrapper: {
+    flex: 1,
+  },
+  renterAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 16,
+  },
+  renterInfo: {
+    flex: 1,
+  },
+  renterName: {
+    fontSize: 16,
+    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    color: theme.text,
+    marginBottom: 4,
+    fontFamily: Platform.select({
+      ios: 'Poppins-SemiBold',
+      android: 'Poppins-Bold',
+      default: 'Poppins-SemiBold',
+    }),
+  },
+  renterEmail: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontFamily: Platform.select({
+      ios: 'Poppins-Regular',
+      android: 'Poppins-Medium',
+      default: 'Poppins-Regular',
+    }),
+  },
+  viewProfileButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: `${theme.accent}20`,
+  },
+  viewProfileButtonText: {
+    color: theme.accent,
+    fontWeight: '600',
+    fontFamily: Platform.select({
+      ios: 'Poppins-SemiBold',
+      android: 'Poppins-Bold',
+      default: 'Poppins-SemiBold',
+    }),
+  },
+  avatarPlaceholder: {
+    backgroundColor: theme.cardBackgroundAlt,
+    justifyContent: 'center',
     alignItems: 'center',
   },
 });

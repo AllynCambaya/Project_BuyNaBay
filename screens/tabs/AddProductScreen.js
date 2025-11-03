@@ -8,7 +8,6 @@ import {
   Dimensions,
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -659,12 +659,7 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     color: theme.text,
     marginBottom: 8,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
+    fontWeight: '600',
   },
   input: {
     backgroundColor: theme.inputBackground,

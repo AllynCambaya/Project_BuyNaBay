@@ -10,9 +10,10 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import { auth } from '../firebase/firebaseConfig';
 import { supabase } from '../supabase/supabaseClient';
 
 const { width } = Dimensions.get('window');
@@ -30,7 +31,6 @@ export default function ProductCard({
 }) {
   const [sellerName, setSellerName] = useState('');
   const [imageIndex, setImageIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
@@ -38,7 +38,8 @@ export default function ProductCard({
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const favoriteAnim = useRef(new Animated.Value(1)).current;
+
+  const currentUser = auth.currentUser;
 
   // Get current theme colors
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -108,23 +109,6 @@ export default function ProductCard({
     }).start();
   };
 
-  // Handle favorite toggle
-  const handleFavoriteToggle = () => {
-    Animated.sequence([
-      Animated.timing(favoriteAnim, {
-        toValue: 1.3,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(favoriteAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    setIsFavorite(!isFavorite);
-  };
-
   // Calculate discount percentage (if you have original price)
   const hasDiscount = product.original_price && parseFloat(product.original_price) > parseFloat(product.price);
   const discountPercent = hasDiscount
@@ -186,21 +170,6 @@ export default function ProductCard({
               )}
             </View>
 
-            {/* Favorite Button */}
-            <TouchableOpacity
-              style={styles.favoriteButton}
-              onPress={handleFavoriteToggle}
-              activeOpacity={0.8}
-            >
-              <Animated.View style={{ transform: [{ scale: favoriteAnim }] }}>
-                <Ionicons
-                  name={isFavorite ? 'heart' : 'heart-outline'}
-                  size={20}
-                  color={isFavorite ? '#FF3B30' : theme.text}
-                />
-              </Animated.View>
-            </TouchableOpacity>
-
             {/* Image Counter */}
             {imageUrls.length > 1 && (
               <View style={styles.gridImageCounter}>
@@ -244,7 +213,13 @@ export default function ProductCard({
 
             {/* Seller Info */}
             <View style={styles.gridSellerContainer}>
-              <Ionicons name="person-circle" size={14} color={theme.textSecondary} />
+              {product.seller_avatar ? (
+                <Image source={{ uri: product.seller_avatar }} style={styles.gridSellerAvatar} />
+              ) : (
+                <View style={[styles.gridSellerAvatar, styles.avatarPlaceholder]}>
+                  <Ionicons name="person" size={8} color={theme.text} />
+                </View>
+              )}
               <Text style={styles.gridSellerName} numberOfLines={1}>
                 {sellerName || product.email}
               </Text>
@@ -317,20 +292,6 @@ export default function ProductCard({
                 )}
               </View>
 
-              {/* Favorite Button */}
-              <TouchableOpacity
-                style={styles.favoriteButton}
-                onPress={handleFavoriteToggle}
-                activeOpacity={0.8}
-              >
-                <Animated.View style={{ transform: [{ scale: favoriteAnim }] }}>
-                  <Ionicons
-                    name={isFavorite ? 'heart' : 'heart-outline'}
-                    size={24}
-                    color={isFavorite ? '#FF3B30' : '#fff'}
-                  />
-                </Animated.View>
-              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
@@ -397,7 +358,13 @@ export default function ProductCard({
             {/* Seller Info */}
             <View style={styles.sellerContainer}>
               <View style={styles.sellerIconContainer}>
-                <Ionicons name="person-circle" size={18} color={theme.textSecondary} />
+                {product.seller_avatar ? (
+                  <Image source={{ uri: product.seller_avatar }} style={styles.sellerAvatar} />
+                ) : (
+                  <View style={[styles.sellerAvatar, styles.avatarPlaceholder]}>
+                    <Ionicons name="person" size={18} color={theme.text} />
+                  </View>
+                )}
               </View>
               <View style={styles.sellerInfo}>
                 <Text style={styles.sellerLabel}>Seller</Text>
@@ -405,15 +372,13 @@ export default function ProductCard({
                   {sellerName || product.email}
                 </Text>
               </View>
-              {!canEdit && (
-                <TouchableOpacity
-                  style={styles.quickMessageButton}
-                  onPress={onMessageSeller}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.accent} />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={styles.quickMessageButton}
+                onPress={onMessageSeller}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.accent} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -603,6 +568,12 @@ const createStyles = (theme, viewMode) =>
       borderTopColor: theme.borderColor,
       gap: 4,
     },
+    gridSellerAvatar: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: theme.cardBackgroundAlt,
+    },
     gridSellerName: {
       fontSize: 11,
       color: theme.textSecondary,
@@ -613,14 +584,16 @@ const createStyles = (theme, viewMode) =>
         default: 'Poppins-Regular',
       }),
     },
-
-    // List View Styles
-    cardWrapper: {
-      marginVertical: 8,
-      marginHorizontal: 0,
-    },
-    cardContainer: {
-      width: '100%',
+    gridFavoriteButton: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.overlayColor,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     card: {
       backgroundColor: theme.cardBackground,
@@ -712,18 +685,6 @@ const createStyles = (theme, viewMode) =>
         android: 'Poppins-ExtraBold',
         default: 'Poppins-Bold',
       }),
-    },
-    favoriteButton: {
-      position: 'absolute',
-      top: 12,
-      right: 12,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.overlayColor,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backdropFilter: 'blur(10px)',
     },
     imagePlaceholder: {
       width: '100%',
@@ -898,6 +859,11 @@ const createStyles = (theme, viewMode) =>
       borderTopWidth: 1,
       borderTopColor: theme.borderColor,
     },
+    avatarPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt,
+    },
     sellerIconContainer: {
       marginRight: 8,
     },
@@ -914,6 +880,11 @@ const createStyles = (theme, viewMode) =>
         android: 'Poppins-Medium',
         default: 'Poppins-Regular',
       }),
+    },
+    sellerAvatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
     },
     sellerName: {
       fontSize: 14,

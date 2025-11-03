@@ -8,7 +8,6 @@ import {
   Image,
   Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { supabase } from '../../supabase/supabaseClient';
 
@@ -73,13 +73,14 @@ export default function RentalScreen({ navigation }) {
         rentalData.map(async (item) => {
           const { data: userData } = await supabase
             .from('users')
-            .select('name')
+            .select('name, profile_photo')
             .eq('email', item.owner_email)
             .single();
 
           return {
             ...item,
             seller_name: userData?.name || 'Unknown User',
+            seller_avatar: userData?.profile_photo,
           };
         })
       );
@@ -193,6 +194,7 @@ export default function RentalScreen({ navigation }) {
 
   const renderItem = ({ item, index }) => {
     const thumbnail = item.rental_item_image || null;
+    const sellerAvatar = item.seller_avatar;
 
     return (
       <TouchableOpacity
@@ -214,7 +216,13 @@ export default function RentalScreen({ navigation }) {
           </Text>
 
           <View style={styles.sellerRow}>
-            <Icon name="user" size={12} color={theme.accent} />
+            {sellerAvatar ? (
+              <Image source={{ uri: sellerAvatar }} style={styles.sellerAvatar} />
+            ) : (
+              <View style={[styles.sellerAvatar, styles.avatarPlaceholder]}>
+                <Icon name="user" size={12} color={theme.text} />
+              </View>
+            )}
             <Text style={styles.sellerName} numberOfLines={1}>
               {' '}{item.seller_name}
             </Text>
@@ -413,11 +421,6 @@ const createStyles = (theme) =>
       fontSize: 18,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.accentSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
       letterSpacing: -0.5,
     },
     addButton: {
@@ -451,33 +454,18 @@ const createStyles = (theme) =>
       fontSize: 16,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
       marginBottom: 4,
     },
     userName: {
       fontSize: Math.min(width * 0.08, 32),
       color: theme.text,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
-      fontFamily: Platform.select({
-        ios: 'Poppins-ExtraBold',
-        android: 'Poppins-Black',
-        default: 'Poppins-ExtraBold',
-      }),
       marginBottom: 4,
     },
     subtitle: {
       fontSize: 14,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     statsContainer: {
       flexDirection: 'row',
@@ -508,22 +496,12 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
       marginTop: 8,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     statLabel: {
       fontSize: 12,
       color: theme.textSecondary,
       marginTop: 2,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     sectionTitleContainer: {
       flexDirection: 'row',
@@ -535,11 +513,6 @@ const createStyles = (theme) =>
       fontSize: 20,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     searchContainer: {
       flexDirection: 'row',
@@ -633,27 +606,23 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '700' : '600',
       color: theme.text,
       marginBottom: 8,
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
     },
     sellerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 12,
+      gap: 8,
+    },
+    sellerAvatar: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
     },
     sellerName: {
       fontSize: 14,
       color: theme.accent,
       fontWeight: Platform.OS === 'android' ? '600' : '500',
       flex: 1,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Medium',
-        android: 'Poppins-SemiBold',
-        default: 'Poppins-Medium',
-      }),
     },
     priceRow: {
       flexDirection: 'row',
@@ -667,22 +636,12 @@ const createStyles = (theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 4,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      fontWeight: '400',
     },
     price: {
       fontSize: 20,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.accent,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     durationContainer: {
       alignItems: 'flex-end',
@@ -691,22 +650,12 @@ const createStyles = (theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 4,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+      fontWeight: '400',
     },
     duration: {
       fontSize: 14,
       fontWeight: Platform.OS === 'android' ? '700' : '600',
       color: theme.text,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Medium',
-        android: 'Poppins-SemiBold',
-        default: 'Poppins-Medium',
-      }),
     },
     metaRow: {
       flexDirection: 'row',
@@ -725,22 +674,12 @@ const createStyles = (theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '500' : '400',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     description: {
       fontSize: 14,
       color: theme.textSecondary,
       lineHeight: 20,
       marginBottom: 12,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     cardFooter: {
       flexDirection: 'row',
@@ -756,11 +695,6 @@ const createStyles = (theme) =>
       fontSize: 14,
       color: theme.textSecondary,
       fontWeight: Platform.OS === 'android' ? '600' : '500',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Medium',
-        android: 'Poppins-SemiBold',
-        default: 'Poppins-Medium',
-      }),
     },
     messageButton: {
       flexDirection: 'row',
@@ -786,11 +720,6 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '700' : '600',
       fontSize: 13,
       marginLeft: 6,
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
     },
     emptyContainer: {
       flex: 1,
@@ -805,11 +734,6 @@ const createStyles = (theme) =>
       color: theme.text,
       marginTop: 20,
       marginBottom: 12,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     emptySubtext: {
       fontSize: 16,
@@ -817,11 +741,6 @@ const createStyles = (theme) =>
       textAlign: 'center',
       lineHeight: 24,
       marginBottom: 30,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     addItemButton: {
       backgroundColor: theme.accent,
@@ -849,11 +768,6 @@ const createStyles = (theme) =>
       color: '#fff',
       fontSize: 16,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     loadingOverlay: {
       flex: 1,
@@ -865,10 +779,10 @@ const createStyles = (theme) =>
       marginTop: 16,
       fontSize: 16,
       color: theme.textSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
+    },
+    avatarPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt,
     },
   });

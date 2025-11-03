@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -488,11 +488,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   headerSpacer: {
     width: 40,
@@ -516,11 +511,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   card: {
     backgroundColor: theme.cardBackground,
@@ -566,12 +556,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     marginTop: 8,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+    fontWeight: '500',
   },
   imagePlaceholder: {
     width: '100%',
@@ -598,21 +583,11 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.text,
     marginTop: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   imagePlaceholderSubtext: {
     fontSize: 14,
     color: theme.textSecondary,
     marginTop: 4,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   inputGroup: {
     marginBottom: 16,
@@ -622,11 +597,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '600' : '500',
     color: theme.text,
     marginBottom: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   input: {
     borderWidth: 1,
@@ -636,11 +606,6 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.inputBackground,
     fontSize: 15,
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   inputWithIcon: {
     position: 'relative',
@@ -664,11 +629,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 15,
     color: theme.text,
     minHeight: 120,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   selectorContainer: {
     marginBottom: 16,
@@ -691,11 +651,6 @@ const createStyles = (theme) => StyleSheet.create({
   selectorText: {
     fontSize: 15,
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   modalOverlay: {
     flex: 1,
@@ -733,11 +688,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   optionsScroll: {
     maxHeight: 400,
@@ -756,20 +706,10 @@ const createStyles = (theme) => StyleSheet.create({
   optionText: {
     fontSize: 15,
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   optionTextSelected: {
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.accent,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   infoBanner: {
     flexDirection: 'row',
@@ -787,11 +727,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     color: theme.text,
     lineHeight: 20,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   bottomContainer: {
     backgroundColor: theme.cardBackground,
@@ -847,11 +782,6 @@ const createStyles = (theme) => StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   buttonLoadingContainer: {
     flexDirection: 'row',

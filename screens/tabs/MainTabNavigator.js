@@ -99,11 +99,6 @@ function Tabs({ showAdmin, userStatus }) {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: Platform.OS === 'android' ? '600' : '500',
-          fontFamily: Platform.select({
-            ios: 'Poppins-Medium',
-            android: 'Poppins-SemiBold',
-            default: 'Poppins-Medium',
-          }),
           marginTop: 2,
         },
         tabBarItemStyle: {
@@ -115,8 +110,6 @@ function Tabs({ showAdmin, userStatus }) {
           color: '#fff',
           fontSize: 10,
           fontWeight: Platform.OS === 'android' ? '700' : '600',
-          minWidth: 18,
-          height: 18,
           borderRadius: 9,
           lineHeight: Platform.OS === 'ios' ? 18 : 16,
         },

@@ -8,7 +8,6 @@ import {
   Image,
   Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,6 +16,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -401,11 +401,6 @@ const createStyles = (theme) =>
       fontSize: 18,
       fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.accentSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
       letterSpacing: -0.5,
     },
     headerSection: {
@@ -438,11 +433,6 @@ const createStyles = (theme) =>
       color: theme.text,
       textAlign: 'center',
       marginBottom: 16,
-      fontFamily: Platform.select({
-        ios: 'Poppins-ExtraBold',
-        android: 'Poppins-Black',
-        default: 'Poppins-ExtraBold',
-      }),
     },
     statusBadge: {
       flexDirection: 'row',
@@ -472,11 +462,6 @@ const createStyles = (theme) =>
     statusText: {
       fontSize: 16,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     statusDescription: {
       fontSize: 15,
@@ -484,11 +469,6 @@ const createStyles = (theme) =>
       textAlign: 'center',
       lineHeight: 24,
       paddingHorizontal: 20,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     infoCard: {
       backgroundColor: theme.cardBackground,
@@ -519,11 +499,6 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
       marginLeft: 10,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     timelineContainer: {
       paddingLeft: 10,
@@ -550,21 +525,11 @@ const createStyles = (theme) =>
       fontWeight: Platform.OS === 'android' ? '700' : '600',
       color: theme.text,
       marginBottom: 4,
-      fontFamily: Platform.select({
-        ios: 'Poppins-SemiBold',
-        android: 'Poppins-Bold',
-        default: 'Poppins-SemiBold',
-      }),
     },
     timelineDescription: {
       fontSize: 14,
       color: theme.textSecondary,
       lineHeight: 20,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     timelineLine: {
       width: 2,
@@ -624,11 +589,6 @@ const createStyles = (theme) =>
       color: '#fff',
       fontSize: 16,
       fontWeight: Platform.OS === 'android' ? '800' : '700',
-      fontFamily: Platform.select({
-        ios: 'Poppins-Bold',
-        android: 'Poppins-ExtraBold',
-        default: 'Poppins-Bold',
-      }),
     },
     helpSection: {
       flexDirection: 'row',
@@ -640,11 +600,6 @@ const createStyles = (theme) =>
     helpText: {
       fontSize: 14,
       color: theme.textSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
     loadingOverlay: {
       flex: 1,
@@ -656,10 +611,5 @@ const createStyles = (theme) =>
       marginTop: 16,
       fontSize: 16,
       color: theme.textSecondary,
-      fontFamily: Platform.select({
-        ios: 'Poppins-Regular',
-        android: 'Poppins-Medium',
-        default: 'Poppins-Regular',
-      }),
     },
   });

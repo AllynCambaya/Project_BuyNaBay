@@ -9,7 +9,6 @@ import {
   Image,
   Platform,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -17,6 +16,7 @@ import {
   View,
   useColorScheme,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
@@ -518,11 +518,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
     color: theme.accentSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
     letterSpacing: -0.5,
   },
   welcomeSection: {
@@ -533,33 +528,18 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 16,
     color: theme.textSecondary,
     fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
     marginBottom: 4,
   },
   userName: {
     fontSize: Math.min(width * 0.08, 32),
     color: theme.text,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
-    fontFamily: Platform.select({
-      ios: 'Poppins-ExtraBold',
-      android: 'Poppins-Black',
-      default: 'Poppins-ExtraBold',
-    }),
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     color: theme.textSecondary,
     fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   statsContainer: {
     flexDirection: 'row',
@@ -590,22 +570,12 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
     marginTop: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   statLabel: {
     fontSize: 12,
     color: theme.textSecondary,
     marginTop: 2,
     fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   sectionTitleContainer: {
     flexDirection: 'row',
@@ -617,11 +587,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 20,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   card: {
     backgroundColor: theme.cardBackground,
@@ -797,10 +762,5 @@ const createStyles = (theme) => StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
 });

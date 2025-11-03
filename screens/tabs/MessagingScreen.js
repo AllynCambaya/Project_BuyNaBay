@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -21,6 +20,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -723,11 +723,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18, 
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   statusContainer: {
     flexDirection: 'row',
@@ -744,11 +739,6 @@ const createStyles = (theme) => StyleSheet.create({
   headerStatus: { 
     fontSize: 13, 
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   reportButton: {
     padding: 8,
@@ -813,11 +803,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 15, 
     color: theme.text,
     lineHeight: 20,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   messageImage: { 
     width: 200, 
@@ -838,20 +823,10 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.accent,
     marginBottom: 2,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   replyText: { 
     fontSize: 13, 
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   replyPhotoContainer: {
     flexDirection: 'row',
@@ -887,20 +862,10 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.accent, 
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     marginBottom: 2,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   replyPreviewText: { 
     fontSize: 13, 
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   cancelReplyButton: {
     padding: 4,
@@ -960,11 +925,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 15,
     color: theme.text,
     maxHeight: 100,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   sendButton: { 
     backgroundColor: theme.accent, 
@@ -1021,11 +981,6 @@ const createStyles = (theme) => StyleSheet.create({
     color: '#fff', 
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     fontSize: 14,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
 
   // Long-press modal
@@ -1059,11 +1014,6 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.text,
     marginBottom: 16,
     textAlign: 'center',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   optionButton: {
     flexDirection: 'row',
@@ -1083,11 +1033,6 @@ const createStyles = (theme) => StyleSheet.create({
     paddingLeft: 12,
     color: theme.text,
     fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   floatingProductContainer: {
     flexDirection: 'row',
@@ -1110,22 +1055,12 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   floatingProductPrice: {
     fontSize: 14,
     fontWeight: '700',
     color: theme.accent,
     marginTop: 2,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   rentalDurationText: {
     fontSize: 12,

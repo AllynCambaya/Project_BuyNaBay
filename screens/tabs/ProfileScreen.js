@@ -964,7 +964,7 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 1,
     backgroundColor: theme.background,
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,

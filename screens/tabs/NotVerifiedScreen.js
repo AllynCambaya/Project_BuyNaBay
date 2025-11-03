@@ -4,7 +4,6 @@ import {
   Dimensions,
   Image,
   Platform,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
 const { width, height } = Dimensions.get('window');
@@ -267,11 +267,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
     color: theme.accentSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
     letterSpacing: -0.5,
   },
   contentContainer: {

@@ -23,7 +23,7 @@ import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
-
+ 
 const REPORT_REASONS = [
   { id: 'spam', label: 'Spam or misleading', icon: 'exclamation-triangle' },
   { id: 'scam', label: 'Scam or fraud', icon: 'ban' },
@@ -35,7 +35,7 @@ const REPORT_REASONS = [
 ];
 
 export default function ReportScreen({ route, navigation }) {
-  const { reported_student_id, reported_name } = route?.params || {};
+  const { reported_student_id, reported_name, reported_avatar } = route?.params || {};
   const user = auth.currentUser;
 
   const [selectedReason, setSelectedReason] = useState(null);
@@ -172,9 +172,13 @@ export default function ReportScreen({ route, navigation }) {
                   <Text style={styles.sectionTitle}> Reporting</Text>
                 </View>
                 <View style={styles.userCard}>
-                  <View style={styles.userAvatar}>
-                    <Icon name="user-circle" size={40} color={theme.accent} />
-                  </View>
+                  {reported_avatar ? (
+                    <Image source={{ uri: reported_avatar }} style={styles.userAvatar} />
+                  ) : (
+                    <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                      <Icon name="user" size={24} color={theme.text} />
+                    </View>
+                  )}
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{reported_name || 'User'}</Text>
                     <Text style={styles.userEmail}>{reported_student_id}</Text>
@@ -376,11 +380,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   headerSpacer: {
     width: 40,
@@ -411,21 +410,11 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.error,
     marginBottom: 6,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   warningText: {
     fontSize: 14,
     color: theme.text,
     lineHeight: 20,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   section: {
     marginBottom: 24,
@@ -439,11 +428,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   userCard: {
     flexDirection: 'row',
@@ -466,6 +450,9 @@ const createStyles = (theme) => StyleSheet.create({
     }),
   },
   userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 16,
   },
   userInfo: {
@@ -476,20 +463,15 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.text,
     marginBottom: 4,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   userEmail: {
     fontSize: 14,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackgroundAlt,
   },
   reasonsContainer: {
     gap: 12,
@@ -523,19 +505,9 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   reasonTextSelected: {
     fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   card: {
     backgroundColor: theme.cardBackground,
@@ -564,22 +536,12 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 15,
     color: theme.text,
     minHeight: 120,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   charCount: {
     fontSize: 12,
     color: theme.textSecondary,
     textAlign: 'right',
     marginTop: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   privacyNotice: {
     flexDirection: 'row',
@@ -596,11 +558,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 13,
     color: theme.textSecondary,
     lineHeight: 18,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   bottomContainer: {
     backgroundColor: theme.cardBackground,
@@ -656,11 +613,6 @@ const createStyles = (theme) => StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   buttonLoadingContainer: {
     flexDirection: 'row',

@@ -106,8 +106,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
   },
-  requestCard: {
+  requestCard: {  
     backgroundColor: '#fff',
     padding: 16,
     marginBottom: 16,
@@ -117,6 +118,7 @@ const styles = StyleSheet.create({
   userText: {
     fontSize: 16,
     marginBottom: 8,
+    fontFamily: 'Poppins-Regular',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -137,6 +139,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
   },
 });
 

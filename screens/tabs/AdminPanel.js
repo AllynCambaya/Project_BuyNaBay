@@ -8,7 +8,6 @@ import {
   Modal,
   Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { supabase } from '../../supabase/supabaseClient';
 
@@ -680,11 +680,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 20,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
     letterSpacing: -0.5,
   },
   welcomeSection: {
@@ -694,33 +689,18 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 16,
     color: theme.textSecondary,
     fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
     marginBottom: 4,
   },
   userName: {
     fontSize: Math.min(width * 0.07, 28),
     color: theme.text,
     fontWeight: Platform.OS === 'android' ? '900' : '800',
-    fontFamily: Platform.select({
-      ios: 'Poppins-ExtraBold',
-      android: 'Poppins-Black',
-      default: 'Poppins-ExtraBold',
-    }),
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     color: theme.textSecondary,
     fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   statsContainer: {
     flexDirection: 'row',
@@ -767,22 +747,12 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
     marginTop: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   statLabel: {
     fontSize: 12,
     color: theme.textSecondary,
     marginTop: 2,
     fontWeight: Platform.OS === 'android' ? '500' : '400',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   sectionTitleContainer: {
     flexDirection: 'row',
@@ -794,11 +764,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 18,
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   contentBox: {
     paddingHorizontal: Math.max(width * 0.05, 20),
@@ -853,20 +818,10 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.text,
     marginBottom: 4,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   cardSubtext: {
     fontSize: 13,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   userMetaRow: {
     flexDirection: 'row',
@@ -903,11 +858,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 12,
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     textTransform: 'capitalize',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   menuButton: {
     width: 36,
@@ -946,11 +896,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     color: theme.text,
     fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   menuDivider: {
     height: 1,
@@ -970,11 +915,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     color: theme.warning,
     marginLeft: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   reportSection: {
     marginBottom: 12,
@@ -984,40 +924,20 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     marginBottom: 4,
     fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   reportText: {
     fontSize: 14,
     color: theme.text,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   reportReason: {
     fontSize: 15,
     color: theme.text,
     fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   reportDetails: {
     fontSize: 14,
     color: theme.textSecondary,
     lineHeight: 20,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   reportFooter: {
     flexDirection: 'row',
@@ -1030,11 +950,6 @@ const createStyles = (theme) => StyleSheet.create({
   reportDate: {
     fontSize: 12,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   requestHeader: {
     flexDirection: 'row',
@@ -1070,11 +985,6 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     marginTop: 6,
     fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   actionRow: {
     flexDirection: 'row',
@@ -1112,11 +1022,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '700' : '600',
     fontSize: 14,
     marginLeft: 6,
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   emptyContainer: {
     flex: 1,
@@ -1131,22 +1036,12 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.text,
     marginTop: 20,
     marginBottom: 12,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   emptySubtext: {
     fontSize: 15,
     color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   loadingOverlay: {
     flex: 1,
@@ -1158,11 +1053,6 @@ const createStyles = (theme) => StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   modalOverlay: {
     flex: 1,
@@ -1199,22 +1089,12 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: Platform.OS === 'android' ? '800' : '700',
     color: theme.text,
     marginLeft: 12,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   modalLabel: {
     fontSize: 14,
     color: theme.textSecondary,
     marginBottom: 8,
     fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
   },
   modalInput: {
     backgroundColor: theme.cardBackgroundAlt,
@@ -1226,11 +1106,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 16,
     color: theme.text,
     marginBottom: 20,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
   },
   modalActions: {
     flexDirection: 'row',
@@ -1267,20 +1142,10 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.text,
     fontSize: 16,
     fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
   modalConfirmText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
   },
 });
