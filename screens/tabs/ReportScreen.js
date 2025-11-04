@@ -1,4 +1,5 @@
 // screens/ReportScreen.js
+import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,7 +19,6 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 

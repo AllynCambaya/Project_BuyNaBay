@@ -1,6 +1,6 @@
 // screens/authentication/AdminPanel.js
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase/supabaseClient';
 
 const AdminPanel = () => {
@@ -78,20 +78,22 @@ const AdminPanel = () => {
   );
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Admin Panel - Verification Requests</Text>
-      {loading ? (
-        <Text>Loading...</Text>
-      ) : verificationRequests.length === 0 ? (
-        <Text>No pending requests</Text>
-      ) : (
-        <FlatList
-          data={verificationRequests}
-          renderItem={renderRequest}
-          keyExtractor={(item) => item.id.toString()}
-        />
-      )}
-    </ScrollView>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Admin Panel - Verification Requests</Text>
+        {loading ? (
+          <Text>Loading...</Text>
+        ) : verificationRequests.length === 0 ? (
+          <Text>No pending requests</Text>
+        ) : (
+          <FlatList
+            data={verificationRequests}
+            renderItem={renderRequest}
+            keyExtractor={(item) => item.id.toString()}
+          />
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -99,7 +101,11 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     backgroundColor: '#f5f7fa',
-    minHeight: '100vh',
+    flexGrow: 1,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f7fa',
   },
   title: {
     fontSize: 28,

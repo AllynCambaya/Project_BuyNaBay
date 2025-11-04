@@ -1,4 +1,5 @@
 // screens/RegisterScreen.js
+import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { useEffect, useRef, useState } from 'react';
@@ -20,7 +21,6 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -12,7 +12,6 @@ import {
   View,
   useColorScheme
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth } from '../firebase/firebaseConfig';
 import { supabase } from '../supabase/supabaseClient';
 
@@ -221,7 +220,7 @@ export default function ProductCard({
             {/* Image Counter */}
             {imageUrls.length > 1 && (
               <View style={styles.gridImageCounter}>
-                <Icon name="images" size={9} color="#fff" />
+                <Icon name="image" size={9} color="#fff" />
                 <Text style={styles.gridImageCounterText}> {imageUrls.length}</Text>
               </View>
             )}
