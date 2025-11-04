@@ -25,6 +25,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { darkTheme, lightTheme } from '../../theme/theme';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -991,43 +992,6 @@ export default function ProfileScreen({ navigation, route }) {
       </>
     );
   }
-  
-  // Theme Definitions
-  const darkTheme = {
-    background: '#0A0A1E',
-    cardBackground: '#1F1D47',
-    cardBackgroundAlt: '#2A2856',
-    text: '#FFFFFF',
-    textSecondary: '#A8A6C7',
-    textTertiary: '#8E8CB3',
-    primary: '#FDAD00',
-    primaryDark: '#FF9500',
-    success: '#4CAF50',
-    error: '#FF6B6B',
-    warning: '#FFA726',
-    borderColor: '#2A2856',
-    divider: '#2A2856',
-    shadowColor: '#000000',
-    overlay: 'rgba(0, 0, 0, 0.85)',
-  };
-  
-  const lightTheme = {
-    background: '#F8F9FC',
-    cardBackground: '#FFFFFF',
-    cardBackgroundAlt: '#F5F7FA',
-    text: '#1A1A2E',
-    textSecondary: '#6B6B8A',
-    textTertiary: '#9494B8',
-    primary: '#FDAD00',
-    primaryDark: '#FF9500',
-    success: '#4CAF50',
-    error: '#FF6B6B',
-    warning: '#FFA726',
-    borderColor: '#E8E8F0',
-    divider: '#E8E8F0',
-    shadowColor: '#000000',
-    overlay: 'rgba(0, 0, 0, 0.6)',
-  };
   
   const createStyles = (theme) => StyleSheet.create({
     container: {

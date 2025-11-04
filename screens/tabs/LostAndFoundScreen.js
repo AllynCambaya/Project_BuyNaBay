@@ -2,24 +2,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    Platform,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { darkTheme, lightTheme } from '../../theme/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +49,7 @@ export default function LostAndFoundScreen({ navigation }) {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const styles = createStyles(theme);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -229,30 +231,6 @@ export default function LostAndFoundScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-const darkTheme = {
-  background: '#0f0f2e',
-  cardBackground: '#1e1e3f',
-  text: '#fff',
-  textSecondary: '#bbb',
-  accent: '#FDAD00',
-  lost: '#d32f2f',
-  found: '#4CAF50',
-  borderColor: '#2a2a4a',
-};
-
-const lightTheme = {
-  background: '#f5f7fa',
-  cardBackground: '#ffffff',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  accent: '#f39c12',
-  lost: '#e74c3c',
-  found: '#27ae60',
-  borderColor: '#e0e0ea',
-};
-
-const styles = createStyles(lightTheme); // Base theme for styles
 
 function createStyles(theme) {
   return StyleSheet.create({

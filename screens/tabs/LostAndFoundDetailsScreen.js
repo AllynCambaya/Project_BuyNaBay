@@ -2,26 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { darkTheme, lightTheme } from '../../theme/theme';
 
 const { width, height } = Dimensions.get('window');
-
-const darkTheme = {
-  background: '#0f0f2e',
-  cardBackground: '#1e1e3f',
-  text: '#fff',
-  textSecondary: '#bbb',
-  accent: '#FDAD00',
-  borderColor: '#2a2a4a',
-};
-
-const lightTheme = {
-  background: '#f5f7fa',
-  cardBackground: '#ffffff',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  accent: '#f39c12',
-  borderColor: '#e0e0ea',
-};
 
 export default function LostAndFoundDetailsScreen({ route, navigation }) {
   const item = route?.params?.item || {};

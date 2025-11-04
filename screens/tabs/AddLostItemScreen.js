@@ -2,22 +2,23 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { darkTheme, lightTheme } from '../../theme/theme';
 
 export default function AddLostItemScreen({ navigation }) {
   const [itemName, setItemName] = useState('');
@@ -209,28 +210,6 @@ export default function AddLostItemScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-const darkTheme = {
-  background: '#0f0f2e',
-  cardBackground: '#1e1e3f',
-  text: '#fff',
-  textSecondary: '#bbb',
-  accent: '#FDAD00',
-  error: '#d32f2f',
-  borderColor: '#2a2a4a',
-};
-
-const lightTheme = {
-  background: '#f5f7fa',
-  cardBackground: '#ffffff',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  accent: '#f39c12',
-  error: '#e74c3c',
-  borderColor: '#e0e0ea',
-};
-
-const styles = createStyles(lightTheme); // Base theme for styles
 
 function createStyles(theme) {
   return StyleSheet.create({

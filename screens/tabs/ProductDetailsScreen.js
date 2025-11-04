@@ -1,5 +1,5 @@
 // screens/ProductDetailsScreen.js
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -8,7 +8,6 @@ import {
   Dimensions,
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,7 +16,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { FontAwesome as Icon } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 

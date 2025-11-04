@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
+import { darkTheme, lightTheme } from '../../theme/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -503,38 +504,6 @@ export default function NotificationsScreen({ navigation }) {
     </>
   );
 }
-
-const darkTheme = {
-  background: '#0f0f2e',
-  headerBackground: '#1b1b41',
-  text: '#ffffff',
-  textSecondary: '#a8a8c8',
-  cardBackground: '#1e1e3f',
-  cardBackgroundNew: '#252550',
-  accent: '#FDAD00',
-  rentalColor: '#4CAF50',
-  messageColor: '#3b82f6',
-  reviewColor: '#f59e0b',
-  border: '#2a2a4a',
-  iconPlaceholder: '#4a4a6a',
-  newBadge: '#4CAF50',
-};
-
-const lightTheme = {
-  background: '#f8f9fa',
-  headerBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#6b7280',
-  cardBackground: '#ffffff',
-  cardBackgroundNew: '#fffbf0',
-  accent: '#f39c12',
-  rentalColor: '#27ae60',
-  messageColor: '#3b82f6',
-  reviewColor: '#f59e0b',
-  border: '#e5e7eb',
-  iconPlaceholder: '#9ca3af',
-  newBadge: '#27ae60',
-};
 
 const createStyles = (theme) => StyleSheet.create({
   container: {
