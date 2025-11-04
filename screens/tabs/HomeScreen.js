@@ -38,6 +38,7 @@ export default function HomeScreen({ navigation }) {
 
   const theme = isDarkMode ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
+  
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -54,6 +55,8 @@ export default function HomeScreen({ navigation }) {
     };
     fetchUserProfile();
   }, [currentUser]);
+
+  
 
   useEffect(() => {
     Animated.parallel([
@@ -136,6 +139,15 @@ export default function HomeScreen({ navigation }) {
           >
             <Ionicons name="notifications-outline" size={22} color="#fff" />
             <View style={styles.notificationBadge} />
+          </TouchableOpacity>
+          {/* Message / Inbox button removed (access moved to messaging flows inside product/rental screens) */}
+          {/* Lost & Found quick access button */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('LostAndFound')}
+            style={[styles.actionButton, styles.lostFoundButton]}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="help-circle-outline" size={20} color={theme.accent} />
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => navigation.navigate("ProfileScreen")}
@@ -412,6 +424,26 @@ const createStyles = (theme, insets) =>
     notificationButton: {
       backgroundColor: theme.notificationColor,
       position: 'relative',
+    },
+    lostFoundButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: 8,
+      backgroundColor: theme.cardBackground,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
+        },
+        android: {
+          elevation: 3,
+        },
+      }),
     },
     notificationBadge: {
       position: 'absolute',

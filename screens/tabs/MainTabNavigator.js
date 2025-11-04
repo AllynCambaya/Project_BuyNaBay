@@ -24,6 +24,10 @@ import RentItemScreen from './RentItemScreen';
 import ReportScreen from './ReportScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
 
+import AddLostItemScreen from './AddLostItemScreen';
+import LostAndFoundDetailsScreen from './LostAndFoundDetailsScreen';
+import LostAndFoundScreen from './LostAndFoundScreen';
+
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
@@ -113,8 +117,8 @@ function Tabs({ showAdmin, userStatus }) {
           const icons = {
             Home: focused ? 'home' : 'home-outline',
             Cart: focused ? 'cart' : 'cart-outline',
-            Community: focused ? 'people' : 'people-outline',
             Add: 'add-circle',
+            Community: focused ? 'people' : 'people-outline',
             Inbox: focused ? 'chatbox' : 'chatbox-outline',
             Admin: focused ? 'shield-checkmark' : 'shield-checkmark-outline',
           };
@@ -193,6 +197,17 @@ function Tabs({ showAdmin, userStatus }) {
         })}
       />
 
+<Tab.Screen
+        name="Add"
+        component={AddScreen}
+        options={{
+          tabBarLabel: '',
+        }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => handleTabPress(e, navigation, 'Add'),
+        })}
+      />
+
       <Tab.Screen
         name="Community"
         component={require('./CommunityScreen').default}
@@ -201,17 +216,6 @@ function Tabs({ showAdmin, userStatus }) {
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Community'),
-        })}
-      />
-
-      <Tab.Screen
-        name="Add"
-        component={AddScreen}
-        options={{
-          tabBarLabel: 'Add',
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => handleTabPress(e, navigation, 'Add'),
         })}
       />
 
@@ -359,6 +363,18 @@ export default function MainTabNavigator({ route }) {
       <Stack.Screen 
         name="Messaging" 
         component={MessagingScreen}
+      />
+      <Stack.Screen
+        name="LostAndFound"
+        component={LostAndFoundScreen}
+      />
+      <Stack.Screen
+        name="AddLostItem"
+        component={AddLostItemScreen}
+      />
+      <Stack.Screen
+        name="LostAndFoundDetails"
+        component={LostAndFoundDetailsScreen}
       />
       <Stack.Screen 
         name="ReportScreen" 

@@ -40,6 +40,7 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
   const isFocused = useIsFocused();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const user = auth.currentUser;
+  const [userStatus, setUserStatus] = useState('not_requested');
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -118,6 +119,27 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
   useEffect(() => {
     if (isFocused && isVisible) fetchRentals();
   }, [isFocused, isVisible]);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        if (!user?.email) {
+          setUserStatus('not_requested');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', user.email)
+          .single();
+        if (error || !data) setUserStatus('not_requested');
+        else setUserStatus(data.status || 'not_requested');
+      } catch (e) {
+        setUserStatus('not_requested');
+      }
+    };
+    fetchStatus();
+  }, [user]);
   
   const fetchRentals = async () => {
     try {
@@ -374,11 +396,16 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
                 style={styles.messageButton}
                 onPress={(e) => {
                   e.stopPropagation();
-                  navigation.navigate('Messaging', {
-                    receiverId: item.owner_email,
-                    receiverName: item.seller_name,
-                    productToSend: { ...item, product_name: item.item_name },
-                  });
+                  // Only allow messaging for verified users; otherwise send them to GetVerified
+                  if (userStatus === 'approved') {
+                    navigation.navigate('Messaging', {
+                      receiverId: item.owner_email,
+                      receiverName: item.seller_name,
+                      productToSend: { ...item, product_name: item.item_name },
+                    });
+                  } else {
+                    navigation.navigate('GetVerified');
+                  }
                 }}
                 activeOpacity={0.85}
               >

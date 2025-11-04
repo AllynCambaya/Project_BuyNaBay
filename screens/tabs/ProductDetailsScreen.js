@@ -26,6 +26,7 @@ const { width, height } = Dimensions.get('window');
 export default function ProductDetailsScreen({ route, navigation }) {
   const product = route?.params?.product;
   const user = auth.currentUser;
+  const [userStatus, setUserStatus] = useState('not_requested');
   const [adding, setAdding] = useState(false);
   const [sellerName, setSellerName] = useState('');
   const [sellerAvatar, setSellerAvatar] = useState(null);
@@ -105,9 +106,36 @@ export default function ProductDetailsScreen({ route, navigation }) {
     return () => { mounted = false; };
   }, [product]);
 
+  // Fetch current user's verification status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        if (!user?.email) {
+          setUserStatus('not_requested');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', user.email)
+          .single();
+        if (error || !data) setUserStatus('not_requested');
+        else setUserStatus(data.status || 'not_requested');
+      } catch (_) {
+        setUserStatus('not_requested');
+      }
+    };
+    fetchStatus();
+  }, [user]);
+
   const handleAddToCart = async () => {
     if (!user) {
-      Alert.alert('Please login', 'You need to be logged in to add items to cart.');
+      navigation.navigate('GetVerified');
+      return;
+    }
+    // require verified users
+    if (userStatus !== 'approved') {
+      navigation.navigate('GetVerified');
       return;
     }
     if (user.email === product.email) {
@@ -149,6 +177,8 @@ export default function ProductDetailsScreen({ route, navigation }) {
       navigation.navigate("Tabs", { screen: "Cart" });
     }
   };
+
+  // View store navigation handled inline in the button (always allowed)
 
   const styles = createStyles(theme);
 

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    FlatList,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import ProductCard from '../../components/ProductCard';
@@ -48,6 +48,7 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
   const [sortBy, setSortBy] = useState('latest');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
+  const [userStatus, setUserStatus] = useState('not_requested');
 
   // Enhanced animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -218,6 +219,27 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
     }
   }, [isVisible, fetchProducts]);
 
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        if (!currentUser?.email) {
+          setUserStatus('not_requested');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', currentUser.email)
+          .single();
+        if (error || !data) setUserStatus('not_requested');
+        else setUserStatus(data.status || 'not_requested');
+      } catch (_) {
+        setUserStatus('not_requested');
+      }
+    };
+    fetchStatus();
+  }, [currentUser]);
+
   const renderHeader = () => {
     const activeFiltersCount = (selectedCategory !== 'All' ? 1 : 0) + (sortBy !== 'latest' ? 1 : 0);
     
@@ -358,12 +380,16 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
           onEdit={() => navigation.navigate('EditProduct', { product: item })}
           onDelete={() => handleDelete(item.id)}
           onMessageSeller={() => {
-            if (item.email !== currentUser?.email) {
+            if (item.email === currentUser?.email) return;
+            // require verification to message
+            if (userStatus === 'approved') {
               navigation.navigate('Messaging', {
                 receiverId: item.email,
                 receiverName: item.seller_name,
                 productToSend: item,
               });
+            } else {
+              navigation.navigate('GetVerified');
             }
           }}
           onPress={() => navigation.navigate('ProductDetails', { product: item })}
