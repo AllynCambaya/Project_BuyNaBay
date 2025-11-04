@@ -2,10 +2,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, View, useColorScheme } from 'react-native';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { darkTheme, lightTheme } from '../../theme/theme';
+import { fontFamily, fontSizes } from '../../theme/typography';
 
 import AddProductScreen from './AddProductScreen';
 import AddScreen from './AddScreen';
@@ -31,18 +34,19 @@ import LostAndFoundScreen from './LostAndFoundScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Animated Tab Icon Component
-function AnimatedTabIcon({ name, color, size, focused }) {
-  const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.9)).current;
+// Animated Tab Icon with smooth spring animations
+function AnimatedTabIcon({ name, color, size, focused, theme }) {
+  const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(focused ? 1 : 0.65)).current;
 
   useEffect(() => {
     if (focused) {
       Animated.parallel([
         Animated.spring(scaleAnim, {
-          toValue: 1.1,
-          friction: 3,
-          tension: 40,
+          toValue: 1.12,
+          friction: 5,
+          tension: 80,
           useNativeDriver: true,
         }),
         Animated.sequence([
@@ -51,20 +55,33 @@ function AnimatedTabIcon({ name, color, size, focused }) {
             duration: 150,
             useNativeDriver: true,
           }),
-          Animated.timing(bounceAnim, {
+          Animated.spring(bounceAnim, {
             toValue: 0,
-            duration: 150,
+            friction: 5,
+            tension: 50,
             useNativeDriver: true,
           }),
         ]),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
       ]).start();
     } else {
-      Animated.spring(scaleAnim, {
-        toValue: 0.9,
-        friction: 3,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 0.88,
+          friction: 5,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0.65,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [focused]);
 
@@ -72,19 +89,37 @@ function AnimatedTabIcon({ name, color, size, focused }) {
     <Animated.View
       style={{
         transform: [{ scale: scaleAnim }, { translateY: bounceAnim }],
+        opacity: opacityAnim,
       }}
     >
       <Ionicons name={name} size={size} color={color} />
+      {focused && (
+        <Animated.View
+          style={[
+            styles.activeIndicator,
+            { backgroundColor: color, opacity: opacityAnim },
+          ]}
+        />
+      )}
     </Animated.View>
   );
 }
 
-// Custom Tab Bar Background Component
-function CustomTabBarBackground({ theme }) {
+// Custom Tab Bar Background matching ProfileScreen aesthetic
+function CustomTabBarBackground({ theme, isDarkMode }) {
   return (
-    <View style={styles.tabBarBackgroundContainer}>
-      <View style={[styles.tabBarBackground, { backgroundColor: theme.tabBarBackground }]} />
-      <View style={[styles.tabBarTopBorder, { backgroundColor: theme.borderColor }]} />
+    <View style={styles.tabBarContainer}>
+      {Platform.OS === 'ios' ? (
+        <BlurView
+          intensity={isDarkMode ? 90 : 80}
+          tint={isDarkMode ? 'dark' : 'light'}
+          style={[styles.blurView, { backgroundColor: isDarkMode ? 'rgba(31, 29, 71, 0.85)' : 'rgba(255, 255, 255, 0.85)' }]}
+        />
+      ) : (
+        <View style={[styles.solidBackground, { backgroundColor: theme.cardBackground }]} />
+      )}
+      {/* Subtle top border */}
+      <View style={[styles.topBorder, { backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.15)' : 'rgba(0, 0, 0, 0.08)' }]} />
     </View>
   );
 }
@@ -124,20 +159,35 @@ function Tabs({ showAdmin, userStatus }) {
           };
           const name = icons[route.name] || 'ellipse';
 
-          // Special styling for Add button
+          // Special elevated Add button
           if (route.name === 'Add') {
             return (
-              <View style={[styles.addButtonContainer, { backgroundColor: theme.accent }]}>
-                <Ionicons name={name} size={size + 4} color="#fff" />
+              <View style={styles.addButtonWrapper}>
+                <View style={[styles.addButtonOuter, { 
+                  backgroundColor: theme.accent,
+                  ...Platform.select({
+                    ios: {
+                      shadowColor: theme.accent,
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.4,
+                      shadowRadius: 12,
+                    },
+                    android: {
+                      elevation: 8,
+                    },
+                  })
+                }]}>
+                  <Ionicons name={name} size={size + 4} color="#fff" />
+                </View>
               </View>
             );
           }
 
-          return <AnimatedTabIcon name={name} color={color} size={size} focused={focused} />;
+          return <AnimatedTabIcon name={name} color={color} size={size} focused={focused} theme={theme} />;
         },
         tabBarActiveTintColor: theme.accent,
-        tabBarInactiveTintColor: theme.tabBarInactive,
-        tabBarBackground: () => <CustomTabBarBackground theme={theme} />,
+        tabBarInactiveTintColor: theme.textSecondary,
+        tabBarBackground: () => <CustomTabBarBackground theme={theme} isDarkMode={isDarkMode} />,
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
@@ -149,32 +199,38 @@ function Tabs({ showAdmin, userStatus }) {
           elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: Platform.OS === 'android' ? '700' : '600',
+          fontSize: fontSizes.xs,
+          fontFamily: fontFamily.semiBold,
           marginTop: route.name === 'Add' ? 6 : 2,
-          fontFamily: Platform.select({
-            ios: 'Poppins-SemiBold',
-            android: 'Poppins-Bold',
-            default: 'Poppins-SemiBold',
-          }),
+          letterSpacing: 0.2,
         },
         tabBarItemStyle: {
-          paddingVertical: 6,
+          paddingVertical: 4,
           borderRadius: 12,
           marginHorizontal: 2,
         },
         tabBarBadgeStyle: {
-          backgroundColor: theme.badgeColor,
+          backgroundColor: theme.error,
           color: '#fff',
           fontSize: 10,
-          fontWeight: Platform.OS === 'android' ? '700' : '600',
+          fontFamily: fontFamily.bold,
           minWidth: 18,
           height: 18,
           borderRadius: 9,
           borderWidth: 2,
-          borderColor: theme.tabBarBackground,
+          borderColor: theme.cardBackground,
           lineHeight: Platform.OS === 'ios' ? 14 : 12,
-          fontFamily: 'Poppins-Bold',
+          ...Platform.select({
+            ios: {
+              shadowColor: theme.error,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.4,
+              shadowRadius: 4,
+            },
+            android: {
+              elevation: 4,
+            },
+          }),
         },
       })}
     >
@@ -197,7 +253,7 @@ function Tabs({ showAdmin, userStatus }) {
         })}
       />
 
-<Tab.Screen
+      <Tab.Screen
         name="Add"
         component={AddScreen}
         options={{
@@ -293,6 +349,7 @@ export default function MainTabNavigator({ route }) {
         animationEnabled: true,
         gestureEnabled: true,
         gestureDirection: 'horizontal',
+        // Smooth horizontal slide matching ProfileScreen transitions
         cardStyleInterpolator: ({ current, next, layouts }) => {
           return {
             cardStyle: {
@@ -307,20 +364,20 @@ export default function MainTabNavigator({ route }) {
                   scale: next
                     ? next.progress.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [1, 0.95],
+                        outputRange: [1, 0.96],
                       })
                     : 1,
                 },
               ],
               opacity: current.progress.interpolate({
                 inputRange: [0, 0.5, 1],
-                outputRange: [0, 0.5, 1],
+                outputRange: [0, 0.7, 1],
               }),
             },
             overlayStyle: {
               opacity: current.progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 0.3],
+                outputRange: [0, 0.15],
               }),
             },
           };
@@ -349,12 +406,18 @@ export default function MainTabNavigator({ route }) {
                     outputRange: [1000, 0],
                   }),
                 },
+                {
+                  scale: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.94, 1],
+                  }),
+                },
               ],
             },
             overlayStyle: {
               opacity: current.progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 0.5],
+                outputRange: [0, 0.4],
               }),
             },
           }),
@@ -397,7 +460,7 @@ export default function MainTabNavigator({ route }) {
             overlayStyle: {
               opacity: current.progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 0.5],
+                outputRange: [0, 0.4],
               }),
             },
           }),
@@ -438,19 +501,19 @@ export default function MainTabNavigator({ route }) {
                 {
                   scale: current.progress.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0.9, 1],
+                    outputRange: [0.92, 1],
                   }),
                 },
               ],
               opacity: current.progress.interpolate({
                 inputRange: [0, 0.5, 1],
-                outputRange: [0, 0.5, 1],
+                outputRange: [0, 0.8, 1],
               }),
             },
             overlayStyle: {
               opacity: current.progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 0.5],
+                outputRange: [0, 0.4],
               }),
             },
           }),
@@ -493,7 +556,7 @@ export default function MainTabNavigator({ route }) {
             overlayStyle: {
               opacity: current.progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 0.5],
+                outputRange: [0, 0.4],
               }),
             },
           }),
@@ -511,80 +574,64 @@ export default function MainTabNavigator({ route }) {
   );
 }
 
-const darkTheme = {
-  background: '#0f0f2e',
-  tabBarBackground: '#1a1a3e',
-  text: '#ffffff',
-  textSecondary: '#9ca3af',
-  accent: '#FDAD00',
-  tabBarInactive: '#64748b',
-  borderColor: '#2d2d5a',
-  shadowColor: '#000',
-  badgeColor: '#ef4444',
-};
-
-const lightTheme = {
-  background: '#f8fafc',
-  tabBarBackground: '#ffffff',
-  text: '#1e293b',
-  textSecondary: '#64748b',
-  accent: '#f39c12',
-  tabBarInactive: '#94a3b8',
-  borderColor: '#e2e8f0',
-  shadowColor: '#000',
-  badgeColor: '#ef4444',
-};
-
 const styles = StyleSheet.create({
-  tabBarBackgroundContainer: {
+  // Tab Bar Container
+  tabBarContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     overflow: 'hidden',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
-  tabBarBackground: {
+  blurView: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  solidBackground: {
     flex: 1,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-      },
       android: {
         elevation: 12,
       },
     }),
   },
-  tabBarTopBorder: {
+  topBorder: {
     position: 'absolute',
     top: 0,
     left: 16,
     right: 16,
     height: 1,
-    opacity: 0.3,
+    opacity: 0.6,
   },
-  addButtonContainer: {
+
+  // Active Indicator
+  activeIndicator: {
+    position: 'absolute',
+    bottom: -6,
+    left: '50%',
+    marginLeft: -2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+
+  // Add Button
+  addButtonWrapper: {
+    marginTop: -8,
+  },
+  addButtonOuter: {
     width: 52,
     height: 52,
     borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
 });

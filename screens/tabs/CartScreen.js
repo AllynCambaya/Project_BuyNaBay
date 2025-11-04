@@ -11,12 +11,11 @@ import {
   Image,
   Platform,
   RefreshControl,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { auth } from "../../firebase/firebaseConfig";
@@ -491,12 +490,6 @@ export default function CartScreen({ navigation }) {
   const selectedCount = selectedIds.length;
 
   return (
-    <>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.background}
-        translucent={false}
-      />
       <SafeAreaView style={styles.container}>
         <FlatList
           data={cartItems}
@@ -554,7 +547,6 @@ export default function CartScreen({ navigation }) {
           </View>
         )}
       </SafeAreaView>
-    </>
   );
 }
 
@@ -603,7 +595,7 @@ const createStyles = (theme) => StyleSheet.create({
     marginBottom: 20,
   },
   headerBackground: {
-    height: Platform.OS === 'ios' ? 320 : 340,
+    height: 330,
     backgroundColor: theme.headerBackground,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
@@ -617,8 +609,8 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 12 : 20,
+    paddingHorizontal: 20, // Adjusted padding
+    paddingTop: 16,
     position: 'absolute',
     top: 0,
     left: 0,
@@ -651,17 +643,7 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   historyButton: {
     backgroundColor: '#10b981',
@@ -686,7 +668,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   userNameText: {
     fontSize: Math.min(width * 0.075, 30),
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: '800',
     color: theme.text,
     marginBottom: 6,
     letterSpacing: -0.5,
@@ -708,24 +690,14 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   cardIconContainer: {
     marginBottom: 8,
   },
   cardValue: {
     fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.text,
     marginTop: 4,
   },
@@ -743,17 +715,7 @@ const createStyles = (theme) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 14,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   checkbox: {
     width: 20,
@@ -788,30 +750,12 @@ const createStyles = (theme) => StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   itemCardSelected: {
     borderColor: theme.borderSelected,
     backgroundColor: theme.cardSelected,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
   },
   checkboxContainer: {
     position: 'absolute',
@@ -821,17 +765,7 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     borderRadius: 8,
     padding: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   itemCheckbox: {
     width: 20,
@@ -887,7 +821,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   priceText: {
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.accent,
   },
   quantityText: {
@@ -914,7 +848,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   totalAmount: {
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.accent,
   },
   deleteButton: {
@@ -922,17 +856,7 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.error,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   emptyState: {
     flex: 1,
@@ -949,21 +873,11 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.text,
     marginBottom: 12,
     textAlign: 'center',
@@ -983,22 +897,12 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    elevation: 6,
   },
   shopButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
@@ -1015,21 +919,11 @@ const createStyles = (theme) => StyleSheet.create({
   checkoutFooter: {
     backgroundColor: theme.cardBackground,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingVertical: 16, // Adjusted padding
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    elevation: 8,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -1045,7 +939,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   totalPrice: {
     fontSize: 26,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: '800',
     color: theme.accent,
     letterSpacing: -0.5,
   },
@@ -1056,41 +950,21 @@ const createStyles = (theme) => StyleSheet.create({
   },
   checkoutButton: {
     backgroundColor: theme.accent,
-    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    paddingVertical: 15,
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    elevation: 8,
   },
   checkoutButtonDisabled: {
     backgroundColor: theme.buttonDisabled,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   checkoutButtonText: {
     color: '#fff',
     fontSize: 17,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     letterSpacing: 0.2,
   },
   loadingRow: {

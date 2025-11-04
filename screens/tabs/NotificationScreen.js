@@ -7,14 +7,12 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from "../../firebase/firebaseConfig";
@@ -226,20 +224,7 @@ export default function NotificationsScreen({ navigation }) {
   const styles = createStyles(theme);
 
   const renderHeader = () => (
-    <Animated.View 
-      style={[
-        styles.headerContainer,
-        {
-          opacity: headerAnim,
-          transform: [{
-            translateY: headerAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [-20, 0]
-            })
-          }]
-        }
-      ]}
-    >
+    <Animated.View style={[styles.headerContainer, { opacity: headerAnim }]}>
       <View style={styles.headerBackground}>
         <View style={styles.gradientOverlay} />
       </View>
@@ -476,12 +461,6 @@ export default function NotificationsScreen({ navigation }) {
   }
 
   return (
-    <>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.background}
-        translucent={false}
-      />
       <SafeAreaView style={styles.container}>
         <FlatList
           data={filteredNotifications}
@@ -501,7 +480,6 @@ export default function NotificationsScreen({ navigation }) {
           }
         />
       </SafeAreaView>
-    </>
   );
 }
 
@@ -518,7 +496,7 @@ const createStyles = (theme) => StyleSheet.create({
     marginBottom: 20,
   },
   headerBackground: {
-    height: Platform.OS === 'ios' ? 360 : 380,
+    height: 370,
     backgroundColor: theme.headerBackground,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
@@ -532,7 +510,7 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 12 : 20,
+    paddingTop: 16,
     position: 'absolute',
     top: 0,
     left: 0,
@@ -547,17 +525,7 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   brandContainer: {
     flexDirection: 'row',
@@ -570,7 +538,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandText: {
     fontSize: 17,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: '800',
     color: theme.text,
     letterSpacing: -0.3,
   },
@@ -587,7 +555,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   userNameText: {
     fontSize: Math.min(width * 0.075, 30),
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: '800',
     color: theme.text,
     marginBottom: 6,
     letterSpacing: -0.5,
@@ -609,17 +577,7 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   cardIcon: {
     width: 36,
@@ -631,7 +589,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   cardValue: {
     fontSize: 20,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.text,
     marginTop: 4,
   },
@@ -656,32 +614,12 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    elevation: 1,
   },
   filterChipActive: {
     backgroundColor: theme.accent,
     borderColor: theme.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   filterText: {
     fontSize: 13,
@@ -709,31 +647,13 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    elevation: 2,
   },
   notificationCardNew: {
     backgroundColor: theme.cardBackgroundNew,
     borderColor: theme.accent,
     borderWidth: 1.5,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   iconCircle: {
     width: 48,
@@ -808,21 +728,11 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    elevation: 4,
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
     color: theme.text,
     marginBottom: 12,
     textAlign: 'center',
@@ -842,22 +752,12 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    elevation: 6,
   },
   exploreButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
