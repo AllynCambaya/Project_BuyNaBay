@@ -37,7 +37,7 @@ const getRelativeTime = (dateString) => {
   return past.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-export default function LostAndFoundScreen({ navigation }) {
+export default function LostAndFoundScreen({ navigation, showHeader = true }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,7 +49,6 @@ export default function LostAndFoundScreen({ navigation }) {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const styles = createStyles(theme);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -114,8 +113,10 @@ export default function LostAndFoundScreen({ navigation }) {
     }
   };
 
+  const styles = createStyles(theme);
+
   const renderHeader = () => (
-    <View style={styles.headerContainer}>
+    <>{showHeader && <View style={styles.headerContainer}>
       <View style={styles.headerTopRow}>
         <TouchableOpacity onPress={() => navigation.navigate('Tabs', { screen: 'Home' })} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
@@ -146,7 +147,7 @@ export default function LostAndFoundScreen({ navigation }) {
           </TouchableOpacity>
         ))}
       </View>
-    </View>
+    </View>}</>
   );
 
   const renderItem = ({ item }) => {

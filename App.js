@@ -12,12 +12,9 @@ import ResetPasswordScreen from './screens/authentication/ResetPasswordScreen';
 import MainTabNavigator from './screens/tabs/MainTabNavigator';
 import MessagingScreen from './screens/tabs/MessagingScreen';
 import NotificationsScreen from './screens/tabs/NotificationScreen';
-import { customFontsToLoad, setDefaultFont } from './theme/typography';
+import { customFontsToLoad } from './theme/typography';
 
 const Stack = createNativeStackNavigator();
-
-// Set the default font for all Text components
-setDefaultFont();
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
