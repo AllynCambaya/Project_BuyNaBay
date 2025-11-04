@@ -1,6 +1,8 @@
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Your Firebase config
 const firebaseConfig = {
@@ -16,8 +18,11 @@ const firebaseConfig = {
 // Avoid reinitializing the app on hot reload
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-const auth = getAuth(app);
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+});
+
 const db = getFirestore(app);
+const storage = getStorage(app);
 
-export { auth, db };
-
+export { auth, db, storage };

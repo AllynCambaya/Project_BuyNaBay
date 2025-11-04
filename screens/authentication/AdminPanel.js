@@ -1,6 +1,7 @@
 // screens/authentication/AdminPanel.js
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../supabase/supabaseClient';
 
 const AdminPanel = () => {

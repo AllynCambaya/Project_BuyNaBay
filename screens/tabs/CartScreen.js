@@ -11,7 +11,6 @@ import {
   Image,
   Platform,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -19,6 +18,7 @@ import {
   View,
   useColorScheme,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
 
