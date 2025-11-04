@@ -18,7 +18,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
 
@@ -43,7 +42,6 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all', 'lost', 'found'
-  const [userStatus, setUserStatus] = useState('not_requested');
   const isFocused = useIsFocused();
 
   const systemColorScheme = useColorScheme();
@@ -51,16 +49,6 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
   const theme = isDarkMode ? darkTheme : lightTheme;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  const fetchUserStatus = async () => {
-    const user = auth.currentUser;
-    if (!user?.email) {
-      setUserStatus('not_requested');
-      return;
-    }
-    const { data } = await supabase.from('users').select('status').eq('email', user.email).single();
-    setUserStatus(data?.status || 'not_requested');
-  };
 
   const fetchItems = useCallback(async () => {
     if (!refreshing) setLoading(true);
@@ -82,7 +70,6 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
 
   useEffect(() => {
     if (isFocused) {
-      fetchUserStatus();
       fetchItems();
     }
   }, [isFocused, fetchItems]);
@@ -102,16 +89,6 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
       return matchesFilter && matchesSearch;
     });
   }, [items, searchQuery, filter]);
-
-  const handleAddItem = () => {
-    if (userStatus === 'approved') {
-      navigation.navigate('AddLostItem');
-    } else if (userStatus === 'pending') {
-      navigation.navigate('VerificationStatus');
-    } else {
-      navigation.navigate('NotVerified');
-    }
-  };
 
   const styles = createStyles(theme);
 
@@ -226,9 +203,6 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
       />
-      <TouchableOpacity style={styles.fab} onPress={handleAddItem}>
-        <Ionicons name="add" size={32} color="#fff" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }

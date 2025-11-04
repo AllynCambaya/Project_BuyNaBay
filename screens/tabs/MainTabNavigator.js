@@ -212,7 +212,7 @@ function Tabs({ showAdmin, userStatus }) {
         tabBarBadgeStyle: {
           backgroundColor: theme.error,
           color: '#fff',
-          fontSize: 10,
+          fontSize: 9,
           fontFamily: fontFamily.bold,
           minWidth: 18,
           height: 18,

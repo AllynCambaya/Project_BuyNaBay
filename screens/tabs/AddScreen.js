@@ -28,6 +28,7 @@ export default function AddScreen() {
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleProduct = useRef(new Animated.Value(1)).current;
   const scaleRental = useRef(new Animated.Value(1)).current;
+  const scaleLostItem = useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
     Animated.parallel([
@@ -145,6 +146,30 @@ export default function AddScreen() {
                   <Text style={styles.optionTitle}>List for Rent</Text>
                   <Text style={styles.optionDescription}>
                     Offer items or spaces for rent to the community
+                  </Text>
+                </View>
+                <View style={styles.arrowContainer}>
+                  <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Add Lost Item Card */}
+            <Animated.View style={{ transform: [{ scale: scaleLostItem }] }}>
+              <TouchableOpacity
+                style={styles.optionCard}
+                onPress={() => navigation.navigate('AddLostItem')}
+                onPressIn={() => handlePressIn(scaleLostItem)}
+                onPressOut={() => handlePressOut(scaleLostItem)}
+                activeOpacity={1}
+              >
+                <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
+                  <Ionicons name="help-buoy-outline" size={40} color={theme.accent} />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>Report Lost Item</Text>
+                  <Text style={styles.optionDescription}>
+                    Post details about a lost or found item
                   </Text>
                 </View>
                 <View style={styles.arrowContainer}>
