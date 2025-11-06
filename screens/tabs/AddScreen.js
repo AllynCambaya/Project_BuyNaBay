@@ -333,7 +333,6 @@ const createStyles = (theme) =>
     optionDescription: {
       fontSize: 13,
       color: theme.textSecondary,
-      
       lineHeight: 19,
       fontFamily: 'Poppins-Regular',
     },
