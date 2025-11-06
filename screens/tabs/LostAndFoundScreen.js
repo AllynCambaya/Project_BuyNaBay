@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -12,14 +12,15 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
+  useColorScheme
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
+import { fontFamily } from '../../theme/typography';
 
 const { width } = Dimensions.get('window');
 
@@ -36,19 +37,80 @@ const getRelativeTime = (dateString) => {
   return past.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-export default function LostAndFoundScreen({ navigation, showHeader = true }) {
+export default function LostAndFoundScreen({ navigation, theme, searchQuery, isVisible }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState('all'); // 'all', 'lost', 'found'
+  const [filter, setFilter] = useState('lost'); // 'lost' or 'found'
   const isFocused = useIsFocused();
+  const currentUser = auth.currentUser;
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-  const theme = isDarkMode ? darkTheme : lightTheme;
+  const activeTheme = theme || (isDarkMode ? darkTheme : lightTheme);
 
+  // Enhanced animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  const styles = createStyles(activeTheme);
+
+  // Shimmer effect for loading
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  // Initial animations
+  useEffect(() => {
+    if (isVisible || isFocused) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 9,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerAnim, {
+          toValue: 1,
+          duration: 600,
+          delay: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(50);
+      scaleAnim.setValue(0.9);
+      headerAnim.setValue(0);
+    }
+  }, [isVisible, isFocused]);
 
   const fetchItems = useCallback(async () => {
     if (!refreshing) setLoading(true);
@@ -61,18 +123,17 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
       Alert.alert('Error', 'Could not fetch items.');
       console.error(error);
     } else {
-      setItems(data);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+      setItems(data || []);
     }
     setLoading(false);
     setRefreshing(false);
   }, [refreshing]);
 
   useEffect(() => {
-    if (isFocused) {
+    if (isFocused || isVisible) {
       fetchItems();
     }
-  }, [isFocused, fetchItems]);
+  }, [isFocused, isVisible, fetchItems]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -81,114 +142,290 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
 
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const matchesFilter = filter === 'all' || item.item_status === filter;
+      const matchesFilter = item.item_status === filter;
       const matchesSearch =
-        item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.location?.toLowerCase().includes(searchQuery.toLowerCase());
+        item.item_name?.toLowerCase().includes(searchQuery?.toLowerCase() || '') ||
+        item.description?.toLowerCase().includes(searchQuery?.toLowerCase() || '') ||
+        item.location?.toLowerCase().includes(searchQuery?.toLowerCase() || '');
       return matchesFilter && matchesSearch;
     });
   }, [items, searchQuery, filter]);
 
-  const styles = createStyles(theme);
-
-  const renderHeader = () => (
-    <>{showHeader && <View style={styles.headerContainer}>
-      <View style={styles.headerTopRow}>
-        <TouchableOpacity onPress={() => navigation.navigate('Tabs', { screen: 'Home' })} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lost & Found</Text>
-        <View style={{ width: 40 }} />
-      </View>
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search for an item..."
-          placeholderTextColor={theme.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-      <View style={styles.filterContainer}>
-        {['all', 'lost', 'found'].map(status => (
-          <TouchableOpacity
-            key={status}
-            style={[styles.filterChip, filter === status && styles.filterChipActive]}
-            onPress={() => setFilter(status)}
-          >
-            <Text style={[styles.filterText, filter === status && styles.filterTextActive]}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>}</>
-  );
-
-  const renderItem = ({ item }) => {
-    // support the new column name `lost_and_found_url` (array of urls)
-    const imageUrl = item.lost_and_found_url?.[0] || item.image_urls?.[0];
+  const renderHeader = () => {
     return (
-      <Animated.View style={[styles.itemCard, { opacity: fadeAnim }]}>
-        {imageUrl ? (
-          <TouchableOpacity onPress={() => navigation.navigate('LostAndFoundDetails', { item })} activeOpacity={0.9}>
-            <Image source={{ uri: imageUrl }} style={styles.itemImage} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Ionicons name="image-outline" size={40} color={theme.textSecondary} />
-          </View>
-        )}
-        <View style={styles.itemContent}>
-          <View style={styles.itemHeader}>
-            <Text style={styles.itemName} numberOfLines={2}>{item.item_name}</Text>
-            <View style={[styles.statusBadge, item.item_status === 'lost' ? styles.lostBadge : styles.foundBadge]}>
-              <Text style={styles.statusText}>{item.item_status}</Text>
+      <Animated.View 
+        style={[
+          styles.headerContainer,
+          {
+            opacity: headerAnim,
+            transform: [{
+              translateY: headerAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-20, 0],
+              }),
+            }],
+          }
+        ]}
+      >
+        <View style={styles.headerTop}>
+          <View style={styles.titleContainer}>
+            <View style={styles.iconWrapper}>
+              <Icon name="search" size={22} color={activeTheme.accent} />
+            </View>
+            <View style={styles.titleTextContainer}>
+              <Text style={[styles.headerTitle, { fontFamily: fontFamily.extraBold }]}>
+                Lost & Found
+              </Text>
+              <Text style={[styles.headerSubtitle, { fontFamily: fontFamily.medium }]}>
+                Helping you find what matters
+              </Text>
             </View>
           </View>
-          <View style={styles.metaRow}>
-            <Ionicons name="location-outline" size={14} color={theme.textSecondary} />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {item.location || 'Location not specified'}
-            </Text>
+          
+          <View style={styles.statsContainer}>
+            <View style={styles.statBadge}>
+              <Text style={[styles.statNumber, { fontFamily: fontFamily.extraBold }]}>
+                {filteredItems.length}
+              </Text>
+              <Text style={[styles.statLabel, { fontFamily: fontFamily.semiBold }]}>
+                Items
+              </Text>
+            </View>
           </View>
-          <View style={styles.metaRow}>
-            <Ionicons name="time-outline" size={14} color={theme.textSecondary} />
-            <Text style={styles.metaText}>{getRelativeTime(item.created_at)}</Text>
-          </View>
-          <View style={styles.userRow}>
-            <Image source={{ uri: item.user_avatar || 'https://placekitten.com/50/50' }} style={styles.userAvatar} />
-            <Text style={styles.userName}>{item.user_name || 'Anonymous'}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.contactButton}
-            onPress={() => navigation.navigate('Messaging', { receiverId: item.user_email, receiverName: item.user_name })}
-          >
-            <Text style={styles.contactButtonText}>Contact Reporter</Text>
-          </TouchableOpacity>
+        </View>
+
+        {/* Status Filter */}
+        <View style={styles.statusFilterContainer}>
+          {['lost', 'found'].map(status => (
+            <TouchableOpacity
+              key={status}
+              style={[
+                styles.statusChip,
+                filter === status && styles.statusChipActive
+              ]}
+              onPress={() => setFilter(status)}
+              activeOpacity={0.7}
+            >
+              <Icon 
+                name={status === 'lost' ? 'frown-o' : 'smile-o'} 
+                size={14} 
+                color={filter === status ? '#fff' : activeTheme.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[
+                styles.statusChipText,
+                filter === status && styles.statusChipTextActive,
+                { fontFamily: filter === status ? fontFamily.bold : fontFamily.semiBold }
+              ]}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </Text>
+              {filter === status && (
+                <Icon name="check" size={11} color="#fff" style={{ marginLeft: 6 }} />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
       </Animated.View>
     );
   };
 
+  const renderItem = ({ item, index }) => {
+    const imageUrl = item.lost_and_found_url?.[0] || item.image_urls?.[0];
+    
+    const animatedStyle = {
+      opacity: fadeAnim,
+      transform: [
+        {
+          translateY: slideAnim.interpolate({
+            inputRange: [0, 50],
+            outputRange: [0, 50 * (1 + index * 0.08)],
+          }),
+        },
+        { 
+          scale: scaleAnim.interpolate({
+            inputRange: [0.9, 1],
+            outputRange: [0.9, 1],
+          })
+        },
+      ],
+    };
+
+    return (
+      <Animated.View style={animatedStyle}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('LostAndFoundDetails', { item })}
+          activeOpacity={0.85}
+        >
+          <View style={styles.cardImageContainer}>
+            {imageUrl ? (
+              <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Icon name="image" size={48} color={activeTheme.textSecondary} />
+              </View>
+            )}
+            
+            {/* Status Badge */}
+            <View style={styles.imageBadgeContainer}>
+              <View style={[
+                styles.statusBadge,
+                item.item_status === 'lost' ? styles.lostBadge : styles.foundBadge
+              ]}>
+                <Icon 
+                  name={item.item_status === 'lost' ? 'frown-o' : 'smile-o'} 
+                  size={11} 
+                  color="#fff" 
+                />
+                <Text style={[styles.statusBadgeText, { fontFamily: fontFamily.bold }]}>
+                  {item.item_status === 'lost' ? 'Lost' : 'Found'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Message Button */}
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                navigation.navigate('Messaging', {
+                  receiverId: item.user_email,
+                  receiverName: item.user_name || 'User',
+                });
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.cardContent}>
+            <Text style={[styles.itemName, { fontFamily: fontFamily.bold }]} numberOfLines={2}>
+              {item.item_name}
+            </Text>
+
+            {/* User Info */}
+            <View style={styles.userRow}>
+              <Image 
+                source={{ uri: item.user_avatar || 'https://ui-avatars.com/api/?name=' + (item.user_name || 'User') }} 
+                style={styles.userAvatar} 
+              />
+              <Text style={[styles.userName, { fontFamily: fontFamily.medium }]} numberOfLines={1}>
+                {item.user_name || 'Anonymous'}
+              </Text>
+            </View>
+
+            {/* Location & Time */}
+            <View style={styles.metaContainer}>
+              <View style={styles.metaRow}>
+                <Ionicons name="location-outline" size={14} color={activeTheme.textSecondary} />
+                <Text style={[styles.metaText, { fontFamily: fontFamily.medium }]} numberOfLines={1}>
+                  {item.location || 'Location not specified'}
+                </Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Ionicons name="time-outline" size={14} color={activeTheme.textSecondary} />
+                <Text style={[styles.metaText, { fontFamily: fontFamily.medium }]}>
+                  {getRelativeTime(item.created_at)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Description */}
+            {item.description && (
+              <Text style={[styles.description, { fontFamily: fontFamily.regular }]} numberOfLines={2}>
+                {item.description}
+              </Text>
+            )}
+
+            {/* Footer with Category */}
+            <View style={styles.cardFooter}>
+              <View style={styles.timeTag}>
+                <Icon name="clock-o" size={10} color={activeTheme.textSecondary} />
+                <Text style={[styles.timeTagText, { fontFamily: fontFamily.semiBold }]}>
+                  {getRelativeTime(item.created_at)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="sad-outline" size={64} color={theme.textSecondary} />
-      <Text style={styles.emptyTitle}>No Items Found</Text>
-      <Text style={styles.emptySubtitle}>
-        {searchQuery ? 'Try a different search term.' : 'There are no lost or found items yet.'}
+    <Animated.View
+      style={[
+        styles.emptyContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+        },
+      ]}
+    >
+      <View style={styles.emptyIllustration}>
+        <View style={styles.emptyCircle}>
+          <Icon name="search" size={48} color={activeTheme.accent} />
+        </View>
+        <View style={[styles.emptyCircleSmall, styles.emptyCircle1]} />
+        <View style={[styles.emptyCircleSmall, styles.emptyCircle2]} />
+        <View style={[styles.emptyCircleSmall, styles.emptyCircle3]} />
+      </View>
+      
+      <Text style={[styles.emptyTitle, { fontFamily: fontFamily.extraBold }]}>
+        {searchQuery ? 'No Items Found' : `No ${filter.charAt(0).toUpperCase() + filter.slice(1)} Items Yet`}
       </Text>
-    </View>
+      <Text style={[styles.emptySubtext, { fontFamily: fontFamily.medium }]}>
+        {searchQuery
+          ? 'Try adjusting your search terms\nto discover more items'
+          : `Be the first to report a ${filter} item\nand help the community!`}
+      </Text>
+      
+      {!searchQuery && (
+        <TouchableOpacity
+          style={styles.emptyActionBtn}
+          onPress={() => navigation.navigate('Add')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.emptyActionBtnContent}>
+            <Icon name="plus-circle" size={18} color="#fff" />
+            <Text style={[styles.emptyActionBtnText, { fontFamily: fontFamily.bold }]}>
+              Report an Item
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
+    </Animated.View>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
+    const shimmerTranslate = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-width, width],
+    });
+
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={styles.loadingText}>Loading Items...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingContent}>
+            <View style={styles.loadingIconContainer}>
+              <Animated.View
+                style={[
+                  styles.shimmerOverlay,
+                  { transform: [{ translateX: shimmerTranslate }] }
+                ]}
+              />
+              <ActivityIndicator size="large" color={activeTheme.accent} />
+            </View>
+            <Text style={[styles.loadingTitle, { fontFamily: fontFamily.bold }]}>
+              Loading Items
+            </Text>
+            <Text style={[styles.loadingSubtext, { fontFamily: fontFamily.medium }]}>
+              Fetching lost and found items...
+            </Text>
+          </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -197,11 +434,19 @@ export default function LostAndFoundScreen({ navigation, showHeader = true }) {
       <FlatList
         data={filteredItems}
         renderItem={renderItem}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => item.id?.toString() || Math.random().toString()}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyState}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={activeTheme.accent}
+            colors={[activeTheme.accent]}
+          />
+        }
       />
     </SafeAreaView>
   );
@@ -213,221 +458,508 @@ function createStyles(theme) {
       flex: 1,
       backgroundColor: theme.background,
     },
-    centered: {
+    listContent: {
+      paddingBottom: 24,
+    },
+    
+    // Enhanced Header - SOLID BACKGROUND
+    headerContainer: {
+      paddingHorizontal: Math.max(width * 0.04, 16),
+      paddingTop: 8,
+      paddingBottom: 16,
+      backgroundColor: theme.background,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    iconWrapper: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: `${theme.accent}15`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    titleTextContainer: {
+      flex: 1,
+    },
+    headerTitle: {
+      fontSize: 24,
+      color: theme.text,
+      letterSpacing: -0.5,
+      marginBottom: 2,
+    },
+    headerSubtitle: {
+      fontSize: 13,
+      color: theme.textSecondary,
+    },
+    statsContainer: {
+      alignItems: 'flex-end',
+    },
+    statBadge: {
+      backgroundColor: `${theme.accent}20`,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: `${theme.accent}30`,
+      alignItems: 'center',
+    },
+    statNumber: {
+      fontSize: 18,
+      color: theme.accent,
+      marginBottom: 2,
+    },
+    statLabel: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    
+    // Status Filter
+    statusFilterContainer: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 16,
+    },
+    statusChip: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1.5,
+      borderColor: theme.borderColor,
+    },
+    statusChipActive: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    statusChipText: {
+      fontSize: 14,
+      color: theme.text,
+    },
+    statusChipTextActive: {
+      color: '#fff',
+    },
+    
+    // Category Section
+    categorySection: {
+      marginBottom: 12,
+    },
+    categorySectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      gap: 8,
+    },
+    categorySectionTitle: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+    },
+    activeFilterBadge: {
+      backgroundColor: theme.accent,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    loadingText: {
-      marginTop: 10,
-      color: theme.textSecondary,
-      fontSize: 16,
+    activeFilterBadgeText: {
+      color: '#fff',
+      fontSize: 10,
     },
-    headerContainer: {
-      padding: 20,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.borderColor,
+    categoryScrollContent: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingRight: 16,
     },
-    headerTopRow: {
+    categoryChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: theme.cardBackground,
+      borderWidth: 1.5,
+      borderColor: theme.borderColor,
+    },
+    categoryChipActive: {
+      backgroundColor: theme.accent,
+      borderColor: theme.accent,
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    categoryChipText: {
+      fontSize: 14,
+      color: theme.text,
+    },
+    categoryChipTextActive: {
+      color: '#fff',
+    },
+    
+    // Active Filters Display
+    activeFilterContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 16,
-    },
-    backButton: {
-      padding: 5,
-    },
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: 'bold',
-      color: theme.text,
-    },
-    searchBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       backgroundColor: theme.cardBackground,
       borderRadius: 12,
-      paddingHorizontal: 12,
       borderWidth: 1,
-      borderColor: theme.borderColor,
+      borderColor: `${theme.accent}40`,
     },
-    searchIcon: {
-      marginRight: 8,
-    },
-    searchInput: {
-      flex: 1,
-      height: 44,
-      color: theme.text,
-      fontSize: 16,
-    },
-    filterContainer: {
+    activeFiltersRow: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginTop: 16,
+      flexWrap: 'wrap',
+      gap: 8,
+      flex: 1,
     },
-    filterChip: {
-      paddingVertical: 8,
-      paddingHorizontal: 20,
-      borderRadius: 20,
-      backgroundColor: theme.cardBackground,
+    activeFilterChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt || theme.background,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 16,
+      gap: 6,
       borderWidth: 1,
       borderColor: theme.borderColor,
     },
-    filterChipActive: {
-      backgroundColor: theme.accent,
-      borderColor: theme.accent,
+    activeFilterText: {
+      fontSize: 12,
+      color: theme.text,
     },
-    filterText: {
-      color: theme.textSecondary,
-      fontWeight: '600',
+    clearAllBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: `${theme.accent}20`,
+      borderRadius: 8,
     },
-    filterTextActive: {
-      color: '#fff',
+    clearAllText: {
+      fontSize: 12,
+      color: theme.accent,
     },
-    listContent: {
-      paddingBottom: 80,
-    },
-    itemCard: {
+    
+    // Card Styles
+    card: {
       backgroundColor: theme.cardBackground,
-      marginHorizontal: 20,
-      marginTop: 20,
       borderRadius: 16,
       overflow: 'hidden',
+      marginBottom: 16,
+      marginHorizontal: Math.max(width * 0.04, 16),
+      borderWidth: 1,
+      borderColor: theme.borderColor,
       ...Platform.select({
         ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
+          shadowColor: theme.shadowColor || '#000',
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
         },
         android: {
-          elevation: 3,
+          elevation: 4,
         },
       }),
     },
-    itemImage: {
+    cardImageContainer: {
+      position: 'relative',
+    },
+    cardImage: {
       width: '100%',
       height: 200,
+      resizeMode: 'cover',
     },
     imagePlaceholder: {
       width: '100%',
       height: 200,
-      backgroundColor: theme.background,
+      backgroundColor: theme.cardBackgroundAlt || theme.background,
       justifyContent: 'center',
       alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderColor,
     },
-    itemContent: {
-      padding: 16,
-    },
-    itemHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 8,
-    },
-    itemName: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.text,
-      flex: 1,
-      marginRight: 8,
+    imageBadgeContainer: {
+      position: 'absolute',
+      top: 12,
+      left: 12,
     },
     statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
       paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      gap: 5,
     },
     lostBadge: {
-      backgroundColor: theme.lost,
+      backgroundColor: theme.lost || '#EF4444',
     },
     foundBadge: {
-      backgroundColor: theme.found,
+      backgroundColor: theme.found || '#10B981',
     },
-    statusText: {
+    statusBadgeText: {
       color: '#fff',
-      fontSize: 12,
-      fontWeight: 'bold',
+      fontSize: 11,
       textTransform: 'uppercase',
     },
-    metaRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 6,
-    },
-    metaText: {
-      marginLeft: 8,
-      color: theme.textSecondary,
-      fontSize: 14,
-    },
-    userRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.borderColor,
-    },
-    userAvatar: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      marginRight: 8,
-    },
-    userName: {
-      color: theme.text,
-      fontWeight: '600',
-    },
-    contactButton: {
-      marginTop: 16,
-      backgroundColor: theme.accent,
-      padding: 12,
-      borderRadius: 12,
-      alignItems: 'center',
-    },
-    contactButtonText: {
-      color: '#fff',
-      fontWeight: 'bold',
-      fontSize: 16,
-    },
-    fab: {
+    messageButton: {
       position: 'absolute',
-      bottom: 30,
-      right: 30,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
+      top: 12,
+      right: 12,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
       ...Platform.select({
         ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
+          shadowColor: theme.accent,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.4,
+          shadowRadius: 6,
         },
         android: {
-          elevation: 8,
+          elevation: 5,
         },
       }),
     },
+    cardContent: {
+      padding: 16,
+    },
+    itemName: {
+      fontSize: 18,
+      color: theme.text,
+      marginBottom: 12,
+      letterSpacing: -0.3,
+      lineHeight: 24,
+    },
+    userRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      gap: 8,
+    },
+    userAvatar: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 1.5,
+      borderColor: `${theme.accent}30`,
+    },
+    userName: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      flex: 1,
+    },
+    metaContainer: {
+      marginBottom: 12,
+      gap: 6,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    metaText: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      flex: 1,
+    },
+    description: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      lineHeight: 20,
+      marginBottom: 14,
+    },
+    cardFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderColor,
+    },
+    categoryTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt || theme.background,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+      gap: 6,
+    },
+    categoryTagText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    timeTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.cardBackgroundAlt || theme.background,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+      gap: 6,
+    },
+    timeTagText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    
+    // Enhanced Empty State
     emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 80,
+      paddingHorizontal: 32,
+    },
+    emptyIllustration: {
+      position: 'relative',
+      marginBottom: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyCircle: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: `${theme.accent}15`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: `${theme.accent}25`,
+    },
+    emptyCircleSmall: {
+      position: 'absolute',
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: `${theme.accent}20`,
+      borderWidth: 1,
+      borderColor: `${theme.accent}30`,
+    },
+    emptyCircle1: {
+      top: 8,
+      right: 12,
+    },
+    emptyCircle2: {
+      bottom: 12,
+      left: 8,
+    },
+    emptyCircle3: {
+      top: 40,
+      left: -5,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+    },
+    emptyTitle: {
+      fontSize: 26,
+      color: theme.text,
+      marginBottom: 10,
+      textAlign: 'center',
+      letterSpacing: -0.5,
+    },
+    emptySubtext: {
+      fontSize: 15,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 32,
+    },
+    emptyActionBtn: {
+      borderRadius: 28,
+      overflow: 'hidden',
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    emptyActionBtnContent: {
+      backgroundColor: theme.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      paddingHorizontal: 28,
+      gap: 10,
+    },
+    emptyActionBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      letterSpacing: 0.3,
+    },
+    
+    // Enhanced Loading State
+    loadingContainer: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 40,
-      marginTop: 50,
+      backgroundColor: theme.background,
+      paddingHorizontal: 32,
     },
-    emptyTitle: {
+    loadingContent: {
+      alignItems: 'center',
+    },
+    loadingIconContainer: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: `${theme.accent}15`,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 24,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: `${theme.accent}25`,
+    },
+    shimmerOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: `${theme.accent}20`,
+      width: width * 0.5,
+    },
+    loadingTitle: {
       fontSize: 22,
-      fontWeight: 'bold',
       color: theme.text,
-      marginTop: 16,
+      marginBottom: 8,
+      letterSpacing: -0.3,
     },
-    emptySubtitle: {
-      fontSize: 16,
+    loadingSubtext: {
+      fontSize: 14,
       color: theme.textSecondary,
       textAlign: 'center',
-      marginTop: 8,
+      lineHeight: 20,
     },
   });
 }
