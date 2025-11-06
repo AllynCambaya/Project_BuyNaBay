@@ -16,6 +16,7 @@ import {
 import ProductCard from '../../components/ProductCard';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { fontFamily } from '../../theme/typography';
 
 const { width } = Dimensions.get('window');
 
@@ -50,7 +51,7 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
   const [viewMode, setViewMode] = useState('grid');
   const [userStatus, setUserStatus] = useState('not_requested');
 
-  // Enhanced animation values
+  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -264,15 +265,23 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
               <Icon name="shopping-bag" size={22} color={theme.accent} />
             </View>
             <View style={styles.titleTextContainer}>
-              <Text style={styles.headerTitle}>Marketplace</Text>
-              <Text style={styles.headerSubtitle}>Discover amazing deals</Text>
+              <Text style={[styles.headerTitle, { fontFamily: fontFamily.extraBold }]}>
+                Marketplace
+              </Text>
+              <Text style={[styles.headerSubtitle, { fontFamily: fontFamily.medium }]}>
+                Discover amazing deals
+              </Text>
             </View>
           </View>
           
           <View style={styles.statsContainer}>
             <View style={styles.statBadge}>
-              <Text style={styles.statNumber}>{filteredAndSortedProducts.length}</Text>
-              <Text style={styles.statLabel}>Items</Text>
+              <Text style={[styles.statNumber, { fontFamily: fontFamily.extraBold }]}>
+                {filteredAndSortedProducts.length}
+              </Text>
+              <Text style={[styles.statLabel, { fontFamily: fontFamily.semiBold }]}>
+                Items
+              </Text>
             </View>
           </View>
         </View>
@@ -310,10 +319,14 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
             activeOpacity={0.85}
           >
             <Icon name="sliders" size={16} color="#fff" />
-            <Text style={styles.filterBtnText}>Filters</Text>
+            <Text style={[styles.filterBtnText, { fontFamily: fontFamily.bold }]}>
+              Filters
+            </Text>
             {activeFiltersCount > 0 && (
               <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                <Text style={[styles.filterBadgeText, { fontFamily: fontFamily.extraBold }]}>
+                  {activeFiltersCount}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -324,7 +337,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
             {selectedCategory !== 'All' && (
               <View style={styles.activeFilterChip}>
                 <Icon name="tag" size={11} color={theme.accent} />
-                <Text style={styles.activeFilterText}>{selectedCategory}</Text>
+                <Text style={[styles.activeFilterText, { fontFamily: fontFamily.semiBold }]}>
+                  {selectedCategory}
+                </Text>
                 <TouchableOpacity 
                   onPress={() => setSelectedCategory('All')}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -336,7 +351,7 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
             {sortBy !== 'latest' && (
               <View style={styles.activeFilterChip}>
                 <Icon name="sort" size={11} color={theme.accent} />
-                <Text style={styles.activeFilterText}>
+                <Text style={[styles.activeFilterText, { fontFamily: fontFamily.semiBold }]}>
                   {SORT_OPTIONS.find(opt => opt.value === sortBy)?.label}
                 </Text>
                 <TouchableOpacity 
@@ -381,7 +396,6 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
           onDelete={() => handleDelete(item.id)}
           onMessageSeller={() => {
             if (item.email === currentUser?.email) return;
-            // require verification to message
             if (userStatus === 'approved') {
               navigation.navigate('Messaging', {
                 receiverId: item.email,
@@ -417,10 +431,10 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
         <View style={[styles.emptyCircleSmall, styles.emptyCircle2]} />
       </View>
       
-      <Text style={styles.emptyTitle}>
+      <Text style={[styles.emptyTitle, { fontFamily: fontFamily.extraBold }]}>
         {searchQuery || selectedCategory !== 'All' ? 'No Results Found' : 'No Products Yet'}
       </Text>
-      <Text style={styles.emptySubtext}>
+      <Text style={[styles.emptySubtext, { fontFamily: fontFamily.medium }]}>
         {searchQuery || selectedCategory !== 'All'
           ? 'Try adjusting your filters or search terms\nto discover more items'
           : 'Be the first to list a product and\nstart your selling journey!'}
@@ -434,7 +448,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
         >
           <View style={styles.emptyActionBtnGradient}>
             <Icon name="plus-circle" size={18} color="#fff" />
-            <Text style={styles.emptyActionBtnText}>List Your First Item</Text>
+            <Text style={[styles.emptyActionBtnText, { fontFamily: fontFamily.bold }]}>
+              List Your First Item
+            </Text>
           </View>
         </TouchableOpacity>
       )}
@@ -478,7 +494,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleContainer}>
               <Icon name="sliders" size={20} color={theme.accent} />
-              <Text style={styles.modalTitle}>Filter & Sort</Text>
+              <Text style={[styles.modalTitle, { fontFamily: fontFamily.extraBold }]}>
+                Filter & Sort
+              </Text>
             </View>
             <TouchableOpacity 
               onPress={toggleFilterModal} 
@@ -494,7 +512,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
             contentContainerStyle={styles.modalScrollContent}
           >
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Category</Text>
+              <Text style={[styles.modalSectionTitle, { fontFamily: fontFamily.bold }]}>
+                Category
+              </Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -512,7 +532,8 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
                   >
                     <Text style={[
                       styles.categoryChipText,
-                      selectedCategory === category && styles.categoryChipTextActive
+                      selectedCategory === category && styles.categoryChipTextActive,
+                      { fontFamily: selectedCategory === category ? fontFamily.bold : fontFamily.semiBold }
                     ]}>
                       {category}
                     </Text>
@@ -527,7 +548,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
             <View style={styles.modalDivider} />
 
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Sort By</Text>
+              <Text style={[styles.modalSectionTitle, { fontFamily: fontFamily.bold }]}>
+                Sort By
+              </Text>
               {SORT_OPTIONS.map((option, index) => (
                 <TouchableOpacity
                   key={option.value}
@@ -553,6 +576,7 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
                     <Text style={[
                       styles.sortOptionText,
                       sortBy === option.value && styles.sortOptionTextActive,
+                      { fontFamily: sortBy === option.value ? fontFamily.bold : fontFamily.medium }
                     ]}>
                       {option.label}
                     </Text>
@@ -577,7 +601,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
               activeOpacity={0.7}
             >
               <Icon name="refresh" size={16} color={theme.textSecondary} />
-              <Text style={styles.modalResetBtnText}>Reset</Text>
+              <Text style={[styles.modalResetBtnText, { fontFamily: fontFamily.bold }]}>
+                Reset
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -585,7 +611,9 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
               onPress={toggleFilterModal}
               activeOpacity={0.85}
             >
-              <Text style={styles.modalApplyBtnText}>Apply Filters</Text>
+              <Text style={[styles.modalApplyBtnText, { fontFamily: fontFamily.bold }]}>
+                Apply Filters
+              </Text>
               <Icon name="arrow-right" size={16} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -612,8 +640,12 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
             />
             <ActivityIndicator size="large" color={theme.accent} />
           </View>
-          <Text style={styles.loadingTitle}>Loading Marketplace</Text>
-          <Text style={styles.loadingSubtext}>Fetching the latest products for you...</Text>
+          <Text style={[styles.loadingTitle, { fontFamily: fontFamily.bold }]}>
+            Loading Marketplace
+          </Text>
+          <Text style={[styles.loadingSubtext, { fontFamily: fontFamily.medium }]}>
+            Fetching the latest products for you...
+          </Text>
         </View>
       </View>
     );
@@ -664,12 +696,12 @@ const createStyles = (theme) =>
       gap: 12,
     },
     
-    // Enhanced Header Styles
+    // Enhanced Header - SOLID BACKGROUND (NO OPACITY)
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.04, 16),
       paddingTop: 8,
       paddingBottom: 16,
-      backgroundColor: theme.background,
+      backgroundColor: theme.background, // SOLID - matches HomeScreen
     },
     headerTop: {
       flexDirection: 'row',
@@ -696,7 +728,6 @@ const createStyles = (theme) =>
     },
     headerTitle: {
       fontSize: 24,
-      fontWeight: '800',
       color: theme.text,
       letterSpacing: -0.5,
       marginBottom: 2,
@@ -704,7 +735,6 @@ const createStyles = (theme) =>
     headerSubtitle: {
       fontSize: 13,
       color: theme.textSecondary,
-      fontWeight: '500',
     },
     statsContainer: {
       alignItems: 'flex-end',
@@ -720,13 +750,11 @@ const createStyles = (theme) =>
     },
     statNumber: {
       fontSize: 18,
-      fontWeight: '800',
       color: theme.accent,
       marginBottom: 2,
     },
     statLabel: {
       fontSize: 11,
-      fontWeight: '600',
       color: theme.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
@@ -791,7 +819,6 @@ const createStyles = (theme) =>
     filterBtnText: {
       color: '#fff',
       fontSize: 15,
-      fontWeight: '700',
       letterSpacing: 0.3,
     },
     filterBadge: {
@@ -806,7 +833,6 @@ const createStyles = (theme) =>
     filterBadgeText: {
       color: theme.accent,
       fontSize: 11,
-      fontWeight: '800',
     },
     
     // Active Filters
@@ -829,7 +855,6 @@ const createStyles = (theme) =>
     },
     activeFilterText: {
       fontSize: 12,
-      fontWeight: '600',
       color: theme.text,
     },
     
@@ -875,7 +900,6 @@ const createStyles = (theme) =>
     },
     emptyTitle: {
       fontSize: 26,
-      fontWeight: '800',
       color: theme.text,
       marginBottom: 10,
       textAlign: 'center',
@@ -886,7 +910,6 @@ const createStyles = (theme) =>
       color: theme.textSecondary,
       textAlign: 'center',
       lineHeight: 22,
-      fontWeight: '500',
       marginBottom: 32,
     },
     emptyActionBtn: {
@@ -909,7 +932,6 @@ const createStyles = (theme) =>
     emptyActionBtnText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: '700',
       letterSpacing: 0.3,
     },
     
@@ -947,7 +969,6 @@ const createStyles = (theme) =>
     },
     loadingTitle: {
       fontSize: 22,
-      fontWeight: '700',
       color: theme.text,
       marginBottom: 8,
       letterSpacing: -0.3,
@@ -956,11 +977,10 @@ const createStyles = (theme) =>
       fontSize: 14,
       color: theme.textSecondary,
       textAlign: 'center',
-      fontWeight: '500',
       lineHeight: 20,
     },
     
-    // Enhanced Modal Styles
+    // Enhanced Modal Styles - SOLID BACKGROUND (NO OPACITY)
     modalOverlay: {
       position: 'absolute',
       top: 0,
@@ -972,7 +992,7 @@ const createStyles = (theme) =>
       zIndex: 1000,
     },
     modalContainer: {
-      backgroundColor: theme.modalBackground,
+      backgroundColor: theme.modalBackground || theme.cardBackground, // SOLID
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
       paddingTop: 8,
@@ -1008,7 +1028,6 @@ const createStyles = (theme) =>
     },
     modalTitle: {
       fontSize: 22,
-      fontWeight: '800',
       color: theme.text,
       letterSpacing: -0.5,
     },
@@ -1031,7 +1050,6 @@ const createStyles = (theme) =>
     },
     modalSectionTitle: {
       fontSize: 13,
-      fontWeight: '700',
       color: theme.textSecondary,
       marginBottom: 14,
       textTransform: 'uppercase',
@@ -1070,12 +1088,10 @@ const createStyles = (theme) =>
     },
     categoryChipText: {
       fontSize: 14,
-      fontWeight: '600',
       color: theme.text,
     },
     categoryChipTextActive: {
       color: '#fff',
-      fontWeight: '700',
     },
     
     // Sort Options
@@ -1110,7 +1126,7 @@ const createStyles = (theme) =>
       width: 36,
       height: 36,
       borderRadius: 10,
-      backgroundColor: theme.cardBackgroundAlt,
+      backgroundColor: theme.cardBackgroundAlt || theme.cardBackground,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1120,11 +1136,9 @@ const createStyles = (theme) =>
     sortOptionText: {
       fontSize: 15,
       color: theme.text,
-      fontWeight: '500',
       flex: 1,
     },
     sortOptionTextActive: {
-      fontWeight: '700',
       color: theme.text,
     },
     sortOptionCheck: {
@@ -1155,7 +1169,6 @@ const createStyles = (theme) =>
     },
     modalResetBtnText: {
       fontSize: 15,
-      fontWeight: '700',
       color: theme.textSecondary,
     },
     modalApplyBtn: {
@@ -1176,7 +1189,6 @@ const createStyles = (theme) =>
     },
     modalApplyBtnText: {
       fontSize: 15,
-      fontWeight: '700',
       color: '#fff',
       letterSpacing: 0.3,
     },

@@ -18,8 +18,9 @@ import {
 } from 'react-native';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { fontFamily } from '../../theme/typography';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const RENTAL_CATEGORIES = [
   'All', 
@@ -203,15 +204,23 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
               <Icon name="clock-o" size={22} color={theme.accent} />
             </View>
             <View style={styles.titleTextContainer}>
-              <Text style={styles.headerTitle}>Rentals</Text>
-              <Text style={styles.headerSubtitle}>Affordable temporary solutions</Text>
+              <Text style={[styles.headerTitle, { fontFamily: fontFamily.extraBold }]}>
+                Campus Rentals
+              </Text>
+              <Text style={[styles.headerSubtitle, { fontFamily: fontFamily.medium }]}>
+                Affordable temporary solutions
+              </Text>
             </View>
           </View>
           
           <View style={styles.statsContainer}>
             <View style={styles.statBadge}>
-              <Text style={styles.statNumber}>{filteredItems.length}</Text>
-              <Text style={styles.statLabel}>Available</Text>
+              <Text style={[styles.statNumber, { fontFamily: fontFamily.extraBold }]}>
+                {filteredItems.length}
+              </Text>
+              <Text style={[styles.statLabel, { fontFamily: fontFamily.semiBold }]}>
+                Available
+              </Text>
             </View>
           </View>
         </View>
@@ -220,10 +229,14 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
           <View style={styles.categorySection}>
             <View style={styles.categorySectionHeader}>
               <Icon name="filter" size={14} color={theme.textSecondary} />
-              <Text style={styles.categorySectionTitle}>Categories</Text>
+              <Text style={[styles.categorySectionTitle, { fontFamily: fontFamily.bold }]}>
+                Categories
+              </Text>
               {activeFiltersCount > 0 && (
                 <View style={styles.activeFilterBadge}>
-                  <Text style={styles.activeFilterBadgeText}>{activeFiltersCount}</Text>
+                  <Text style={[styles.activeFilterBadgeText, { fontFamily: fontFamily.extraBold }]}>
+                    {activeFiltersCount}
+                  </Text>
                 </View>
               )}
             </View>
@@ -233,7 +246,7 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.categoryScrollContent}
             >
-              {RENTAL_CATEGORIES.map((category, index) => (
+              {RENTAL_CATEGORIES.map((category) => (
                 <Animated.View
                   key={category}
                   style={{
@@ -256,7 +269,8 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
                   >
                     <Text style={[
                       styles.categoryChipText,
-                      selectedCategory === category && styles.categoryChipTextActive
+                      selectedCategory === category && styles.categoryChipTextActive,
+                      { fontFamily: selectedCategory === category ? fontFamily.bold : fontFamily.semiBold }
                     ]}>
                       {category}
                     </Text>
@@ -282,7 +296,9 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
           >
             <View style={styles.activeFilterChipInline}>
               <Icon name="tag" size={11} color={theme.accent} />
-              <Text style={styles.activeFilterTextInline}>{selectedCategory}</Text>
+              <Text style={[styles.activeFilterTextInline, { fontFamily: fontFamily.semiBold }]}>
+                {selectedCategory}
+              </Text>
               <TouchableOpacity 
                 onPress={() => setSelectedCategory('All')}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -295,7 +311,9 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
               onPress={() => setSelectedCategory('All')}
               style={styles.clearAllBtn}
             >
-              <Text style={styles.clearAllText}>Clear</Text>
+              <Text style={[styles.clearAllText, { fontFamily: fontFamily.bold }]}>
+                Clear
+              </Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -344,13 +362,35 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
             <View style={styles.imageBadgeContainer}>
               <View style={styles.conditionBadge}>
                 <Icon name="star" size={10} color="#fff" />
-                <Text style={styles.conditionBadgeText}>{item.condition}</Text>
+                <Text style={[styles.conditionBadgeText, { fontFamily: fontFamily.bold }]}>
+                  {item.condition}
+                </Text>
               </View>
             </View>
+
+            {/* Messaging Button - matches ProductCard */}
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                if (userStatus === 'approved') {
+                  navigation.navigate('Messaging', {
+                    receiverId: item.owner_email,
+                    receiverName: item.seller_name,
+                    productToSend: { ...item, product_name: item.item_name },
+                  });
+                } else {
+                  navigation.navigate('GetVerified');
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.cardContent}>
-            <Text style={styles.itemName} numberOfLines={2}>
+            <Text style={[styles.itemName, { fontFamily: fontFamily.bold }]} numberOfLines={2}>
               {item.item_name}
             </Text>
 
@@ -362,25 +402,31 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
                   <Icon name="user" size={11} color={theme.textSecondary} />
                 </View>
               )}
-              <Text style={styles.sellerName} numberOfLines={1}>
+              <Text style={[styles.sellerName, { fontFamily: fontFamily.medium }]} numberOfLines={1}>
                 {item.seller_name}
               </Text>
             </View>
 
             <View style={styles.priceRow}>
               <View style={styles.priceContainer}>
-                <Text style={styles.priceAmount}>₱{item.price}</Text>
-                <Text style={styles.priceLabel}>per {item.rental_duration}</Text>
+                <Text style={[styles.priceAmount, { fontFamily: fontFamily.extraBold }]}>
+                  ₱{item.price}
+                </Text>
+                <Text style={[styles.priceLabel, { fontFamily: fontFamily.medium }]}>
+                  per {item.rental_duration}
+                </Text>
               </View>
               
               <View style={styles.quantityBadge}>
                 <Icon name="cubes" size={11} color={theme.accent} />
-                <Text style={styles.quantityText}>{item.quantity || 0}</Text>
+                <Text style={[styles.quantityText, { fontFamily: fontFamily.bold }]}>
+                  {item.quantity || 0}
+                </Text>
               </View>
             </View>
 
             {item.description && (
-              <Text style={styles.description} numberOfLines={2}>
+              <Text style={[styles.description, { fontFamily: fontFamily.regular }]} numberOfLines={2}>
                 {item.description}
               </Text>
             )}
@@ -388,29 +434,10 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
             <View style={styles.cardFooter}>
               <View style={styles.categoryTag}>
                 <Icon name="tag" size={10} color={theme.textSecondary} />
-                <Text style={styles.categoryTagText}>{item.category}</Text>
+                <Text style={[styles.categoryTagText, { fontFamily: fontFamily.semiBold }]}>
+                  {item.category}
+                </Text>
               </View>
-
-              <TouchableOpacity
-                style={styles.messageButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  // Only allow messaging for verified users; otherwise send them to GetVerified
-                  if (userStatus === 'approved') {
-                    navigation.navigate('Messaging', {
-                      receiverId: item.owner_email,
-                      receiverName: item.seller_name,
-                      productToSend: { ...item, product_name: item.item_name },
-                    });
-                  } else {
-                    navigation.navigate('GetVerified');
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="chatbubble" size={13} color="#fff" />
-                <Text style={styles.messageText}>Message</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
@@ -437,10 +464,10 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
         <View style={[styles.emptyCircleSmall, styles.emptyCircle3]} />
       </View>
       
-      <Text style={styles.emptyTitle}>
+      <Text style={[styles.emptyTitle, { fontFamily: fontFamily.extraBold }]}>
         {searchQuery || selectedCategory !== 'All' ? 'No Rentals Found' : 'No Rental Items Yet'}
       </Text>
-      <Text style={styles.emptySubtext}>
+      <Text style={[styles.emptySubtext, { fontFamily: fontFamily.medium }]}>
         {searchQuery || selectedCategory !== 'All'
           ? 'Try adjusting your filters or search terms\nto discover available rentals'
           : 'Be the first to list an item for rent\nand start earning!'}
@@ -453,7 +480,9 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
       >
         <View style={styles.emptyActionBtnContent}>
           <Icon name="plus-circle" size={18} color="#fff" />
-          <Text style={styles.emptyActionBtnText}>List Rental Item</Text>
+          <Text style={[styles.emptyActionBtnText, { fontFamily: fontFamily.bold }]}>
+            List Rental Item
+          </Text>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -477,8 +506,12 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
             />
             <ActivityIndicator size="large" color={theme.accent} />
           </View>
-          <Text style={styles.loadingTitle}>Loading Rentals</Text>
-          <Text style={styles.loadingSubtext}>Finding the best rental options for you...</Text>
+          <Text style={[styles.loadingTitle, { fontFamily: fontFamily.bold }]}>
+            Loading Rentals
+          </Text>
+          <Text style={[styles.loadingSubtext, { fontFamily: fontFamily.medium }]}>
+            Finding the best rental options for you...
+          </Text>
         </View>
       </View>
     );
@@ -520,12 +553,12 @@ const createStyles = (theme) =>
       paddingBottom: 24,
     },
     
-    // Enhanced Header Styles
+    // Enhanced Header Styles - SOLID BACKGROUND (matches ProductScreen)
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.04, 16),
       paddingTop: 8,
       paddingBottom: 16,
-      backgroundColor: theme.background,
+      backgroundColor: theme.background, // SOLID - no opacity
     },
     headerTop: {
       flexDirection: 'row',
@@ -552,7 +585,6 @@ const createStyles = (theme) =>
     },
     headerTitle: {
       fontSize: 24,
-      fontWeight: '800',
       color: theme.text,
       letterSpacing: -0.5,
       marginBottom: 2,
@@ -560,7 +592,6 @@ const createStyles = (theme) =>
     headerSubtitle: {
       fontSize: 13,
       color: theme.textSecondary,
-      fontWeight: '500',
     },
     statsContainer: {
       alignItems: 'flex-end',
@@ -576,13 +607,11 @@ const createStyles = (theme) =>
     },
     statNumber: {
       fontSize: 18,
-      fontWeight: '800',
       color: theme.accent,
       marginBottom: 2,
     },
     statLabel: {
       fontSize: 11,
-      fontWeight: '600',
       color: theme.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
@@ -600,7 +629,6 @@ const createStyles = (theme) =>
     },
     categorySectionTitle: {
       fontSize: 13,
-      fontWeight: '700',
       color: theme.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
@@ -616,7 +644,6 @@ const createStyles = (theme) =>
     activeFilterBadgeText: {
       color: '#fff',
       fontSize: 10,
-      fontWeight: '800',
     },
     categoryScrollContent: {
       flexDirection: 'row',
@@ -644,12 +671,10 @@ const createStyles = (theme) =>
     },
     categoryChipText: {
       fontSize: 14,
-      fontWeight: '600',
       color: theme.text,
     },
     categoryChipTextActive: {
       color: '#fff',
-      fontWeight: '700',
     },
     
     // Active Filter Display
@@ -673,7 +698,6 @@ const createStyles = (theme) =>
     },
     activeFilterTextInline: {
       fontSize: 14,
-      fontWeight: '600',
       color: theme.text,
       flex: 1,
     },
@@ -688,11 +712,10 @@ const createStyles = (theme) =>
     },
     clearAllText: {
       fontSize: 12,
-      fontWeight: '700',
       color: theme.accent,
     },
     
-    // Enhanced Card Styles
+    // Enhanced Card Styles (matches ProductCard hierarchy)
     card: {
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
@@ -733,7 +756,7 @@ const createStyles = (theme) =>
     imageBadgeContainer: {
       position: 'absolute',
       top: 12,
-      right: 12,
+      left: 12,
     },
     conditionBadge: {
       flexDirection: 'row',
@@ -743,19 +766,39 @@ const createStyles = (theme) =>
       paddingVertical: 6,
       borderRadius: 20,
       gap: 5,
-      backdropFilter: 'blur(10px)',
     },
     conditionBadgeText: {
       color: '#fff',
       fontSize: 11,
-      fontWeight: '700',
+    },
+    // Messaging Button (matches ProductCard position and style)
+    messageButton: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.accent,
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.accent,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.4,
+          shadowRadius: 6,
+        },
+        android: {
+          elevation: 5,
+        },
+      }),
     },
     cardContent: {
       padding: 16,
     },
     itemName: {
       fontSize: 18,
-      fontWeight: '700',
       color: theme.text,
       marginBottom: 10,
       letterSpacing: -0.3,
@@ -782,7 +825,6 @@ const createStyles = (theme) =>
     sellerName: {
       fontSize: 13,
       color: theme.textSecondary,
-      fontWeight: '600',
       flex: 1,
     },
     priceRow: {
@@ -802,7 +844,6 @@ const createStyles = (theme) =>
     },
     priceAmount: {
       fontSize: 22,
-      fontWeight: '800',
       color: theme.accent,
       marginBottom: 2,
       letterSpacing: -0.5,
@@ -810,7 +851,6 @@ const createStyles = (theme) =>
     priceLabel: {
       fontSize: 12,
       color: theme.textSecondary,
-      fontWeight: '500',
     },
     quantityBadge: {
       flexDirection: 'row',
@@ -825,7 +865,6 @@ const createStyles = (theme) =>
     },
     quantityText: {
       fontSize: 13,
-      fontWeight: '700',
       color: theme.text,
     },
     description: {
@@ -833,7 +872,6 @@ const createStyles = (theme) =>
       color: theme.textSecondary,
       lineHeight: 20,
       marginBottom: 14,
-      fontWeight: '400',
     },
     cardFooter: {
       flexDirection: 'row',
@@ -855,33 +893,6 @@ const createStyles = (theme) =>
     categoryTagText: {
       fontSize: 12,
       color: theme.textSecondary,
-      fontWeight: '600',
-    },
-    messageButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.accent,
-      paddingVertical: 10,
-      paddingHorizontal: 16,
-      borderRadius: 20,
-      gap: 6,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.35,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
-    },
-    messageText: {
-      color: '#fff',
-      fontWeight: '700',
-      fontSize: 13,
-      letterSpacing: 0.2,
     },
     
     // Enhanced Empty State
@@ -933,7 +944,6 @@ const createStyles = (theme) =>
     },
     emptyTitle: {
       fontSize: 26,
-      fontWeight: '800',
       color: theme.text,
       marginBottom: 10,
       textAlign: 'center',
@@ -944,7 +954,6 @@ const createStyles = (theme) =>
       color: theme.textSecondary,
       textAlign: 'center',
       lineHeight: 22,
-      fontWeight: '500',
       marginBottom: 32,
     },
     emptyActionBtn: {
@@ -967,7 +976,6 @@ const createStyles = (theme) =>
     emptyActionBtnText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: '700',
       letterSpacing: 0.3,
     },
     
@@ -1005,7 +1013,6 @@ const createStyles = (theme) =>
     },
     loadingTitle: {
       fontSize: 22,
-      fontWeight: '700',
       color: theme.text,
       marginBottom: 8,
       letterSpacing: -0.3,
@@ -1014,193 +1021,6 @@ const createStyles = (theme) =>
       fontSize: 14,
       color: theme.textSecondary,
       textAlign: 'center',
-      fontWeight: '500',
       lineHeight: 20,
-    },
-    
-    // Enhanced Modal Styles
-    modalOverlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      justifyContent: 'flex-end',
-      zIndex: 1000,
-    },
-    modalContainer: {
-      backgroundColor: theme.modalBackground,
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
-      paddingTop: 8,
-      paddingBottom: 24,
-      maxHeight: '85%',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 20,
-      elevation: 10,
-    },
-    modalHandle: {
-      width: 40,
-      height: 5,
-      backgroundColor: theme.borderColor,
-      borderRadius: 3,
-      alignSelf: 'center',
-      marginBottom: 16,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 24,
-      paddingBottom: 20,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.borderColor,
-    },
-    modalTitleContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    modalTitle: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: theme.text,
-      letterSpacing: -0.5,
-    },
-    modalCloseBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: theme.cardBackground,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: theme.borderColor,
-    },
-    modalScrollContent: {
-      paddingBottom: 16,
-    },
-    modalSection: {
-      paddingHorizontal: 24,
-      paddingVertical: 20,
-    },
-    modalSectionTitle: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: theme.textSecondary,
-      marginBottom: 14,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
-    modalDivider: {
-      height: 1,
-      backgroundColor: theme.borderColor,
-      marginHorizontal: 24,
-    },
-    
-    // Sort Options
-    sortOptionItem: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      borderRadius: 14,
-      marginBottom: 10,
-      backgroundColor: theme.cardBackground,
-      borderWidth: 1.5,
-      borderColor: theme.borderColor,
-    },
-    sortOptionItemActive: {
-      backgroundColor: `${theme.accent}12`,
-      borderColor: theme.accent,
-      shadowColor: theme.accent,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.15,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    sortOptionLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-      flex: 1,
-    },
-    sortOptionIconContainer: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: theme.cardBackgroundAlt,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    sortOptionIconContainerActive: {
-      backgroundColor: theme.accent,
-    },
-    sortOptionText: {
-      fontSize: 15,
-      color: theme.text,
-      fontWeight: '500',
-      flex: 1,
-    },
-    sortOptionTextActive: {
-      fontWeight: '700',
-      color: theme.text,
-    },
-    sortOptionCheck: {
-      marginLeft: 12,
-    },
-    
-    // Modal Footer
-    modalFooter: {
-      flexDirection: 'row',
-      paddingHorizontal: 24,
-      paddingTop: 20,
-      gap: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.borderColor,
-    },
-    modalResetBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 20,
-      borderRadius: 14,
-      backgroundColor: theme.cardBackground,
-      borderWidth: 1.5,
-      borderColor: theme.borderColor,
-      gap: 8,
-      flex: 1,
-    },
-    modalResetBtnText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: theme.textSecondary,
-    },
-    modalApplyBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-      borderRadius: 14,
-      backgroundColor: theme.accent,
-      gap: 10,
-      flex: 2,
-      shadowColor: theme.accent,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    modalApplyBtnText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: '#fff',
-      letterSpacing: 0.3,
     },
   });

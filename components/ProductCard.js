@@ -30,14 +30,13 @@ export default function ProductCard({
 }) {
   const [sellerName, setSellerName] = useState('');
   const [imageIndex, setImageIndex] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const favoriteScaleAnim = useRef(new Animated.Value(1)).current;
+  const messageScaleAnim = useRef(new Animated.Value(1)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   const currentUser = auth.currentUser;
@@ -108,7 +107,7 @@ export default function ProductCard({
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.96,
+      toValue: 0.97,
       useNativeDriver: true,
       tension: 120,
       friction: 7,
@@ -124,22 +123,25 @@ export default function ProductCard({
     }).start();
   };
 
-  const handleFavoritePress = () => {
+  const handleMessagePress = () => {
     Animated.sequence([
-      Animated.spring(favoriteScaleAnim, {
-        toValue: 1.3,
+      Animated.spring(messageScaleAnim, {
+        toValue: 1.2,
         useNativeDriver: true,
         tension: 100,
         friction: 3,
       }),
-      Animated.spring(favoriteScaleAnim, {
+      Animated.spring(messageScaleAnim, {
         toValue: 1,
         useNativeDriver: true,
         tension: 100,
         friction: 3,
       }),
     ]).start();
-    setIsFavorite(!isFavorite);
+    
+    if (onMessageSeller) {
+      onMessageSeller();
+    }
   };
 
   // Calculate discount
@@ -206,13 +208,13 @@ export default function ProductCard({
               )}
             </View>
 
-            {/* Favorite Button */}
-            <Animated.View style={[styles.gridFavoriteButton, { transform: [{ scale: favoriteScaleAnim }] }]}>
-              <TouchableOpacity onPress={handleFavoritePress} activeOpacity={0.8}>
+            {/* Messaging Button */}
+            <Animated.View style={[styles.gridMessageButton, { transform: [{ scale: messageScaleAnim }] }]}>
+              <TouchableOpacity onPress={handleMessagePress} activeOpacity={0.8}>
                 <Ionicons
-                  name={isFavorite ? 'heart' : 'heart-outline'}
+                  name="chatbubble-ellipses"
                   size={18}
-                  color={isFavorite ? '#FF3B30' : '#fff'}
+                  color="#fff"
                 />
               </TouchableOpacity>
             </Animated.View>
@@ -340,13 +342,13 @@ export default function ProductCard({
                 )}
               </View>
 
-              {/* Favorite Button */}
-              <Animated.View style={[styles.favoriteButton, { transform: [{ scale: favoriteScaleAnim }] }]}>
-                <TouchableOpacity onPress={handleFavoritePress} activeOpacity={0.8}>
+              {/* Messaging Button */}
+              <Animated.View style={[styles.messageButton, { transform: [{ scale: messageScaleAnim }] }]}>
+                <TouchableOpacity onPress={handleMessagePress} activeOpacity={0.8}>
                   <Ionicons
-                    name={isFavorite ? 'heart' : 'heart-outline'}
+                    name="chatbubble-ellipses"
                     size={22}
-                    color={isFavorite ? '#FF3B30' : '#fff'}
+                    color="#fff"
                   />
                 </TouchableOpacity>
               </Animated.View>
@@ -434,13 +436,6 @@ export default function ProductCard({
                   {sellerName || product.email}
                 </Text>
               </View>
-              <TouchableOpacity
-                style={styles.quickMessageButton}
-                onPress={onMessageSeller}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -496,7 +491,7 @@ const lightTheme = {
   text: '#1a1a2e',
   textSecondary: '#4a4a6a',
   textTertiary: '#2c2c44',
-  accent: '#f39c12',
+  accent: '#FDAD00',
   accentSecondary: '#e67e22',
   success: '#27ae60',
   warning: '#f39c12',
@@ -567,25 +562,25 @@ const createStyles = (theme, viewMode) =>
       left: 10,
       gap: 6,
     },
-    gridFavoriteButton: {
+    gridMessageButton: {
       position: 'absolute',
       top: 10,
       right: 10,
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: theme.overlayColor,
+      backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
       ...Platform.select({
         ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.2,
-          shadowRadius: 4,
+          shadowColor: theme.accent,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.4,
+          shadowRadius: 6,
         },
         android: {
-          elevation: 3,
+          elevation: 4,
         },
       }),
     },
@@ -814,21 +809,21 @@ const createStyles = (theme, viewMode) =>
       letterSpacing: 0.5,
       fontFamily: 'Poppins-ExtraBold',
     },
-    favoriteButton: {
+    messageButton: {
       position: 'absolute',
       top: 14,
       right: 14,
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: theme.overlayColor,
+      backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
       ...Platform.select({
         ios: {
-          shadowColor: '#000',
+          shadowColor: theme.accent,
           shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.3,
+          shadowOpacity: 0.4,
           shadowRadius: 6,
         },
         android: {
@@ -1041,7 +1036,7 @@ const createStyles = (theme, viewMode) =>
       fontWeight: '700',
       fontFamily: 'Poppins-Bold',
     },
-    quickMessageButton: {
+    quickCartButton: {
       width: 44,
       height: 44,
       borderRadius: 22,
