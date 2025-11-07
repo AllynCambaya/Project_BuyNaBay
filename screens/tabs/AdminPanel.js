@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   Image,
   Modal,
@@ -19,17 +20,26 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../supabase/supabaseClient';
+import { darkTheme, lightTheme } from '../../theme/theme';
+import { fontFamily } from '../../theme/typography';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-export default function AdminPanel() {
+export default function AdminPanel({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, totalUsers: 0, reports: 0 });
+  const [stats, setStats] = useState({ 
+    pending: 0, 
+    approved: 0, 
+    rejected: 0, 
+    totalUsers: 0, 
+    reports: 0 
+  });
   const [selectedStatus, setSelectedStatus] = useState('Pending');
   const [requests, setRequests] = useState([]);
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
   const [menuVisible, setMenuVisible] = useState(null);
   const [suspendModalVisible, setSuspendModalVisible] = useState(false);
   const [suspendDays, setSuspendDays] = useState('');
@@ -39,9 +49,56 @@ export default function AdminPanel() {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const styles = createStyles(theme);
 
-  const fetchStatsAndRequests = async () => {
+  // Animation refs
+  const headerSlideAnim = useRef(new Animated.Value(-50)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const cardSlideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerSlideAnim, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardSlideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 60,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const fetchStatsAndRequests = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
       
@@ -56,6 +113,12 @@ export default function AdminPanel() {
         .from('reports')
         .select('id, reporter_name, reporter_student_id, reported_student_id, reported_name, reason, details, created_at')
         .order('created_at', { ascending: false });
+
+      const { data: recentCheckouts } = await supabase
+        .from('checkout_history')
+        .select('*')
+        .order('checkout_date', { ascending: false })
+        .limit(5);
 
       setStats({
         pending: pending?.length || 0,
@@ -73,6 +136,7 @@ export default function AdminPanel() {
       setRequests(allRequests || []);
       setReports(reportsData || []);
       setUsers(usersData || []);
+      setRecentActivity(recentCheckouts || []);
     } catch (err) {
       console.error('Error fetching admin data:', err.message);
       Alert.alert('Error', 'Failed to load admin data');
@@ -80,11 +144,11 @@ export default function AdminPanel() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [refreshing]);
 
   useEffect(() => {
     fetchStatsAndRequests();
-  }, []);
+  }, [fetchStatsAndRequests]);
 
   const handleAction = async (id, newStatus) => {
     try {
@@ -105,7 +169,7 @@ export default function AdminPanel() {
         if (verRecord.student_id) updates.student_id = verRecord.student_id;
 
         if (Object.keys(updates).length > 0) {
-          const { data: updatedUsers, error: updateErr } = await supabase
+          const { error: updateErr } = await supabase
             .from('users')
             .update(updates)
             .eq('email', verRecord.email);
@@ -132,6 +196,10 @@ export default function AdminPanel() {
   const handleUserAction = async (userId, action) => {
     setMenuVisible(null);
 
+    // Find the current user to check their status
+    const currentUser = users.find(u => u.id === userId);
+    const currentStatus = currentUser?.account_status || 'active';
+
     if (action === 'delete') {
       Alert.alert('Confirm Delete', 'Are you sure you want to delete this user?', [
         { text: 'Cancel', style: 'cancel' },
@@ -139,9 +207,15 @@ export default function AdminPanel() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('users').delete().eq('id', userId);
-            Alert.alert('Deleted', 'User account deleted.');
-            fetchStatsAndRequests();
+            try {
+              const { error } = await supabase.from('users').delete().eq('id', userId);
+              if (error) throw error;
+              Alert.alert('Success', 'User account deleted.');
+              fetchStatsAndRequests();
+            } catch (err) {
+              console.error('Error deleting user:', err);
+              Alert.alert('Error', 'Failed to delete user. Try again.');
+            }
           },
         },
       ]);
@@ -149,36 +223,139 @@ export default function AdminPanel() {
     }
 
     if (action === 'freeze') {
-      await supabase.from('users').update({ account_status: 'frozen' }).eq('id', userId);
-      Alert.alert('Frozen', 'User account has been frozen.');
-      fetchStatsAndRequests();
+      // Toggle freeze/unfreeze based on current status
+      const newStatus = currentStatus === 'frozen' ? 'active' : 'frozen';
+      const actionText = newStatus === 'frozen' ? 'freeze' : 'unfreeze';
+      
+      Alert.alert(
+        `Confirm ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`,
+        `Are you sure you want to ${actionText} this account?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: actionText.charAt(0).toUpperCase() + actionText.slice(1),
+            onPress: async () => {
+              try {
+                const { error } = await supabase
+                  .from('users')
+                  .update({ account_status: newStatus })
+                  .eq('id', userId);
+                
+                if (error) throw error;
+                
+                Alert.alert(
+                  'Success',
+                  `User account has been ${newStatus === 'frozen' ? 'frozen' : 'unfrozen'}.`
+                );
+                fetchStatsAndRequests();
+              } catch (err) {
+                console.error(`Error ${actionText}ing user:`, err);
+                Alert.alert('Error', `Failed to ${actionText} user. Try again.`);
+              }
+            },
+          },
+        ]
+      );
+      return;
     }
 
     if (action === 'reset') {
-      await supabase.from('users').update({ password: 'password123' }).eq('id', userId);
-      Alert.alert('Reset', 'Password reset to default (password123).');
+      Alert.alert(
+        'Confirm Password Reset',
+        'Reset this user\'s password to default (password123)?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Reset',
+            onPress: async () => {
+              try {
+                const { error } = await supabase
+                  .from('users')
+                  .update({ password: 'password123' })
+                  .eq('id', userId);
+                
+                if (error) throw error;
+                
+                Alert.alert('Success', 'Password reset to default (password123).');
+              } catch (err) {
+                console.error('Error resetting password:', err);
+                Alert.alert('Error', 'Failed to reset password. Try again.');
+              }
+            },
+          },
+        ]
+      );
+      return;
     }
 
     if (action === 'suspend') {
-      setSelectedUserId(userId);
-      setSuspendModalVisible(true);
+      // Check if already suspended - if so, unsuspend
+      if (currentStatus === 'suspended') {
+        Alert.alert(
+          'Confirm Unsuspend',
+          'Are you sure you want to unsuspend this account?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Unsuspend',
+              onPress: async () => {
+                try {
+                  const { error } = await supabase
+                    .from('users')
+                    .update({ 
+                      account_status: 'active',
+                      suspended_until: null 
+                    })
+                    .eq('id', userId);
+                  
+                  if (error) throw error;
+                  
+                  Alert.alert('Success', 'User account has been unsuspended.');
+                  fetchStatsAndRequests();
+                } catch (err) {
+                  console.error('Error unsuspending user:', err);
+                  Alert.alert('Error', 'Failed to unsuspend user. Try again.');
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        // Show suspend modal for new suspension
+        setSelectedUserId(userId);
+        setSuspendModalVisible(true);
+      }
     }
   };
 
   const confirmSuspend = async () => {
-    if (!suspendDays) return Alert.alert('Error', 'Please enter number of days.');
+    if (!suspendDays || isNaN(suspendDays) || parseInt(suspendDays) <= 0) {
+      return Alert.alert('Error', 'Please enter a valid number of days.');
+    }
+    
     const untilDate = new Date();
     untilDate.setDate(untilDate.getDate() + parseInt(suspendDays));
 
-    await supabase
-      .from('users')
-      .update({ account_status: 'suspended', suspended_until: untilDate.toISOString() })
-      .eq('id', selectedUserId);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          account_status: 'suspended', 
+          suspended_until: untilDate.toISOString() 
+        })
+        .eq('id', selectedUserId);
 
-    Alert.alert('Suspended', `User suspended for ${suspendDays} days.`);
-    setSuspendModalVisible(false);
-    setSuspendDays('');
-    fetchStatsAndRequests();
+      if (error) throw error;
+
+      Alert.alert('Success', `User suspended for ${suspendDays} days.`);
+      setSuspendModalVisible(false);
+      setSuspendDays('');
+      setSelectedUserId(null);
+      fetchStatsAndRequests();
+    } catch (err) {
+      console.error('Error suspending user:', err);
+      Alert.alert('Error', 'Failed to suspend user. Try again.');
+    }
   };
 
   const filterBySearch = (items, type) => {
@@ -208,36 +385,40 @@ export default function AdminPanel() {
     );
   };
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.backgroundGradient} />
+  const styles = createStyles(theme, isDarkMode);
 
-      <View style={styles.brandedLogoContainer}>
-        <View style={styles.adminIconCircle}>
-          <Ionicons name="shield-checkmark" size={28} color={theme.accent} />
-        </View>
-        <View>
-          <Text style={styles.brandedLogoText}>BuyNaBay</Text>
-          <Text style={styles.brandedSubtext}>Admin Dashboard</Text>
-        </View>
+  const renderHeader = () => (
+    <Animated.View
+      style={[
+        styles.headerContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: headerSlideAnim }],
+        },
+      ]}
+    >
+      <View style={styles.backgroundGradient}>
+        <View style={styles.gradientOverlay} />
       </View>
 
-      <View style={styles.welcomeSection}>
-        <View style={styles.welcomeRow}>
-          <View style={styles.welcomeContent}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.userName}>Administrator</Text>
+      <View style={styles.topNavBar}>
+        <View style={styles.brandedLogoContainer}>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../../assets/images/OfficialBuyNaBay.png')}
+              style={styles.brandedLogoImage}
+              resizeMode="contain"
+            />
           </View>
-          <View style={styles.quickActionButton}>
-            <Ionicons name="notifications-outline" size={24} color="#ffffff" />
-            {stats.pending > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationText}>{stats.pending}</Text>
-              </View>
-            )}
+          <View>
+            <Text style={[styles.brandedLogoText, { fontFamily: fontFamily.extraBold }]}>
+              BuyNaBay
+            </Text>
+            <Text style={[styles.brandedSubtext, { fontFamily: fontFamily.medium }]}>
+              Admin Dashboard
+            </Text>
           </View>
         </View>
-        <Text style={styles.subtitle}>Manage users, verifications, and reports</Text>
       </View>
 
       <View style={styles.statsGrid}>
@@ -250,10 +431,12 @@ export default function AdminPanel() {
             <View style={[styles.statIconCircle, { backgroundColor: '#FFF3E0' }]}>
               <Ionicons name="time-outline" size={22} color="#F57C00" />
             </View>
-            {stats.pending > 0 && <View style={styles.statPulse} />}
+            {stats.pending > 0 && (
+              <Animated.View style={[styles.statPulse, { transform: [{ scale: pulseAnim }] }]} />
+            )}
           </View>
-          <Text style={styles.statValue}>{stats.pending}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={[styles.statValue, { fontFamily: fontFamily.bold }]}>{stats.pending}</Text>
+          <Text style={[styles.statLabel, { fontFamily: fontFamily.medium }]}>Pending</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -266,8 +449,8 @@ export default function AdminPanel() {
               <Ionicons name="checkmark-circle-outline" size={22} color="#4CAF50" />
             </View>
           </View>
-          <Text style={styles.statValue}>{stats.approved}</Text>
-          <Text style={styles.statLabel}>Approved</Text>
+          <Text style={[styles.statValue, { fontFamily: fontFamily.bold }]}>{stats.approved}</Text>
+          <Text style={[styles.statLabel, { fontFamily: fontFamily.medium }]}>Approved</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -280,8 +463,8 @@ export default function AdminPanel() {
               <Ionicons name="close-circle-outline" size={22} color="#F44336" />
             </View>
           </View>
-          <Text style={styles.statValue}>{stats.rejected}</Text>
-          <Text style={styles.statLabel}>Rejected</Text>
+          <Text style={[styles.statValue, { fontFamily: fontFamily.bold }]}>{stats.rejected}</Text>
+          <Text style={[styles.statLabel, { fontFamily: fontFamily.medium }]}>Rejected</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -294,8 +477,8 @@ export default function AdminPanel() {
               <Ionicons name="people-outline" size={22} color="#1976D2" />
             </View>
           </View>
-          <Text style={styles.statValue}>{stats.totalUsers}</Text>
-          <Text style={styles.statLabel}>Users</Text>
+          <Text style={[styles.statValue, { fontFamily: fontFamily.bold }]}>{stats.totalUsers}</Text>
+          <Text style={[styles.statLabel, { fontFamily: fontFamily.medium }]}>Users</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -307,13 +490,15 @@ export default function AdminPanel() {
             <View style={[styles.statIconCircle, { backgroundColor: '#FFF8E1' }]}>
               <Ionicons name="flag-outline" size={22} color="#FBC02D" />
             </View>
-            {stats.reports > 0 && <View style={styles.statPulse} />}
+            {stats.reports > 0 && (
+              <Animated.View style={[styles.statPulse, { transform: [{ scale: pulseAnim }] }]} />
+            )}
           </View>
-          <Text style={styles.statValue}>{stats.reports}</Text>
-          <Text style={styles.statLabel}>Reports</Text>
+          <Text style={[styles.statValue, { fontFamily: fontFamily.bold }]}>{stats.reports}</Text>
+          <Text style={[styles.statLabel, { fontFamily: fontFamily.medium }]}>Reports</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 
   const renderSearchBar = () => (
@@ -321,7 +506,7 @@ export default function AdminPanel() {
       <View style={styles.searchBar}>
         <Ionicons name="search-outline" size={20} color={theme.textSecondary} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { fontFamily: fontFamily.medium }]}
           placeholder={`Search ${selectedStatus === 'users' ? 'users' : selectedStatus === 'reports' ? 'reports' : 'requests'}...`}
           placeholderTextColor={theme.textSecondary}
           value={searchQuery}
@@ -334,12 +519,12 @@ export default function AdminPanel() {
         )}
       </View>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>
+        <Text style={[styles.sectionTitle, { fontFamily: fontFamily.bold }]}>
           {selectedStatus === 'users' ? 'User Management' : 
            selectedStatus === 'reports' ? 'User Reports' : 
            `${selectedStatus} Requests`}
         </Text>
-        <Text style={styles.sectionCount}>
+        <Text style={[styles.sectionCount, { fontFamily: fontFamily.medium }]}>
           {selectedStatus === 'users' ? users.length : 
            selectedStatus === 'reports' ? reports.length : 
            requests.filter(r => r.status.toLowerCase() === selectedStatus.toLowerCase()).length} items
@@ -347,6 +532,61 @@ export default function AdminPanel() {
       </View>
     </View>
   );
+
+  const renderRecentActivity = () => {
+    if (recentActivity.length === 0) return null;
+
+    return (
+      <Animated.View
+        style={[
+          styles.activitySection,
+          { opacity: fadeAnim, transform: [{ translateY: cardSlideAnim }] },
+        ]}
+      >
+        <View style={styles.activityHeader}>
+          <Text style={[styles.activityTitle, { fontFamily: fontFamily.bold }]}>
+            Recent Activity
+          </Text>
+        </View>
+
+        {recentActivity.map((activity, index) => (
+          <Animated.View
+            key={index}
+            style={[
+              styles.activityItem,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  {
+                    translateY: cardSlideAnim.interpolate({
+                      inputRange: [0, 30],
+                      outputRange: [0, 30 + index * 5],
+                    }),
+                  },
+                  { scale: scaleAnim },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.activityIcon}>
+              <Ionicons name="cart-outline" size={18} color={theme.success} />
+            </View>
+            <View style={styles.activityDetails}>
+              <Text style={[styles.activityText, { fontFamily: fontFamily.semiBold }]}>
+                {activity.buyer_email}
+              </Text>
+              <Text style={[styles.activitySubtext, { fontFamily: fontFamily.regular }]}>
+                Purchased {activity.product_name}
+              </Text>
+            </View>
+            <Text style={[styles.activityPrice, { fontFamily: fontFamily.bold }]}>
+              ₱{parseFloat(activity.price).toFixed(2)}
+            </Text>
+          </Animated.View>
+        ))}
+      </Animated.View>
+    );
+  };
 
   const renderUsers = () => {
     const filtered = filterBySearch(users, 'users');
@@ -357,103 +597,128 @@ export default function AdminPanel() {
           <View style={styles.emptyIconCircle}>
             <Ionicons name="people-outline" size={48} color={theme.textSecondary} />
           </View>
-          <Text style={styles.emptyTitle}>
+          <Text style={[styles.emptyTitle, { fontFamily: fontFamily.bold }]}>
             {searchQuery ? 'No users found' : 'No users yet'}
           </Text>
-          <Text style={styles.emptySubtext}>
+          <Text style={[styles.emptySubtext, { fontFamily: fontFamily.medium }]}>
             {searchQuery ? 'Try adjusting your search' : 'Users will appear here once registered'}
           </Text>
         </View>
       );
     }
 
-    return filtered.map((user) => (
-      <View key={user.id} style={styles.itemCard}>
-        <View style={styles.itemCardHeader}>
-          <View style={styles.userRow}>
-            <View style={styles.userAvatarLarge}>
-              <Ionicons name="person" size={24} color={theme.accent} />
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.itemTitle}>{user.email}</Text>
-              <View style={styles.metaRow}>
-                <Ionicons name="call-outline" size={12} color={theme.textSecondary} />
-                <Text style={styles.metaText}>{user.phone_number || 'N/A'}</Text>
+    return filtered.map((user) => {
+      const userStatus = user.account_status || 'active';
+      
+      return (
+        <Animated.View
+          key={user.id}
+          style={[
+            styles.itemCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <View style={styles.itemCardHeader}>
+            <View style={styles.userRow}>
+              <View style={styles.userAvatarLarge}>
+                <Ionicons name="person" size={24} color={theme.accent} />
               </View>
-              <View style={styles.metaRow}>
-                <Ionicons name="card-outline" size={12} color={theme.textSecondary} />
-                <Text style={styles.metaText}>{user.student_id || 'N/A'}</Text>
+              <View style={styles.userInfo}>
+                <Text style={[styles.itemTitle, { fontFamily: fontFamily.bold }]}>{user.email}</Text>
+                <View style={styles.metaRow}>
+                  <Ionicons name="call-outline" size={12} color={theme.textSecondary} />
+                  <Text style={[styles.metaText, { fontFamily: fontFamily.regular }]}>{user.phone_number || 'N/A'}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Ionicons name="card-outline" size={12} color={theme.textSecondary} />
+                  <Text style={[styles.metaText, { fontFamily: fontFamily.regular }]}>{user.student_id || 'N/A'}</Text>
+                </View>
               </View>
             </View>
+            <TouchableOpacity 
+              onPress={() => setMenuVisible(menuVisible === user.id ? null : user.id)}
+              style={styles.menuIconButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={theme.text} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity 
-            onPress={() => setMenuVisible(menuVisible === user.id ? null : user.id)}
-            style={styles.menuIconButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={theme.text} />
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.statusRow}>
-          <View style={[
-            styles.statusChip,
-            user.account_status === 'frozen' && styles.statusChipFrozen,
-            user.account_status === 'suspended' && styles.statusChipSuspended,
-            (!user.account_status || user.account_status === 'active') && styles.statusChipActive,
-          ]}>
-            <Ionicons 
-              name={user.account_status === 'frozen' ? 'snow-outline' : 
-                    user.account_status === 'suspended' ? 'pause-circle-outline' : 
-                    'checkmark-circle-outline'} 
-              size={14} 
-              color="#fff" 
-            />
-            <Text style={styles.statusChipText}>
-              {user.account_status || 'Active'}
-            </Text>
+          <View style={styles.statusRow}>
+            <View style={[
+              styles.statusChip,
+              userStatus === 'frozen' && styles.statusChipFrozen,
+              userStatus === 'suspended' && styles.statusChipSuspended,
+              userStatus === 'active' && styles.statusChipActive,
+            ]}>
+              <Ionicons 
+                name={userStatus === 'frozen' ? 'snow-outline' : 
+                      userStatus === 'suspended' ? 'pause-circle-outline' : 
+                      'checkmark-circle-outline'} 
+                size={14} 
+                color="#fff" 
+              />
+              <Text style={[styles.statusChipText, { fontFamily: fontFamily.bold }]}>
+                {userStatus.charAt(0).toUpperCase() + userStatus.slice(1)}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        {menuVisible === user.id && (
-          <View style={styles.actionMenu}>
-            <TouchableOpacity 
-              onPress={() => handleUserAction(user.id, 'freeze')}
-              style={styles.actionMenuItem}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="snow-outline" size={18} color={theme.text} />
-              <Text style={styles.actionMenuText}>Freeze Account</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => handleUserAction(user.id, 'suspend')}
-              style={styles.actionMenuItem}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="pause-circle-outline" size={18} color={theme.text} />
-              <Text style={styles.actionMenuText}>Suspend Account</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => handleUserAction(user.id, 'reset')}
-              style={styles.actionMenuItem}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="key-outline" size={18} color={theme.text} />
-              <Text style={styles.actionMenuText}>Reset Password</Text>
-            </TouchableOpacity>
-            <View style={styles.actionMenuDivider} />
-            <TouchableOpacity 
-              onPress={() => handleUserAction(user.id, 'delete')}
-              style={styles.actionMenuItem}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash-outline" size={18} color={theme.error} />
-              <Text style={[styles.actionMenuText, { color: theme.error }]}>Delete User</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    ));
+          {menuVisible === user.id && (
+            <View style={styles.actionMenu}>
+              <TouchableOpacity 
+                onPress={() => handleUserAction(user.id, 'freeze')}
+                style={styles.actionMenuItem}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={userStatus === 'frozen' ? 'checkmark-circle-outline' : 'snow-outline'} 
+                  size={18} 
+                  color={theme.text} 
+                />
+                <Text style={[styles.actionMenuText, { fontFamily: fontFamily.semiBold }]}>
+                  {userStatus === 'frozen' ? 'Unfreeze Account' : 'Freeze Account'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => handleUserAction(user.id, 'suspend')}
+                style={styles.actionMenuItem}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={userStatus === 'suspended' ? 'play-circle-outline' : 'pause-circle-outline'} 
+                  size={18} 
+                  color={theme.text} 
+                />
+                <Text style={[styles.actionMenuText, { fontFamily: fontFamily.semiBold }]}>
+                  {userStatus === 'suspended' ? 'Unsuspend Account' : 'Suspend Account'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => handleUserAction(user.id, 'reset')}
+                style={styles.actionMenuItem}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="key-outline" size={18} color={theme.text} />
+                <Text style={[styles.actionMenuText, { fontFamily: fontFamily.semiBold }]}>Reset Password</Text>
+              </TouchableOpacity>
+              <View style={styles.actionMenuDivider} />
+              <TouchableOpacity 
+                onPress={() => handleUserAction(user.id, 'delete')}
+                style={styles.actionMenuItem}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={18} color={theme.error} />
+                <Text style={[styles.actionMenuText, { color: theme.error, fontFamily: fontFamily.semiBold }]}>Delete User</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Animated.View>
+      );
+    });
   };
 
   const renderReports = () => {
@@ -465,10 +730,10 @@ export default function AdminPanel() {
           <View style={styles.emptyIconCircle}>
             <Ionicons name="flag-outline" size={48} color={theme.textSecondary} />
           </View>
-          <Text style={styles.emptyTitle}>
+          <Text style={[styles.emptyTitle, { fontFamily: fontFamily.bold }]}>
             {searchQuery ? 'No reports found' : 'No reports yet'}
           </Text>
-          <Text style={styles.emptySubtext}>
+          <Text style={[styles.emptySubtext, { fontFamily: fontFamily.medium }]}>
             {searchQuery ? 'Try adjusting your search' : 'User reports will appear here'}
           </Text>
         </View>
@@ -476,25 +741,34 @@ export default function AdminPanel() {
     }
 
     return filtered.map((r) => (
-      <View key={r.id} style={styles.itemCard}>
+      <Animated.View
+        key={r.id}
+        style={[
+          styles.itemCard,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
         <View style={styles.reportBanner}>
           <Ionicons name="flag" size={16} color="#F57C00" />
-          <Text style={styles.reportBannerText}>Report #{r.id}</Text>
+          <Text style={[styles.reportBannerText, { fontFamily: fontFamily.bold }]}>Report #{r.id}</Text>
           <View style={styles.reportBadge}>
-            <Text style={styles.reportBadgeText}>{r.reason}</Text>
+            <Text style={[styles.reportBadgeText, { fontFamily: fontFamily.bold }]}>{r.reason}</Text>
           </View>
         </View>
 
         <View style={styles.reportContent}>
           <View style={styles.reportSection}>
-            <Text style={styles.reportSectionLabel}>Reported User</Text>
+            <Text style={[styles.reportSectionLabel, { fontFamily: fontFamily.semiBold }]}>Reported User</Text>
             <View style={styles.reportUserRow}>
               <View style={styles.reportUserAvatar}>
                 <Ionicons name="person-outline" size={16} color={theme.text} />
               </View>
               <View>
-                <Text style={styles.reportUserName}>{r.reported_name}</Text>
-                <Text style={styles.reportUserId}>ID: {r.reported_student_id || 'N/A'}</Text>
+                <Text style={[styles.reportUserName, { fontFamily: fontFamily.semiBold }]}>{r.reported_name}</Text>
+                <Text style={[styles.reportUserId, { fontFamily: fontFamily.regular }]}>ID: {r.reported_student_id || 'N/A'}</Text>
               </View>
             </View>
           </View>
@@ -502,14 +776,14 @@ export default function AdminPanel() {
           <View style={styles.reportDivider} />
 
           <View style={styles.reportSection}>
-            <Text style={styles.reportSectionLabel}>Reported By</Text>
+            <Text style={[styles.reportSectionLabel, { fontFamily: fontFamily.semiBold }]}>Reported By</Text>
             <View style={styles.reportUserRow}>
               <View style={styles.reportUserAvatar}>
                 <Ionicons name="person-outline" size={16} color={theme.text} />
               </View>
               <View>
-                <Text style={styles.reportUserName}>{r.reporter_name}</Text>
-                <Text style={styles.reportUserId}>ID: {r.reporter_student_id || 'N/A'}</Text>
+                <Text style={[styles.reportUserName, { fontFamily: fontFamily.semiBold }]}>{r.reporter_name}</Text>
+                <Text style={[styles.reportUserId, { fontFamily: fontFamily.regular }]}>ID: {r.reporter_student_id || 'N/A'}</Text>
               </View>
             </View>
           </View>
@@ -518,8 +792,8 @@ export default function AdminPanel() {
             <>
               <View style={styles.reportDivider} />
               <View style={styles.reportSection}>
-                <Text style={styles.reportSectionLabel}>Details</Text>
-                <Text style={styles.reportDetails}>{r.details}</Text>
+                <Text style={[styles.reportSectionLabel, { fontFamily: fontFamily.semiBold }]}>Details</Text>
+                <Text style={[styles.reportDetails, { fontFamily: fontFamily.regular }]}>{r.details}</Text>
               </View>
             </>
           )}
@@ -527,9 +801,9 @@ export default function AdminPanel() {
 
         <View style={styles.reportFooter}>
           <Ionicons name="time-outline" size={14} color={theme.textSecondary} />
-          <Text style={styles.reportTime}>{new Date(r.created_at).toLocaleString()}</Text>
+          <Text style={[styles.reportTime, { fontFamily: fontFamily.regular }]}>{new Date(r.created_at).toLocaleString()}</Text>
         </View>
-      </View>
+      </Animated.View>
     ));
   };
 
@@ -545,10 +819,10 @@ export default function AdminPanel() {
           <View style={styles.emptyIconCircle}>
             <Ionicons name="document-text-outline" size={48} color={theme.textSecondary} />
           </View>
-          <Text style={styles.emptyTitle}>
+          <Text style={[styles.emptyTitle, { fontFamily: fontFamily.bold }]}>
             {searchQuery ? 'No requests found' : `No ${selectedStatus.toLowerCase()} requests`}
           </Text>
-          <Text style={styles.emptySubtext}>
+          <Text style={[styles.emptySubtext, { fontFamily: fontFamily.medium }]}>
             {searchQuery ? 'Try adjusting your search' : 'Verification requests will appear here'}
           </Text>
         </View>
@@ -556,26 +830,34 @@ export default function AdminPanel() {
     }
 
     return filtered.map((req) => (
-      <View key={req.id} style={styles.itemCard}>
+      <Animated.View
+        key={req.id}
+        style={[
+          styles.itemCard,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
         <View style={styles.requestHeader}>
           <View style={styles.requestInfo}>
-            <Text style={styles.itemTitle}>{req.email}</Text>
+            <Text style={[styles.itemTitle, { fontFamily: fontFamily.bold }]}>{req.email}</Text>
             <View style={styles.metaRow}>
               <Ionicons name="call-outline" size={12} color={theme.textSecondary} />
-              <Text style={styles.metaText}>{req.phone_number}</Text>
+              <Text style={[styles.metaText, { fontFamily: fontFamily.regular }]}>{req.phone_number}</Text>
             </View>
             <View style={styles.metaRow}>
               <Ionicons name="card-outline" size={12} color={theme.textSecondary} />
-              <Text style={styles.metaText}>{req.student_id}</Text>
+              <Text style={[styles.metaText, { fontFamily: fontFamily.regular }]}>{req.student_id}</Text>
             </View>
           </View>
-          <View style={[
-            styles.requestStatusChip,
+          <View style={[styles.requestStatusChip,
             req.status === 'pending' && styles.requestStatusPending,
             req.status === 'approved' && styles.requestStatusApproved,
             req.status === 'rejected' && styles.requestStatusRejected,
           ]}>
-            <Text style={styles.requestStatusText}>{req.status}</Text>
+            <Text style={[styles.requestStatusText, { fontFamily: fontFamily.bold }]}>{req.status}</Text>
           </View>
         </View>
 
@@ -586,7 +868,7 @@ export default function AdminPanel() {
                 <Image source={{ uri: req.id_image }} style={styles.verificationImg} />
                 <View style={styles.imageTag}>
                   <Ionicons name="card-outline" size={12} color="#fff" />
-                  <Text style={styles.imageTagText}>ID Card</Text>
+                  <Text style={[styles.imageTagText, { fontFamily: fontFamily.semiBold }]}>ID Card</Text>
                 </View>
               </View>
             )}
@@ -595,7 +877,7 @@ export default function AdminPanel() {
                 <Image source={{ uri: req.cor_image }} style={styles.verificationImg} />
                 <View style={styles.imageTag}>
                   <Ionicons name="document-text-outline" size={12} color="#fff" />
-                  <Text style={styles.imageTagText}>COR</Text>
+                  <Text style={[styles.imageTagText, { fontFamily: fontFamily.semiBold }]}>COR</Text>
                 </View>
               </View>
             )}
@@ -610,7 +892,7 @@ export default function AdminPanel() {
               activeOpacity={0.7}
             >
               <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>Approve</Text>
+              <Text style={[styles.actionBtnText, { fontFamily: fontFamily.bold }]}>Approve</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -619,11 +901,11 @@ export default function AdminPanel() {
               activeOpacity={0.7}
             >
               <Ionicons name="close-circle" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>Reject</Text>
+              <Text style={[styles.actionBtnText, { fontFamily: fontFamily.bold }]}>Reject</Text>
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </Animated.View>
     ));
   };
 
@@ -638,7 +920,7 @@ export default function AdminPanel() {
       <View style={styles.loadingScreen}>
         <View style={styles.loadingContent}>
           <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={styles.loadingText}>Loading Dashboard...</Text>
+          <Text style={[styles.loadingText, { fontFamily: fontFamily.semiBold }]}>Loading Dashboard...</Text>
         </View>
       </View>
     );
@@ -672,6 +954,7 @@ export default function AdminPanel() {
           <View style={styles.mainContent}>
             {renderContent()}
           </View>
+          {renderRecentActivity()}
         </ScrollView>
 
         <Modal visible={suspendModalVisible} transparent animationType="slide">
@@ -681,17 +964,17 @@ export default function AdminPanel() {
                 <View style={styles.modalIconCircle}>
                   <Ionicons name="pause-circle" size={24} color={theme.accent} />
                 </View>
-                <Text style={styles.modalTitle}>Suspend User</Text>
+                <Text style={[styles.modalTitle, { fontFamily: fontFamily.extraBold }]}>Suspend User</Text>
               </View>
               
-              <Text style={styles.modalDescription}>
+              <Text style={[styles.modalDescription, { fontFamily: fontFamily.regular }]}>
                 Enter the number of days to suspend this user's account
               </Text>
               
               <View style={styles.modalInputContainer}>
                 <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
                 <TextInput
-                  style={styles.modalTextInput}
+                  style={[styles.modalTextInput, { fontFamily: fontFamily.medium }]}
                   keyboardType="numeric"
                   value={suspendDays}
                   onChangeText={setSuspendDays}
@@ -709,14 +992,14 @@ export default function AdminPanel() {
                   style={[styles.modalBtn, styles.modalCancelBtn]}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
+                  <Text style={[styles.modalCancelText, { fontFamily: fontFamily.bold }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   onPress={confirmSuspend}
                   style={[styles.modalBtn, styles.modalConfirmBtn]}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.modalConfirmText}>Suspend</Text>
+                  <Text style={[styles.modalConfirmText, { fontFamily: fontFamily.bold }]}>Suspend</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -727,39 +1010,7 @@ export default function AdminPanel() {
   );
 }
 
-const darkTheme = {
-  background: '#0f0f2e',
-  gradientBackground: '#1B1B41',
-  text: '#ffffff',
-  textSecondary: '#a0a0c0',
-  cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  accent: '#FDAD00',
-  success: '#4CAF50',
-  error: '#F44336',
-  warning: '#F57C00',
-  borderColor: '#2a2a50',
-  shadowColor: '#000',
-  modalOverlay: 'rgba(0, 0, 0, 0.8)',
-};
-
-const lightTheme = {
-  background: '#f8f9fc',
-  gradientBackground: '#1B1B41',
-  text: '#1a1a2e',
-  textSecondary: '#64748b',
-  cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f1f5f9',
-  accent: '#FDAD00',
-  success: '#10b981',
-  error: '#ef4444',
-  warning: '#f59e0b',
-  borderColor: '#e2e8f0',
-  shadowColor: '#000',
-  modalOverlay: 'rgba(0, 0, 0, 0.6)',
-};
-
-const createStyles = (theme) => StyleSheet.create({
+const createStyles = (theme, isDarkMode) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.background,
@@ -782,8 +1033,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.textSecondary,
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    position: 'relative',
   },
   backgroundGradient: {
     position: 'absolute',
@@ -792,135 +1049,108 @@ const createStyles = (theme) => StyleSheet.create({
     right: 0,
     height: Platform.OS === 'ios' ? 380 : 400,
     backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 24,
-    position: 'relative',
+  gradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.08,
+  },
+  topNavBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   brandedLogoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    gap: 10,
   },
-  adminIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  logoWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: theme.accent,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  brandedLogoImage: {
+    width: 26,
+    height: 26,
   },
   brandedLogoText: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 18,
     color: theme.accent,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
+    lineHeight: 22,
   },
   brandedSubtext: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#ffffff',
-    opacity: 0.8,
+    fontSize: 10,
+    color: theme.textSecondary,
+    letterSpacing: 0.2,
+    marginTop: -1,
   },
-  welcomeSection: {
-    marginBottom: 24,
-  },
-  welcomeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  welcomeContent: {
-    flex: 1,
-  },
-  welcomeText: {
-    fontSize: 14,
-    color: '#ffffff',
-    opacity: 0.8,
-    fontWeight: '500',
-  },
-  userName: {
+  adminName: {
     fontSize: 28,
-    color: '#ffffff',
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#ffffff',
-    opacity: 0.7,
-  },
-  quickActionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  notificationText: {
     color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 16,
   },
   statCard: {
     width: (width - 52) / 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: theme.cardBackground,
     borderRadius: 20,
     padding: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
         shadowRadius: 8,
       },
       android: {
-        elevation: 4,
+        elevation: 2,
       },
     }),
   },
   statCardActive: {
-    backgroundColor: 'rgba(253, 173, 0, 0.2)',
-    borderColor: '#FDAD00',
+    backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.15)' : 'rgba(253, 173, 0, 0.08)',
+    borderColor: theme.accent,
     borderWidth: 2,
     ...Platform.select({
       ios: {
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 6,
+        elevation: 3,
       },
     }),
   },
@@ -948,15 +1178,12 @@ const createStyles = (theme) => StyleSheet.create({
   },
   statValue: {
     fontSize: 24,
-    fontWeight: '800',
-    color: '#ffffff',
+    color: theme.text,
     marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
-    color: '#ffffff',
-    opacity: 0.8,
-    fontWeight: '500',
+    color: theme.textSecondary,
   },
   searchContainer: {
     paddingHorizontal: 20,
@@ -997,13 +1224,11 @@ const createStyles = (theme) => StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
     color: theme.text,
   },
   sectionCount: {
     fontSize: 14,
     color: theme.textSecondary,
-    fontWeight: '500',
   },
   mainContent: {
     paddingHorizontal: 20,
@@ -1054,7 +1279,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   itemTitle: {
     fontSize: 16,
-    fontWeight: '700',
     color: theme.text,
     marginBottom: 6,
   },
@@ -1101,7 +1325,6 @@ const createStyles = (theme) => StyleSheet.create({
   statusChipText: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '700',
     textTransform: 'capitalize',
   },
   actionMenu: {
@@ -1134,7 +1357,6 @@ const createStyles = (theme) => StyleSheet.create({
     marginLeft: 12,
     fontSize: 14,
     color: theme.text,
-    fontWeight: '600',
   },
   actionMenuDivider: {
     height: 1,
@@ -1153,7 +1375,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   reportBannerText: {
     fontSize: 15,
-    fontWeight: '700',
     color: theme.warning,
     flex: 1,
   },
@@ -1166,7 +1387,6 @@ const createStyles = (theme) => StyleSheet.create({
   reportBadgeText: {
     color: '#fff',
     fontSize: 11,
-    fontWeight: '700',
   },
   reportContent: {
     gap: 12,
@@ -1177,7 +1397,6 @@ const createStyles = (theme) => StyleSheet.create({
   reportSectionLabel: {
     fontSize: 12,
     color: theme.textSecondary,
-    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1196,7 +1415,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   reportUserName: {
     fontSize: 15,
-    fontWeight: '600',
     color: theme.text,
   },
   reportUserId: {
@@ -1251,7 +1469,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   requestStatusText: {
     fontSize: 12,
-    fontWeight: '700',
     textTransform: 'capitalize',
     color: '#1a1a2e',
   },
@@ -1286,7 +1503,6 @@ const createStyles = (theme) => StyleSheet.create({
   imageTagText: {
     color: '#fff',
     fontSize: 11,
-    fontWeight: '600',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1321,7 +1537,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   actionBtnText: {
     color: '#fff',
-    fontWeight: '700',
     fontSize: 15,
   },
   emptyState: {
@@ -1340,7 +1555,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 22,
-    fontWeight: '700',
     color: theme.text,
     marginBottom: 8,
   },
@@ -1349,6 +1563,64 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  activitySection: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  activityHeader: {
+    marginBottom: 16,
+  },
+  activityTitle: {
+    fontSize: 18,
+    color: theme.text,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  activityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${theme.success}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  activityDetails: {
+    flex: 1,
+  },
+  activityText: {
+    fontSize: 14,
+    color: theme.text,
+    marginBottom: 2,
+  },
+  activitySubtext: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  activityPrice: {
+    fontSize: 15,
+    color: theme.accent,
   },
   modalOverlay: {
     flex: 1,
@@ -1390,7 +1662,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: '800',
     color: theme.text,
   },
   modalDescription: {
@@ -1450,11 +1721,9 @@ const createStyles = (theme) => StyleSheet.create({
   modalCancelText: {
     color: theme.text,
     fontSize: 16,
-    fontWeight: '700',
   },
   modalConfirmText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
   },
 });

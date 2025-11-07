@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -34,7 +35,7 @@ import LostAndFoundScreen from './LostAndFoundScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Animated Tab Icon with smooth spring animations
+// Animated Tab Icon with smooth spring animations (NO DOT INDICATOR)
 function AnimatedTabIcon({ name, color, size, focused, theme }) {
   const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
@@ -93,19 +94,96 @@ function AnimatedTabIcon({ name, color, size, focused, theme }) {
       }}
     >
       <Ionicons name={name} size={size} color={color} />
-      {focused && (
-        <Animated.View
-          style={[
-            styles.activeIndicator,
-            { backgroundColor: color, opacity: opacityAnim },
-          ]}
-        />
-      )}
     </Animated.View>
   );
 }
 
-// Custom Tab Bar Background matching ProfileScreen aesthetic
+// Breathing Add Button with continuous pulse animation
+function BreathingAddButton({ size, theme }) {
+  const breatheAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Continuous breathing animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(breatheAnim, {
+          toValue: 1.08,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(breatheAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Subtle glow pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.2, 0.5],
+  });
+
+  return (
+    <View style={styles.addButtonWrapper}>
+      {/* Outer glow ring */}
+      <Animated.View
+        style={[
+          styles.glowRing,
+          {
+            opacity: glowOpacity,
+            transform: [{ scale: breatheAnim }],
+            backgroundColor: theme.accent,
+          },
+        ]}
+      />
+      
+      {/* Main button */}
+      <Animated.View
+        style={[
+          styles.addButtonOuter,
+          {
+            backgroundColor: theme.accent,
+            transform: [{ scale: breatheAnim }],
+            ...Platform.select({
+              ios: {
+                shadowColor: theme.accent,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.4,
+                shadowRadius: 12,
+              },
+              android: {
+                elevation: 8,
+              },
+            }),
+          },
+        ]}
+      >
+        <Ionicons name="add-circle" size={size + 4} color="#fff" />
+      </Animated.View>
+    </View>
+  );
+}
+
+// Custom Tab Bar Background matching CartScreen aesthetic
 function CustomTabBarBackground({ theme, isDarkMode }) {
   return (
     <View style={styles.tabBarContainer}>
@@ -113,13 +191,34 @@ function CustomTabBarBackground({ theme, isDarkMode }) {
         <BlurView
           intensity={isDarkMode ? 90 : 80}
           tint={isDarkMode ? 'dark' : 'light'}
-          style={[styles.blurView, { backgroundColor: isDarkMode ? 'rgba(31, 29, 71, 0.85)' : 'rgba(255, 255, 255, 0.85)' }]}
+          style={[
+            styles.blurView,
+            {
+              backgroundColor: isDarkMode
+                ? 'rgba(27, 27, 65, 0.90)'
+                : 'rgba(255, 255, 255, 0.90)',
+            },
+          ]}
         />
       ) : (
-        <View style={[styles.solidBackground, { backgroundColor: theme.cardBackground }]} />
+        <View
+          style={[
+            styles.solidBackground,
+            { backgroundColor: theme.cardBackground },
+          ]}
+        />
       )}
-      {/* Subtle top border */}
-      <View style={[styles.topBorder, { backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.15)' : 'rgba(0, 0, 0, 0.08)' }]} />
+      {/* Subtle top border matching CartScreen */}
+      <View
+        style={[
+          styles.topBorder,
+          {
+            backgroundColor: isDarkMode
+              ? 'rgba(253, 173, 0, 0.12)'
+              : 'rgba(0, 0, 0, 0.06)',
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -128,6 +227,7 @@ function Tabs({ showAdmin, userStatus }) {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
 
   const handleTabPress = (e, navigation, tabName) => {
     if (userStatus === 'approved') return;
@@ -144,6 +244,9 @@ function Tabs({ showAdmin, userStatus }) {
     }
   };
 
+  // Calculate tab bar height with proper safe area
+  const tabBarHeight = Platform.OS === 'ios' ? 88 : 68;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -159,41 +262,32 @@ function Tabs({ showAdmin, userStatus }) {
           };
           const name = icons[route.name] || 'ellipse';
 
-          // Special elevated Add button
+          // Special elevated Add button with breathing animation
           if (route.name === 'Add') {
-            return (
-              <View style={styles.addButtonWrapper}>
-                <View style={[styles.addButtonOuter, { 
-                  backgroundColor: theme.accent,
-                  ...Platform.select({
-                    ios: {
-                      shadowColor: theme.accent,
-                      shadowOffset: { width: 0, height: 6 },
-                      shadowOpacity: 0.4,
-                      shadowRadius: 12,
-                    },
-                    android: {
-                      elevation: 8,
-                    },
-                  })
-                }]}>
-                  <Ionicons name={name} size={size + 4} color="#fff" />
-                </View>
-              </View>
-            );
+            return <BreathingAddButton size={size} theme={theme} />;
           }
 
-          return <AnimatedTabIcon name={name} color={color} size={size} focused={focused} theme={theme} />;
+          return (
+            <AnimatedTabIcon
+              name={name}
+              color={color}
+              size={size}
+              focused={focused}
+              theme={theme}
+            />
+          );
         },
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.textSecondary,
-        tabBarBackground: () => <CustomTabBarBackground theme={theme} isDarkMode={isDarkMode} />,
+        tabBarBackground: () => (
+          <CustomTabBarBackground theme={theme} isDarkMode={isDarkMode} />
+        ),
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 88 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          height: tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 12,
           paddingTop: 8,
           paddingHorizontal: 8,
           elevation: 0,
@@ -232,10 +326,13 @@ function Tabs({ showAdmin, userStatus }) {
             },
           }),
         },
+        // This removes any default indicator/dot
+        tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
       })}
     >
-      <Tab.Screen 
-        name="Home" 
+      <Tab.Screen
+        name="Home"
         component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
@@ -287,8 +384,8 @@ function Tabs({ showAdmin, userStatus }) {
       />
 
       {showAdmin && (
-        <Tab.Screen 
-          name="Admin" 
+        <Tab.Screen
+          name="Admin"
           component={AdminPanel}
           options={{
             tabBarLabel: 'Admin',
@@ -306,6 +403,7 @@ export default function MainTabNavigator({ route }) {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
 
   const [userStatus, setUserStatus] = useState(null);
 
@@ -338,18 +436,21 @@ export default function MainTabNavigator({ route }) {
     fetchStatus();
   }, []);
 
+  // Tab bar height to ensure proper padding
+  const tabBarHeight = Platform.OS === 'ios' ? 88 + insets.bottom : 68;
+
   return (
-    <Stack.Navigator 
-      screenOptions={{ 
+    <Stack.Navigator
+      screenOptions={{
         headerShown: false,
-        cardStyle: { 
-          backgroundColor: theme.background 
+        cardStyle: {
+          backgroundColor: theme.background,
         },
         presentation: 'card',
         animationEnabled: true,
         gestureEnabled: true,
         gestureDirection: 'horizontal',
-        // Smooth horizontal slide matching ProfileScreen transitions
+        // Smooth horizontal slide matching CartScreen transitions
         cardStyleInterpolator: ({ current, next, layouts }) => {
           return {
             cardStyle: {
@@ -382,16 +483,23 @@ export default function MainTabNavigator({ route }) {
             },
           };
         },
+        // Ensure content doesn't get cut off by tab bar
+        contentStyle: {
+          paddingBottom: 0,
+        },
       }}
     >
       <Stack.Screen
         name="Tabs"
-        children={() => (
-          <Tabs showAdmin={showAdmin} userStatus={userStatus} />
-        )}
+        children={() => <Tabs showAdmin={showAdmin} userStatus={userStatus} />}
+        options={{
+          contentStyle: {
+            paddingBottom: 0,
+          },
+        }}
       />
-      <Stack.Screen 
-        name="Notifications" 
+      <Stack.Screen
+        name="Notifications"
         component={require('./NotificationScreen').default}
         options={{
           presentation: 'modal',
@@ -423,24 +531,15 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen 
-        name="Messaging" 
-        component={MessagingScreen}
-      />
-      <Stack.Screen
-        name="LostAndFound"
-        component={LostAndFoundScreen}
-      />
-      <Stack.Screen
-        name="AddLostItem"
-        component={AddLostItemScreen}
-      />
+      <Stack.Screen name="Messaging" component={MessagingScreen} />
+      <Stack.Screen name="LostAndFound" component={LostAndFoundScreen} />
+      <Stack.Screen name="AddLostItem" component={AddLostItemScreen} />
       <Stack.Screen
         name="LostAndFoundDetails"
         component={LostAndFoundDetailsScreen}
       />
-      <Stack.Screen 
-        name="ReportScreen" 
+      <Stack.Screen
+        name="ReportScreen"
         component={ReportScreen}
         options={{
           presentation: 'modal',
@@ -466,24 +565,18 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen 
-        name="Rental" 
-        component={RentalScreen}
-      />
-      <Stack.Screen 
-        name="RentItemScreen" 
-        component={RentItemScreen}
-      />
-      <Stack.Screen 
-        name="ProductDetails" 
+      <Stack.Screen name="Rental" component={RentalScreen} />
+      <Stack.Screen name="RentItemScreen" component={RentItemScreen} />
+      <Stack.Screen
+        name="ProductDetails"
         component={require('./ProductDetailsScreen').default}
       />
-      <Stack.Screen 
-        name="RentalDetails" 
+      <Stack.Screen
+        name="RentalDetails"
         component={require('./RentalDetailsScreen').default}
       />
-      <Stack.Screen 
-        name="GetVerified" 
+      <Stack.Screen
+        name="GetVerified"
         component={GetVerifiedScreen}
         options={{
           presentation: 'modal',
@@ -519,24 +612,15 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen 
-        name="VerificationStatus" 
+      <Stack.Screen
+        name="VerificationStatus"
         component={VerificationStatusScreen}
       />
-      <Stack.Screen 
-        name="UserProfile" 
-        component={ProfileScreen}
-      />
+      <Stack.Screen name="UserProfile" component={ProfileScreen} />
+      <Stack.Screen name="AddProductScreen" component={AddProductScreen} />
+      <Stack.Screen name="ProductScreen" component={ProductScreen} />
       <Stack.Screen
-        name="AddProductScreen"
-        component={AddProductScreen}
-      />
-      <Stack.Screen
-        name="ProductScreen"
-        component={ProductScreen}
-      />
-      <Stack.Screen 
-        name="NotVerified" 
+        name="NotVerified"
         component={NotVerifiedScreen}
         options={{
           presentation: 'modal',
@@ -562,14 +646,8 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen 
-        name="CheckoutScreen" 
-        component={CheckoutScreen}
-      />
-      <Stack.Screen
-        name="ProfileScreen"
-        component={ProfileScreen}
-      />
+      <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }
@@ -583,18 +661,18 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   blurView: {
     flex: 1,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   solidBackground: {
     flex: 1,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     ...Platform.select({
       android: {
         elevation: 12,
@@ -610,20 +688,19 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 
-  // Active Indicator
-  activeIndicator: {
-    position: 'absolute',
-    bottom: -6,
-    left: '50%',
-    marginLeft: -2,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-  },
-
-  // Add Button
+  // Add Button with Breathing Effect
   addButtonWrapper: {
     marginTop: -8,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  glowRing: {
+    position: 'absolute',
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    opacity: 0.3,
   },
   addButtonOuter: {
     width: 52,
@@ -632,6 +709,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
 });
