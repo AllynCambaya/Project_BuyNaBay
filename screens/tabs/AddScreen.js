@@ -134,7 +134,7 @@ export default function AddScreen() {
             <Animated.View style={{ transform: [{ scale: scaleRental }] }}>
               <TouchableOpacity
                 style={styles.optionCard}
-                onPress={() => navigation.navigate('RentItemScreen')}
+                onPress={() => navigation.navigate('AddRentalScreen')}
                 onPressIn={() => handlePressIn(scaleRental)}
                 onPressOut={() => handlePressOut(scaleRental)}
                 activeOpacity={1}

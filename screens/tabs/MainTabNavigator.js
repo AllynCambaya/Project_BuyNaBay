@@ -12,6 +12,7 @@ import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily, fontSizes } from '../../theme/typography';
 
 import AddProductScreen from './AddProductScreen';
+import AddRentalScreen from './AddRentalScreen';
 import AddScreen from './AddScreen';
 import AdminPanel from './AdminPanel';
 import CartScreen from './CartScreen';
@@ -24,7 +25,6 @@ import NotVerifiedScreen from './NotVerifiedScreen';
 import ProductScreen from './ProductScreen';
 import ProfileScreen from './ProfileScreen';
 import RentalScreen from './RentalScreen';
-import RentItemScreen from './RentItemScreen';
 import ReportScreen from './ReportScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
 
@@ -566,7 +566,7 @@ export default function MainTabNavigator({ route }) {
         }}
       />
       <Stack.Screen name="Rental" component={RentalScreen} />
-      <Stack.Screen name="RentItemScreen" component={RentItemScreen} />
+      <Stack.Screen name="AddRentalScreen" component={AddRentalScreen} />
       <Stack.Screen
         name="ProductDetails"
         component={require('./ProductDetailsScreen').default}

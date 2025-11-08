@@ -1,4 +1,4 @@
-// screens/AddProductScreen.js
+// screens/AddRentalScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -19,13 +19,13 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-// Typography system (matching AddRentalScreen.js)
+// Typography system (matching HomeScreen.js)
 const fontFamily = {
   regular: Platform.select({ ios: 'Poppins-Regular', android: 'Poppins-Regular', default: 'System' }),
   medium: Platform.select({ ios: 'Poppins-Medium', android: 'Poppins-Medium', default: 'System' }),
@@ -34,30 +34,21 @@ const fontFamily = {
   extraBold: Platform.select({ ios: 'Poppins-ExtraBold', android: 'Poppins-ExtraBold', default: 'System' }),
 };
 
-const categories = [
-  { label: 'Electronics', value: 'Electronics', icon: 'phone-portrait' },
-  { label: 'Books', value: 'Books', icon: 'book' },
-  { label: 'Clothes', value: 'Clothes', icon: 'shirt' },
-  { label: 'Food', value: 'Food', icon: 'fast-food' },
-  { label: 'Beauty & Personal Care', value: 'Beauty and Personal Care', icon: 'sparkles' },
-  { label: 'Toys & Games', value: 'Toys and Games', icon: 'game-controller' },
-  { label: 'Automotive', value: 'Automotive', icon: 'car' },
-  { label: 'Sports', value: 'Sports', icon: 'football' },
-  { label: 'Others', value: 'Others', icon: 'ellipsis-horizontal' },
-];
+const DURATION_OPTIONS = ['per hour', 'per day', 'per week', 'per month'];
+const CATEGORY_OPTIONS = ['Electronics', 'Tools', 'Party & Events', 'Sports & Outdoors', 'Apparel', 'Vehicles', 'Other'];
+const CONDITION_OPTIONS = ['new', 'used'];
 
-export default function AddProductScreen({ navigation }) {
-  const [productName, setProductName] = useState('');
-  const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('Electronics');
-  const [condition, setCondition] = useState('Brand New');
-  const [conditionOptions, setConditionOptions] = useState(['Brand New', 'Preloved']);
+export default function AddRentalScreen({ navigation }) {
   const [images, setImages] = useState([]);
+  const [itemName, setItemName] = useState('');
+  const [price, setPrice] = useState('');
+  const [rentalDuration, setRentalDuration] = useState(DURATION_OPTIONS[0]);
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
+  const [condition, setCondition] = useState(CONDITION_OPTIONS[0]);
+  const [quantity, setQuantity] = useState('1');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -81,27 +72,6 @@ export default function AddProductScreen({ navigation }) {
       }),
     ]).start();
   }, []);
-
-  // Dynamic condition handling based on category
-  useEffect(() => {
-    switch (category) {
-      case 'Food':
-        setConditionOptions(['Fresh', 'Packaged']);
-        setCondition('Fresh');
-        break;
-      case 'Clothes':
-        setConditionOptions(['Brand New', 'Preloved']);
-        setCondition('Brand New');
-        break;
-      case 'Books':
-        setConditionOptions(['New', 'Used']);
-        setCondition('New');
-        break;
-      default:
-        setConditionOptions(['Brand New', 'Preloved']);
-        setCondition('Brand New');
-    }
-  }, [category]);
 
   const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -127,12 +97,11 @@ export default function AddProductScreen({ navigation }) {
     setImages(images.filter((_, i) => i !== index));
   };
 
-  const handleAddProduct = async () => {
-    if (!productName || !description || !quantity || !price || !category || !condition) {
-      Alert.alert("Missing Info", "Please fill out all required fields.");
-      return;
+  const submit = async () => {
+    if (!itemName.trim() || !price.trim()) {
+      return Alert.alert('Missing Information', 'Please enter item name and rental price');
     }
-
+    
     Keyboard.dismiss();
     setUploading(true);
     
@@ -151,24 +120,20 @@ export default function AddProductScreen({ navigation }) {
       clearInterval(progressInterval);
       setUploading(false);
       setUploadProgress(0);
-      Alert.alert("Success", "Product published successfully! 🎉", [
-        { text: "OK", onPress: () => navigation.goBack() }
+      Alert.alert('Success', 'Your rental item has been published! 🎉', [
+        { text: 'OK', onPress: () => navigation.goBack() }
       ]);
       
       // Reset form
-      setProductName('');
+      setItemName('');
       setDescription('');
       setQuantity('1');
       setPrice('');
-      setCategory('Electronics');
-      setCondition('Brand New');
+      setRentalDuration(DURATION_OPTIONS[0]);
+      setCategory(CATEGORY_OPTIONS[0]);
+      setCondition(CONDITION_OPTIONS[0]);
       setImages([]);
     }, 2500);
-  };
-
-  const increaseQuantity = () => setQuantity(String(parseInt(quantity || '0', 10) + 1));
-  const decreaseQuantity = () => { 
-    if (parseInt(quantity) > 1) setQuantity(String(parseInt(quantity) - 1)); 
   };
 
   const formatPrice = (value) => {
@@ -184,29 +149,36 @@ export default function AddProductScreen({ navigation }) {
     setPrice(formatPrice(value));
   };
 
-  const getConditionSubtext = (condition, selectedCategory) => {
-    if (selectedCategory === 'Food') {home
-      if (condition === 'Fresh') return 'Organic/Homemade';
-      if (condition === 'Packaged') return 'Sealed & unopened';
-    }
-    if (condition === 'New' || condition === 'Brand New') return 'Unused item';
-    if (condition === 'Used') return 'Previously owned';
-    if (condition === 'Preloved') return 'Gently used';
-    return 'Good condition';
+  const increaseQuantity = () => setQuantity(String(parseInt(quantity || '0', 10) + 1));
+  const decreaseQuantity = () => { 
+    if (parseInt(quantity) > 1) setQuantity(String(parseInt(quantity) - 1)); 
   };
 
-  const getCategoryIcon = (categoryValue) => {
-    const cat = categories.find(c => c.value === categoryValue);
-    return cat?.icon || 'pricetag';
+  const getCategoryIcon = (cat) => {
+    const icons = {
+      'Electronics': 'mobile',
+      'Tools': 'wrench',
+      'Party & Events': 'glass',
+      'Sports & Outdoors': 'futbol-o',
+      'Apparel': 'shopping-bag',
+      'Vehicles': 'car',
+      'Other': 'ellipsis-h',
+    };
+    return icons[cat] || 'tag';
   };
 
-  const getConditionIcon = (cond) => {
-    if (cond.includes('New') || cond === 'Fresh') return 'sparkles';
-    if (cond === 'Packaged') return 'cube';
-    return 'heart';
+  const getDurationIcon = (dur) => {
+    const icons = {
+      'per hour': 'clock-o',
+      'per day': 'sun-o',
+      'per week': 'calendar',
+      'per month': 'calendar-o',
+    };
+    return icons[dur] || 'clock-o';
   };
 
-  const CategorySelector = () => {
+  const Selector = ({ label, value, options, onSelect, getOptionIcon }) => {
+    const [open, setOpen] = useState(false);
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     const handlePress = () => {
@@ -214,54 +186,52 @@ export default function AddProductScreen({ navigation }) {
         Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
         Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
       ]).start();
-      setShowCategoryModal(true);
+      setOpen(true);
     };
 
     return (
       <View style={styles.selectorContainer}>
         <Text style={styles.label}>
-          Category <Text style={styles.requiredStar}>*</Text>
+          {label} <Text style={styles.requiredStar}>*</Text>
         </Text>
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <TouchableOpacity style={styles.selector} onPress={handlePress} activeOpacity={0.7}>
             <View style={styles.selectorContent}>
               <View style={styles.selectorIconCircle}>
-                <Ionicons name={getCategoryIcon(category)} size={16} color={theme.accent} />
+                <Icon name={getOptionIcon ? getOptionIcon(value) : 'chevron-down'} size={16} color={theme.accent} />
               </View>
-              <Text style={styles.selectorText}>
-                {categories.find(c => c.value === category)?.label || category}
-              </Text>
+              <Text style={styles.selectorText}>{value}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         </Animated.View>
         
-        <Modal visible={showCategoryModal} transparent animationType="fade">
-          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCategoryModal(false)}>
+        <Modal visible={open} transparent animationType="fade">
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
             <View style={styles.modalBox}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Category</Text>
-                <TouchableOpacity onPress={() => setShowCategoryModal(false)} style={styles.modalCloseButton}>
+                <Text style={styles.modalTitle}>Select {label}</Text>
+                <TouchableOpacity onPress={() => setOpen(false)} style={styles.modalCloseButton}>
                   <Ionicons name="close-circle" size={28} color={theme.textSecondary} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.optionsScroll}>
-                {categories.map((cat) => (
+                {options.map((opt) => (
                   <TouchableOpacity 
-                    key={cat.value} 
-                    onPress={() => { setCategory(cat.value); setShowCategoryModal(false); }} 
-                    style={[styles.option, category === cat.value && styles.optionSelected]}
+                    key={opt} 
+                    onPress={() => { onSelect(opt); setOpen(false); }} 
+                    style={[styles.option, value === opt && styles.optionSelected]}
                     activeOpacity={0.7}
                   >
                     <View style={styles.optionContent}>
-                      <View style={[styles.optionIconCircle, category === cat.value && styles.optionIconCircleSelected]}>
-                        <Ionicons name={cat.icon} size={16} color={category === cat.value ? '#fff' : theme.accent} />
-                      </View>
-                      <Text style={[styles.optionText, category === cat.value && styles.optionTextSelected]}>
-                        {cat.label}
-                      </Text>
+                      {getOptionIcon && (
+                        <View style={[styles.optionIconCircle, value === opt && styles.optionIconCircleSelected]}>
+                          <Icon name={getOptionIcon(opt)} size={16} color={value === opt ? '#fff' : theme.accent} />
+                        </View>
+                      )}
+                      <Text style={[styles.optionText, value === opt && styles.optionTextSelected]}>{opt}</Text>
                     </View>
-                    {category === cat.value && <Icon name="check-circle" size={20} color={theme.accent} />}
+                    {value === opt && <Icon name="check-circle" size={20} color={theme.accent} />}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -291,11 +261,11 @@ export default function AddProductScreen({ navigation }) {
               
               <View style={styles.headerTitleRow}>
                 <View style={styles.iconCircle}>
-                  <Ionicons name="pricetag" size={22} color="#fff" />
+                  <Icon name="handshake-o" size={22} color="#fff" />
                 </View>
                 <View style={styles.headerTitles}>
-                  <Text style={styles.headerTitle}>Add Product</Text>
-                  <Text style={styles.headerSubtitle}>List your item to the marketplace</Text>
+                  <Text style={styles.headerTitle}>List Rental Item</Text>
+                  <Text style={styles.headerSubtitle}>Share your items and earn extra income</Text>
                 </View>
               </View>
             </View>
@@ -315,7 +285,7 @@ export default function AddProductScreen({ navigation }) {
                   <View style={styles.sectionIconWrapper}>
                     <Icon name="camera" size={18} color={theme.accent} />
                   </View>
-                  <Text style={styles.sectionTitle}>Product Photos</Text>
+                  <Text style={styles.sectionTitle}>Item Photos</Text>
                   <View style={styles.sectionBadge}>
                     <Text style={styles.sectionBadgeText}>{images.length > 0 ? `${images.length}` : 'Optional'}</Text>
                   </View>
@@ -351,9 +321,9 @@ export default function AddProductScreen({ navigation }) {
                       <View style={styles.cameraIconContainer}>
                         <Icon name="camera" size={36} color={theme.accent} />
                       </View>
-                      <Text style={styles.imagePlaceholderText}>Add Product Photos</Text>
+                      <Text style={styles.imagePlaceholderText}>Add Item Photos</Text>
                       <Text style={styles.imagePlaceholderSubtext}>
-                        Upload up to 10 images to showcase your product
+                        Upload up to 10 images to showcase your rental item
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -370,42 +340,24 @@ export default function AddProductScreen({ navigation }) {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Product Name <Text style={styles.requiredStar}>*</Text></Text>
-                  <View style={[styles.inputWrapper, productName && styles.inputWrapperFocused]}>
+                  <Text style={styles.label}>Item Name <Text style={styles.requiredStar}>*</Text></Text>
+                  <View style={[styles.inputWrapper, itemName && styles.inputWrapperFocused]}>
                     <Icon name="tag" size={16} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput 
                       style={styles.input} 
-                      value={productName} 
-                      onChangeText={setProductName} 
-                      placeholder="e.g. iPhone 13 Pro Max 256GB"
+                      value={itemName} 
+                      onChangeText={setItemName} 
+                      placeholder="e.g. DSLR Camera, Power Drill"
                       placeholderTextColor={theme.textSecondary}
                       maxLength={100}
                     />
                   </View>
-                  {productName && <Text style={styles.characterCount}>{productName.length}/100</Text>}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Description <Text style={styles.requiredStar}>*</Text></Text>
-                  <View style={[styles.inputWrapper, styles.textAreaWrapper, description && styles.inputWrapperFocused]}>
-                    <TextInput 
-                      style={styles.textArea} 
-                      value={description} 
-                      onChangeText={setDescription} 
-                      multiline 
-                      numberOfLines={6}
-                      placeholder="Describe condition, features, and any defects..."
-                      placeholderTextColor={theme.textSecondary}
-                      textAlignVertical="top"
-                      maxLength={500}
-                    />
-                  </View>
-                  {description && <Text style={styles.characterCount}>{description.length}/500</Text>}
+                  {itemName && <Text style={styles.characterCount}>{itemName.length}/100</Text>}
                 </View>
 
                 <View style={styles.rowGroup}>
                   <View style={[styles.inputGroup, styles.halfWidth]}>
-                    <Text style={styles.label}>Price (₱) <Text style={styles.requiredStar}>*</Text></Text>
+                    <Text style={styles.label}>Rental Price (₱) <Text style={styles.requiredStar}>*</Text></Text>
                     <View style={[styles.inputWrapper, price && styles.inputWrapperFocused]}>
                       <Icon name="money" size={16} color={theme.textSecondary} style={styles.inputIcon} />
                       <TextInput 
@@ -420,18 +372,20 @@ export default function AddProductScreen({ navigation }) {
                   </View>
 
                   <View style={[styles.inputGroup, styles.halfWidth]}>
-                    <Text style={styles.label}>Stock <Text style={styles.requiredStar}>*</Text></Text>
+                    <Text style={styles.label}>Quantity <Text style={styles.requiredStar}>*</Text></Text>
                     <View style={styles.quantityContainer}>
                       <TouchableOpacity onPress={decreaseQuantity} style={[styles.quantityButton, parseInt(quantity) <= 1 && styles.quantityButtonDisabled]} disabled={parseInt(quantity) <= 1}>
                         <Icon name="minus" size={14} color={parseInt(quantity) <= 1 ? theme.textSecondary : theme.text} />
                       </TouchableOpacity>
-                      <TextInput value={quantity} onChangeText={(val) => /^\d*$/.test(val) && setQuantity(val)} keyboardType="numeric" style={styles.quantityInput} textAlign="center" maxLength={4} />
+                      <TextInput value={quantity} onChangeText={(val) => /^\d*$/.test(val) && setQuantity(val)} keyboardType="numeric" style={styles.quantityInput} textAlign="center" maxLength={3} />
                       <TouchableOpacity onPress={increaseQuantity} style={styles.quantityButton}>
                         <Icon name="plus" size={14} color={theme.text} />
                       </TouchableOpacity>
                     </View>
                   </View>
                 </View>
+
+                <Selector label="Rental Duration" value={rentalDuration} options={DURATION_OPTIONS} onSelect={setRentalDuration} getOptionIcon={getDurationIcon} />
               </View>
 
               {/* Item Details Card */}
@@ -443,34 +397,59 @@ export default function AddProductScreen({ navigation }) {
                   <Text style={styles.sectionTitle}>Item Details</Text>
                 </View>
 
-                <CategorySelector />
+                <Selector label="Category" value={category} options={CATEGORY_OPTIONS} onSelect={setCategory} getOptionIcon={getCategoryIcon} />
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Condition <Text style={styles.requiredStar}>*</Text></Text>
                   <View style={styles.conditionContainer}>
-                    {conditionOptions.map((option) => (
+                    {CONDITION_OPTIONS.map((cond) => (
                       <TouchableOpacity
-                        key={option}
-                        onPress={() => setCondition(option)}
-                        style={[styles.conditionButton, condition === option && styles.conditionButtonActive]}
+                        key={cond}
+                        onPress={() => setCondition(cond)}
+                        style={[styles.conditionButton, condition === cond && styles.conditionButtonActive]}
                         activeOpacity={0.7}
                       >
-                        <View style={[styles.conditionIconCircle, condition === option && styles.conditionIconCircleActive]}>
-                          <Ionicons name={getConditionIcon(option)} size={16} color={condition === option ? '#fff' : theme.accent} />
+                        <View style={[styles.conditionIconCircle, condition === cond && styles.conditionIconCircleActive]}>
+                          <Icon name={cond === 'new' ? 'star' : 'history'} size={16} color={condition === cond ? '#fff' : theme.accent} />
                         </View>
                         <View style={styles.conditionTextContainer}>
-                          <Text style={[styles.conditionText, condition === option && styles.conditionTextActive]}>
-                            {option}
+                          <Text style={[styles.conditionText, condition === cond && styles.conditionTextActive]}>
+                            {cond === 'new' ? 'Brand New' : 'Used'}
                           </Text>
-                          <Text style={[styles.conditionSubtext, condition === option && styles.conditionSubtextActive]}>
-                            {getConditionSubtext(option, category)}
+                          <Text style={[styles.conditionSubtext, condition === cond && styles.conditionSubtextActive]}>
+                            {cond === 'new' ? 'Unused condition' : 'Pre-owned item'}
                           </Text>
                         </View>
-                        {condition === option && <Icon name="check-circle" size={20} color="#fff" />}
+                        {condition === cond && <Icon name="check-circle" size={20} color="#fff" />}
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
+              </View>
+
+              {/* Description Card */}
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionIconWrapper}>
+                    <Icon name="align-left" size={18} color={theme.accent} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Description</Text>
+                </View>
+
+                <View style={[styles.inputWrapper, styles.textAreaWrapper, description && styles.inputWrapperFocused]}>
+                  <TextInput 
+                    style={styles.textArea} 
+                    value={description} 
+                    onChangeText={setDescription} 
+                    multiline 
+                    numberOfLines={6}
+                    placeholder="Describe your item, rental terms, and any special instructions..."
+                    placeholderTextColor={theme.textSecondary}
+                    textAlignVertical="top"
+                    maxLength={500}
+                  />
+                </View>
+                {description && <Text style={styles.characterCount}>{description.length}/500</Text>}
               </View>
 
               {/* Upload Progress */}
@@ -478,7 +457,7 @@ export default function AddProductScreen({ navigation }) {
                 <View style={styles.progressContainer}>
                   <View style={styles.progressHeader}>
                     <Ionicons name="cloud-upload" size={20} color={theme.accent} />
-                    <Text style={styles.progressTitle}>Publishing Your Product</Text>
+                    <Text style={styles.progressTitle}>Publishing Your Rental</Text>
                   </View>
                   <View style={styles.progressBar}>
                     <Animated.View style={[styles.progressFill, { width: `${uploadProgress}%` }]} />
@@ -495,7 +474,7 @@ export default function AddProductScreen({ navigation }) {
                   <Icon name="lightbulb-o" size={20} color={theme.accent} />
                 </View>
                 <Text style={styles.infoBannerText}>
-                  Be honest and detailed to build trust with buyers!
+                  Clear photos and detailed descriptions attract more renters!
                 </Text>
               </View>
             </Animated.View>
@@ -503,7 +482,7 @@ export default function AddProductScreen({ navigation }) {
 
           {/* Fixed Bottom Button */}
           <View style={styles.bottomContainer}>
-            <TouchableOpacity style={[styles.publishButton, uploading && styles.publishButtonDisabled]} onPress={handleAddProduct} disabled={uploading} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.publishButton, uploading && styles.publishButtonDisabled]} onPress={submit} disabled={uploading} activeOpacity={0.85}>
               {uploading ? (
                 <View style={styles.buttonContent}>
                   <ActivityIndicator color="#fff" size="small" />
@@ -512,7 +491,7 @@ export default function AddProductScreen({ navigation }) {
               ) : (
                 <View style={styles.buttonContent}>
                   <Icon name="rocket" size={20} color="#fff" />
-                  <Text style={styles.publishButtonText}>Publish Product</Text>
+                  <Text style={styles.publishButtonText}>Publish Rental Item</Text>
                   <Icon name="arrow-right" size={16} color="#fff" />
                 </View>
               )}

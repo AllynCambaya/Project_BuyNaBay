@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +17,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FontAwesome as Icon } from '@expo/vector-icons';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
