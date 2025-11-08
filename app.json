@@ -8,19 +8,25 @@
     "scheme": "buynabay",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
-      "assets/fonts/*"
+      "assets/fonts/*",
+      "assets/images/*"
     ],
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/BuyNaBay4.png",
-        "backgroundColor": "#ffffff"
-      },
       "edgeToEdgeEnabled": true,
-      "package": "com.joevel_berana.BuyNaBay"
+      "package": "com.joevel_berana.BuyNaBay",
+      "permissions": [
+        "VIBRATE",
+        "NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",

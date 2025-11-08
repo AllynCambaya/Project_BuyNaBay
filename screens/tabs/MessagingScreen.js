@@ -271,60 +271,117 @@ export default function MessagingScreen({ route }) {
   };
 
   // --- Send message ---
-  const sendMessage = async () => {
-    if ((!input.trim() && images.length === 0) || !user) return;
+const sendMessage = async () => {
+  if ((!input.trim() && images.length === 0) || !user) return;
 
-    let imageUrls = [];
-    if (images.length > 0) {
-      imageUrls = await uploadImagesToSupabase(images);
-    }
+  let imageUrls = [];
+  if (images.length > 0) {
+    imageUrls = await uploadImagesToSupabase(images);
+  }
 
-    const { error } = await supabase.from('messages').insert([
-      {
+  const messageText = input.trim() || null;
+  const hasImages = imageUrls.length > 0;
+
+  // Insert the message
+  const { error } = await supabase.from('messages').insert([
+    {
+      sender_id: user.email,
+      receiver_id: receiverId,
+      text: messageText,
+      product_context: null,
+      messages_image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
+      reply_to: replyTo ? replyTo.id : null,
+    },
+  ]);
+
+  if (!error) {
+    setInput('');
+    setImages([]);
+    setReplyTo(null);
+
+    // 🆕 SEND NOTIFICATION TO RECEIVER
+    try {
+      const { data: senderData } = await supabase
+        .from('users')
+        .select('name')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      const senderName = senderData?.name || user.email;
+
+      let notificationMessage = '';
+      if (hasImages && !messageText) {
+        notificationMessage = `${senderName} sent you a photo`;
+      } else if (hasImages && messageText) {
+        notificationMessage = `${senderName} sent you a photo: ${messageText.substring(0, 50)}${messageText.length > 50 ? '...' : ''}`;
+      } else if (messageText) {
+        notificationMessage = `${senderName}: ${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}`;
+      }
+
+      await supabase.from('notifications').insert({
         sender_id: user.email,
         receiver_id: receiverId,
-        text: input.trim() || null,
-        product_context: null, // Ensure normal messages don't have product context
-        messages_image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
-        reply_to: replyTo ? replyTo.id : null,
-      },
-    ]);
-
-    if (!error) {
-      setInput('');
-      setImages([]);
-      setReplyTo(null);
-    } else {
-      console.error('Send message error:', error.message);
+        title: 'New Message',
+        message: notificationMessage,
+        created_at: new Date().toISOString(),
+      });
+    } catch (notifError) {
+      console.error('Error sending notification:', notifError);
     }
-  };
+  } else {
+    console.error('Send message error:', error.message);
+  }
+};
 
-  const onProductCheckout = async (product) => {
-    Alert.alert(
-      "Confirm Checkout",
-      `Do you want to buy "${product.product_name}" for ₱${product.price}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Checkout",
-          onPress: async () => {
-            const success = await handleDirectCheckout(product, user, buyerName);
-            if (success) {
-              Alert.alert("Success!", "Your order has been placed.");
-              // Optionally send a confirmation message in chat
-              await supabase.from('messages').insert({
-                sender_id: user.email,
-                receiver_id: receiverId,
-                text: `I have successfully purchased "${product.product_name}".`,
-              });
+ const onProductCheckout = async (product) => {
+  Alert.alert(
+    "Confirm Checkout",
+    `Do you want to buy "${product.product_name}" for ₱${product.price}?`,
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Checkout",
+        onPress: async () => {
+          const success = await handleDirectCheckout(product, user, buyerName);
+          if (success) {
+            Alert.alert("Success!", "Your order has been placed.");
+            
+            // Send confirmation message
+            const confirmationText = `I have successfully purchased "${product.product_name}".`;
+            await supabase.from('messages').insert({
+              sender_id: user.email,
+              receiver_id: receiverId,
+              text: confirmationText,
+            });
+
+            // Send notification to seller
+            try {
+              const { data: buyerData } = await supabase
+                .from('users')
+                .select('name')
+                .eq('email', user.email)
+                .maybeSingle();
+
+              const buyerName = buyerData?.name || user.email;
+
+              await supabase
+                .from('notifications')
+                .insert({
+                  sender_id: user.email,
+                  receiver_id: receiverId,
+                  title: 'Product Sold',
+                  message: `${buyerName} purchased "${product.product_name}" for ₱${product.price}`,
+                  created_at: new Date().toISOString(),
+                });
+            } catch (notifError) {
+              console.error('Error sending purchase notification:', notifError);
             }
-            // handleDirectCheckout already shows an alert on failure
-          },
+          }
         },
-      ]
-    );
-  };
-
+      },
+    ]
+  );
+};
   // Format message time
   const formatMessageTime = (timestamp) => {
     const date = new Date(timestamp);

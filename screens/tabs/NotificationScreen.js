@@ -3,10 +3,12 @@ import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   FlatList,
   Image,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -18,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
 import { darkTheme, lightTheme } from '../../theme/theme';
+import { fontFamily } from '../../theme/typography';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,6 +29,7 @@ export default function NotificationsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [unreadCount, setUnreadCount] = useState(0);
   const user = auth.currentUser;
 
   const systemColorScheme = useColorScheme();
@@ -33,8 +37,8 @@ export default function NotificationsScreen({ navigation }) {
   const theme = isDarkMode ? darkTheme : lightTheme;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const headerAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const headerAnim = useRef(new Animated.Value(-50)).current;
 
   const fetchNotifications = async (isRefreshing = false) => {
     if (!user?.email) {
@@ -59,6 +63,10 @@ export default function NotificationsScreen({ navigation }) {
     }
 
     const notificationsData = data || [];
+    
+    // Group notifications by sender
+    const grouped = groupNotifications(notificationsData);
+    
     const uniqueSenders = Array.from(new Set(notificationsData.map(n => n.sender_id).filter(Boolean)));
 
     let senderMap = {};
@@ -78,33 +86,85 @@ export default function NotificationsScreen({ navigation }) {
       }
     }
 
-    const annotated = notificationsData.map(n => ({
+    const annotated = grouped.map(n => ({
       ...n,
       sender_name: senderMap[n.sender_id] || null,
     }));
 
     setNotifications(annotated);
+    
+    // Calculate unread count
+    const unread = annotated.filter(n => !n.is_read).length;
+    setUnreadCount(unread);
+    
     setLoading(false);
     setRefreshing(false);
 
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 500,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
-        tension: 40,
+        tension: 50,
         friction: 8,
         useNativeDriver: true,
       }),
       Animated.timing(headerAnim, {
-        toValue: 1,
-        duration: 600,
+        toValue: 0,
+        duration: 700,
         useNativeDriver: true,
       }),
     ]).start();
+  };
+
+  // Group notifications from the same sender
+  const groupNotifications = (notifs) => {
+    const grouped = [];
+    const messageGroups = {};
+
+    notifs.forEach(notif => {
+      if (notif.title.includes('Message') && notif.sender_id) {
+        if (!messageGroups[notif.sender_id]) {
+          messageGroups[notif.sender_id] = {
+            ...notif,
+            grouped_count: 1,
+            grouped_ids: [notif.id],
+            latest_created_at: notif.created_at,
+            is_read: notif.is_read,
+          };
+        } else {
+          messageGroups[notif.sender_id].grouped_count++;
+          messageGroups[notif.sender_id].grouped_ids.push(notif.id);
+          
+          // Update to latest message
+          if (new Date(notif.created_at) > new Date(messageGroups[notif.sender_id].latest_created_at)) {
+            messageGroups[notif.sender_id].message = notif.message;
+            messageGroups[notif.sender_id].latest_created_at = notif.created_at;
+            messageGroups[notif.sender_id].created_at = notif.created_at;
+          }
+          
+          // If any message in group is unread, mark group as unread
+          if (!notif.is_read) {
+            messageGroups[notif.sender_id].is_read = false;
+          }
+        }
+      } else {
+        grouped.push(notif);
+      }
+    });
+
+    // Add grouped messages
+    Object.values(messageGroups).forEach(group => {
+      grouped.push(group);
+    });
+
+    // Sort by created_at
+    return grouped.sort((a, b) => 
+      new Date(b.created_at) - new Date(a.created_at)
+    );
   };
 
   useEffect(() => {
@@ -122,9 +182,34 @@ export default function NotificationsScreen({ navigation }) {
           table: "notifications",
           filter: `receiver_id=eq.${user.email}`,
         },
-        (payload) => {
+        async (payload) => {
           console.log("New notification received:", payload.new);
-          setNotifications((prev) => [payload.new, ...prev]);
+          
+          // Fetch sender name for the new notification
+          if (payload.new.sender_id) {
+            const { data: senderData } = await supabase
+              .from('users')
+              .select('name')
+              .eq('email', payload.new.sender_id)
+              .maybeSingle();
+            
+            const annotatedNotification = {
+              ...payload.new,
+              sender_name: senderData?.name || null,
+            };
+            
+            setNotifications((prev) => {
+              const newList = [annotatedNotification, ...prev];
+              return groupNotifications(newList);
+            });
+            
+            setUnreadCount(prev => prev + 1);
+          } else {
+            setNotifications((prev) => {
+              const newList = [payload.new, ...prev];
+              return groupNotifications(newList);
+            });
+          }
         }
       )
       .subscribe();
@@ -159,21 +244,130 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
+  const markAsRead = async (notification) => {
+    if (notification.is_read) return;
+
+    const idsToUpdate = notification.grouped_ids || [notification.id];
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .in('id', idsToUpdate);
+
+    if (!error) {
+      setNotifications(prev =>
+        prev.map(n =>
+          n.id === notification.id || idsToUpdate.includes(n.id)
+            ? { ...n, is_read: true }
+            : n
+        )
+      );
+      
+      const newUnreadCount = Math.max(0, unreadCount - idsToUpdate.length);
+      setUnreadCount(newUnreadCount);
+    }
+  };
+
+  const deleteNotification = async (notification) => {
+    Alert.alert(
+      'Delete Notification',
+      notification.grouped_count > 1 
+        ? `Delete all ${notification.grouped_count} messages from this conversation?`
+        : 'Delete this notification?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const idsToDelete = notification.grouped_ids || [notification.id];
+            
+            const { error } = await supabase
+              .from('notifications')
+              .delete()
+              .in('id', idsToDelete);
+
+            if (!error) {
+              setNotifications(prev =>
+                prev.filter(n => !idsToDelete.includes(n.id))
+              );
+              
+              if (!notification.is_read) {
+                const newUnreadCount = Math.max(0, unreadCount - idsToDelete.length);
+                setUnreadCount(newUnreadCount);
+              }
+            } else {
+              Alert.alert('Error', 'Failed to delete notification');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const markAllAsRead = async () => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('receiver_id', user.email)
+      .eq('is_read', false);
+
+    if (!error) {
+      setNotifications(prev =>
+        prev.map(n => ({ ...n, is_read: true }))
+      );
+      setUnreadCount(0);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    Alert.alert(
+      'Clear All Notifications',
+      'Are you sure you want to delete all notifications?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('notifications')
+              .delete()
+              .eq('receiver_id', user.email);
+
+            if (!error) {
+              setNotifications([]);
+              setUnreadCount(0);
+            } else {
+              Alert.alert('Error', 'Failed to clear notifications');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleNotificationPress = async (notification) => {
-    try {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('name')
-        .eq('email', notification.sender_id)
-        .maybeSingle();
+    // Mark as read
+    await markAsRead(notification);
 
-      if (userError) console.warn('Error fetching sender name:', userError);
+    // Check if it's a message notification
+    if (notification.title.includes('Message') && notification.sender_id) {
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('name')
+          .eq('email', notification.sender_id)
+          .maybeSingle();
 
-      const receiverName = userData?.name || null;
-      navigateToMessaging({ receiverId: notification.sender_id, receiverName });
-    } catch (err) {
-      console.error('Error navigating from notification:', err);
-      navigateToMessaging({ receiverId: notification.sender_id });
+        if (userError) console.warn('Error fetching sender name:', userError);
+
+        const receiverName = userData?.name || null;
+        navigateToMessaging({ receiverId: notification.sender_id, receiverName });
+      } catch (err) {
+        console.error('Error navigating from notification:', err);
+        navigateToMessaging({ receiverId: notification.sender_id });
+      }
     }
   };
 
@@ -192,9 +386,9 @@ export default function NotificationsScreen({ navigation }) {
 
   const getNotificationColor = (title) => {
     if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return theme.accent;
-    if (title.includes('Rent') || title.includes('Rental')) return theme.rentalColor;
-    if (title.includes('Message')) return theme.messageColor;
-    if (title.includes('Review')) return theme.reviewColor;
+    if (title.includes('Rent') || title.includes('Rental')) return theme.rentalColor || '#6366F1';
+    if (title.includes('Message')) return theme.messageColor || '#10B981';
+    if (title.includes('Review')) return theme.reviewColor || '#F59E0B';
     return theme.accent;
   };
 
@@ -207,6 +401,7 @@ export default function NotificationsScreen({ navigation }) {
 
   const getFilteredNotifications = () => {
     if (filter === 'all') return notifications;
+    if (filter === 'unread') return notifications.filter(n => !n.is_read);
     return notifications.filter(n => getNotificationCategory(n.title) === filter);
   };
 
@@ -224,7 +419,12 @@ export default function NotificationsScreen({ navigation }) {
   const styles = createStyles(theme);
 
   const renderHeader = () => (
-    <Animated.View style={[styles.headerContainer, { opacity: headerAnim }]}>
+    <Animated.View 
+      style={[
+        styles.headerContainer,
+        { transform: [{ translateY: headerAnim }] }
+      ]}
+    >
       <View style={styles.headerBackground}>
         <View style={styles.gradientOverlay} />
       </View>
@@ -239,21 +439,54 @@ export default function NotificationsScreen({ navigation }) {
         </TouchableOpacity>
 
         <View style={styles.brandContainer}>
-          <Image
-            source={require('../../assets/images/OfficialBuyNaBay.png')}
-            style={styles.brandLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.brandText}>BuyNaBay</Text>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../../assets/images/OfficialBuyNaBay.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+          </View>
+          <View>
+            <Text style={[styles.brandText, { fontFamily: fontFamily.extraBold }]}>
+              BuyNaBay
+            </Text>
+            <Text style={[styles.brandSubtext, { fontFamily: fontFamily.medium }]}>
+              Campus Marketplace
+            </Text>
+          </View>
         </View>
+
+        {notifications.length > 0 && (
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                'Notification Actions',
+                'Choose an action',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Mark All Read', onPress: markAllAsRead },
+                  { text: 'Clear All', style: 'destructive', onPress: deleteAllNotifications },
+                ]
+              );
+            }}
+            style={styles.moreButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ellipsis-vertical" size={20} color={theme.text} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.welcomeContainer}>
-        <Text style={styles.greetingText}>Notifications</Text>
-        <Text style={styles.userNameText}>
+        <Text style={[styles.greetingText, { fontFamily: fontFamily.medium }]}>
+          Notifications
+        </Text>
+        <Text style={[styles.userNameText, { fontFamily: fontFamily.extraBold }]}>
           {user?.displayName || user?.email?.split('@')[0] || 'User'}
         </Text>
-        <Text style={styles.descriptionText}>Stay updated with your activity</Text>
+        <Text style={[styles.descriptionText, { fontFamily: fontFamily.regular }]}>
+          Stay updated with your activity
+        </Text>
       </View>
 
       <View style={styles.summaryCards}>
@@ -261,22 +494,34 @@ export default function NotificationsScreen({ navigation }) {
           <View style={[styles.cardIcon, { backgroundColor: `${theme.accent}15` }]}>
             <Icon name="bell" size={18} color={theme.accent} />
           </View>
-          <Text style={styles.cardValue}>{notifications.length}</Text>
-          <Text style={styles.cardLabel}>Total</Text>
+          <Text style={[styles.cardValue, { fontFamily: fontFamily.bold }]}>
+            {notifications.length}
+          </Text>
+          <Text style={[styles.cardLabel, { fontFamily: fontFamily.medium }]}>
+            Total
+          </Text>
         </View>
         <View style={styles.summaryCard}>
-          <View style={[styles.cardIcon, { backgroundColor: `${theme.rentalColor}15` }]}>
-            <Icon name="clock-o" size={18} color={theme.rentalColor} />
+          <View style={[styles.cardIcon, { backgroundColor: `${theme.rentalColor || '#6366F1'}15` }]}>
+            <Icon name="circle" size={18} color={theme.rentalColor || '#6366F1'} />
           </View>
-          <Text style={styles.cardValue}>{todayCount}</Text>
-          <Text style={styles.cardLabel}>Today</Text>
+          <Text style={[styles.cardValue, { fontFamily: fontFamily.bold }]}>
+            {unreadCount}
+          </Text>
+          <Text style={[styles.cardLabel, { fontFamily: fontFamily.medium }]}>
+            Unread
+          </Text>
         </View>
         <View style={styles.summaryCard}>
-          <View style={[styles.cardIcon, { backgroundColor: `${theme.messageColor}15` }]}>
-            <Icon name="envelope" size={18} color={theme.messageColor} />
+          <View style={[styles.cardIcon, { backgroundColor: `${theme.messageColor || '#10B981'}15` }]}>
+            <Icon name="envelope" size={18} color={theme.messageColor || '#10B981'} />
           </View>
-          <Text style={styles.cardValue}>{messageCount}</Text>
-          <Text style={styles.cardLabel}>Messages</Text>
+          <Text style={[styles.cardValue, { fontFamily: fontFamily.bold }]}>
+            {messageCount}
+          </Text>
+          <Text style={[styles.cardLabel, { fontFamily: fontFamily.medium }]}>
+            Messages
+          </Text>
         </View>
       </View>
 
@@ -287,10 +532,34 @@ export default function NotificationsScreen({ navigation }) {
             onPress={() => setFilter('all')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+            <Text style={[
+              styles.filterText, 
+              filter === 'all' && styles.filterTextActive,
+              { fontFamily: filter === 'all' ? fontFamily.bold : fontFamily.semiBold }
+            ]}>
               All
             </Text>
             {filter === 'all' && <View style={styles.filterDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterChip, filter === 'unread' && styles.filterChipActive]}
+            onPress={() => setFilter('unread')}
+            activeOpacity={0.7}
+          >
+            <Icon 
+              name="circle" 
+              size={12} 
+              color={filter === 'unread' ? '#fff' : theme.textSecondary} 
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[
+              styles.filterText, 
+              filter === 'unread' && styles.filterTextActive,
+              { fontFamily: filter === 'unread' ? fontFamily.bold : fontFamily.semiBold }
+            ]}>
+              Unread
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -304,24 +573,12 @@ export default function NotificationsScreen({ navigation }) {
               color={filter === 'orders' ? '#fff' : theme.textSecondary} 
               style={{ marginRight: 6 }}
             />
-            <Text style={[styles.filterText, filter === 'orders' && styles.filterTextActive]}>
+            <Text style={[
+              styles.filterText, 
+              filter === 'orders' && styles.filterTextActive,
+              { fontFamily: filter === 'orders' ? fontFamily.bold : fontFamily.semiBold }
+            ]}>
               Orders
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, filter === 'rentals' && styles.filterChipActive]}
-            onPress={() => setFilter('rentals')}
-            activeOpacity={0.7}
-          >
-            <Icon 
-              name="calendar" 
-              size={12} 
-              color={filter === 'rentals' ? '#fff' : theme.textSecondary} 
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.filterText, filter === 'rentals' && styles.filterTextActive]}>
-              Rentals
             </Text>
           </TouchableOpacity>
 
@@ -336,7 +593,11 @@ export default function NotificationsScreen({ navigation }) {
               color={filter === 'messages' ? '#fff' : theme.textSecondary} 
               style={{ marginRight: 6 }}
             />
-            <Text style={[styles.filterText, filter === 'messages' && styles.filterTextActive]}>
+            <Text style={[
+              styles.filterText, 
+              filter === 'messages' && styles.filterTextActive,
+              { fontFamily: filter === 'messages' ? fontFamily.bold : fontFamily.semiBold }
+            ]}>
               Messages
             </Text>
           </TouchableOpacity>
@@ -350,6 +611,11 @@ export default function NotificationsScreen({ navigation }) {
     let displayMessage = item.message || '';
     if (item.sender_id && displayMessage.includes(item.sender_id)) {
       displayMessage = displayMessage.replace(item.sender_id, senderDisplay);
+    }
+
+    // Add grouping info to message
+    if (item.grouped_count > 1) {
+      displayMessage = `${item.grouped_count} new messages`;
     }
 
     const iconName = getNotificationIcon(item.title);
@@ -370,6 +636,7 @@ export default function NotificationsScreen({ navigation }) {
     else timeAgo = notifDate.toLocaleDateString();
 
     const isNew = diffHours < 24;
+    const isUnread = !item.is_read;
 
     return (
       <Animated.View 
@@ -377,43 +644,74 @@ export default function NotificationsScreen({ navigation }) {
           styles.itemContainer,
           {
             opacity: fadeAnim,
-            transform: [{
-              translateY: slideAnim.interpolate({
-                inputRange: [0, 50],
-                outputRange: [0, 50 + index * 5]
-              })
-            }]
+            transform: [{ translateY: slideAnim }]
           }
         ]}
       >
         <TouchableOpacity
           onPress={() => handleNotificationPress(item)}
+          onLongPress={() => {
+            Alert.alert(
+              'Notification Options',
+              'Choose an action',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                !item.is_read && { 
+                  text: 'Mark as Read', 
+                  onPress: () => markAsRead(item) 
+                },
+                { 
+                  text: 'Delete', 
+                  style: 'destructive',
+                  onPress: () => deleteNotification(item) 
+                },
+              ].filter(Boolean)
+            );
+          }}
           activeOpacity={0.8}
-          style={[styles.notificationCard, isNew && styles.notificationCardNew]}
+          style={[
+            styles.notificationCard, 
+            isUnread && styles.notificationCardUnread
+          ]}
         >
           <View style={[styles.iconCircle, { backgroundColor: `${iconColor}20` }]}>
-            <Icon name={iconName} size={22} color={iconColor} />
+            <Icon name={iconName} size={20} color={iconColor} />
+            {item.grouped_count > 1 && (
+              <View style={styles.groupBadge}>
+                <Text style={styles.groupBadgeText}>{item.grouped_count}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.contentArea}>
             <View style={styles.headerRow}>
-              <Text style={styles.titleText} numberOfLines={1}>
+              <Text 
+                style={[styles.titleText, { fontFamily: fontFamily.bold }]} 
+                numberOfLines={1}
+              >
                 {item.title}
               </Text>
-              {isNew && <View style={styles.newBadge} />}
+              {isUnread && <View style={styles.unreadDot} />}
             </View>
 
-            <Text style={styles.messageText} numberOfLines={2}>
+            <Text 
+              style={[styles.messageText, { fontFamily: fontFamily.regular }]} 
+              numberOfLines={2}
+            >
               {displayMessage}
             </Text>
 
             <View style={styles.metaRow}>
               <View style={styles.timeRow}>
                 <Icon name="clock-o" size={11} color={theme.textSecondary} />
-                <Text style={styles.timeText}> {timeAgo}</Text>
+                <Text style={[styles.timeText, { fontFamily: fontFamily.medium }]}>
+                  {' '}{timeAgo}
+                </Text>
               </View>
               <View style={styles.actionHint}>
-                <Text style={styles.hintText}>Tap to open</Text>
+                <Text style={[styles.hintText, { fontFamily: fontFamily.semiBold }]}>
+                  Tap to open
+                </Text>
                 <Ionicons name="chevron-forward" size={14} color={theme.accent} />
               </View>
             </View>
@@ -434,19 +732,29 @@ export default function NotificationsScreen({ navigation }) {
       ]}
     >
       <View style={styles.emptyIconContainer}>
-        <Icon name="bell-slash" size={72} color={theme.iconPlaceholder} />
+        <Icon name="bell-slash" size={64} color={theme.iconPlaceholder || theme.textSecondary} />
       </View>
-      <Text style={styles.emptyTitle}>No Notifications Yet</Text>
-      <Text style={styles.emptyDescription}>
+      <Text style={[styles.emptyTitle, { fontFamily: fontFamily.bold }]}>
+        No Notifications Yet
+      </Text>
+      <Text style={[styles.emptyDescription, { fontFamily: fontFamily.regular }]}>
         You're all caught up! Notifications about your orders and activity will appear here.
       </Text>
       <TouchableOpacity
         style={styles.exploreButton}
-        onPress={() => navigation.navigate('Home')}
+        onPress={() => {
+          try {
+            navigation.navigate('Tabs', { screen: 'Home' });
+          } catch (e) {
+            navigation.goBack();
+          }
+        }}
         activeOpacity={0.8}
       >
         <Icon name="shopping-bag" size={18} color="#fff" style={{ marginRight: 10 }} />
-        <Text style={styles.exploreButtonText}>Explore Products</Text>
+        <Text style={[styles.exploreButtonText, { fontFamily: fontFamily.bold }]}>
+          Explore Products
+        </Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -455,31 +763,33 @@ export default function NotificationsScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={styles.loadingText}>Loading notifications...</Text>
+        <Text style={[styles.loadingText, { fontFamily: fontFamily.medium }]}>
+          Loading notifications...
+        </Text>
       </View>
     );
   }
 
   return (
-      <SafeAreaView style={styles.container}>
-        <FlatList
-          data={filteredNotifications}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
-            />
-          }
-        />
-      </SafeAreaView>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <FlatList
+        data={filteredNotifications}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        renderItem={renderItem}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmptyState}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.accent}
+            colors={[theme.accent]}
+          />
+        }
+      />
+    </SafeAreaView>
   );
 }
 
@@ -489,28 +799,29 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.background,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 100,
   },
   headerContainer: {
     position: 'relative',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   headerBackground: {
-    height: 370,
-    backgroundColor: theme.headerBackground,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    height: 340,
+    backgroundColor: theme.gradientBackground || theme.headerBackground,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
   gradientOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.03,
+    opacity: 0.08,
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
     position: 'absolute',
     top: 0,
     left: 0,
@@ -524,80 +835,140 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  moreButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.cardBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginLeft: 12,
+  },
+  logoWrapper: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(253, 173, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   brandLogo: {
-    width: 28,
-    height: 28,
-    marginRight: 8,
+    width: 22,
+    height: 22,
   },
   brandText: {
     fontSize: 17,
-    fontWeight: '800',
-    color: theme.text,
+    color: theme.accent,
     letterSpacing: -0.3,
+    lineHeight: 20,
+  },
+  brandSubtext: {
+    fontSize: 10,
+    color: theme.textSecondary,
+    letterSpacing: 0.2,
+    marginTop: -1,
   },
   welcomeContainer: {
     paddingHorizontal: 20,
-    paddingTop: 70,
-    paddingBottom: 24,
+    paddingTop: 64,
+    paddingBottom: 20,
   },
   greetingText: {
-    fontSize: 15,
+    fontSize: 14,
     color: theme.textSecondary,
-    fontWeight: '500',
     marginBottom: 4,
   },
   userNameText: {
-    fontSize: Math.min(width * 0.075, 30),
-    fontWeight: '800',
+    fontSize: Math.min(width * 0.07, 28),
     color: theme.text,
-    marginBottom: 6,
-    letterSpacing: -0.5,
+    marginBottom: 4,
+    letterSpacing: -0.4,
   },
   descriptionText: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.textSecondary,
-    fontWeight: '400',
   },
   summaryCards: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
   summaryCard: {
     flex: 1,
     backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     alignItems: 'center',
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   cardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   cardValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 19,
     color: theme.text,
-    marginTop: 4,
+    marginTop: 2,
   },
   cardLabel: {
     fontSize: 11,
     color: theme.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
+    marginTop: 1,
   },
   filterContainer: {
     flexDirection: 'row',
@@ -609,59 +980,119 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.cardBackground,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: theme.border,
-    elevation: 1,
+    borderWidth: 1.5,
+    borderColor: theme.borderColor || theme.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   filterChipActive: {
     backgroundColor: theme.accent,
     borderColor: theme.accent,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   filterText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
     color: theme.textSecondary,
+    letterSpacing: 0.2,
   },
   filterTextActive: {
     color: '#fff',
   },
   filterDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
     backgroundColor: '#fff',
     marginLeft: 6,
   },
   itemContainer: {
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   notificationCard: {
     backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: theme.border,
-    elevation: 2,
+    borderColor: theme.borderColor || theme.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  notificationCardNew: {
-    backgroundColor: theme.cardBackgroundNew,
+  notificationCardUnread: {
+    backgroundColor: theme.cardBackgroundNew || `${theme.accent}08`,
     borderColor: theme.accent,
     borderWidth: 1.5,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 12,
+    position: 'relative',
+  },
+  groupBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: theme.cardBackground,
+  },
+  groupBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   contentArea: {
     flex: 1,
@@ -669,26 +1100,26 @@ const createStyles = (theme) => StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 5,
   },
   titleText: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
     color: theme.text,
+    letterSpacing: -0.2,
   },
-  newBadge: {
+  unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.newBadge,
+    backgroundColor: '#FF3B30',
     marginLeft: 8,
   },
   messageText: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.textSecondary,
-    lineHeight: 20,
-    marginBottom: 10,
+    lineHeight: 19,
+    marginBottom: 8,
   },
   metaRow: {
     flexDirection: 'row',
@@ -700,7 +1131,7 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
   },
   timeText: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.textSecondary,
   },
   actionHint: {
@@ -708,56 +1139,75 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
   },
   hintText: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.accent,
-    marginRight: 4,
-    fontWeight: '600',
+    marginRight: 3,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingVertical: 80,
+    paddingVertical: 60,
   },
   emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-    elevation: 4,
+    marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 22,
     color: theme.text,
-    marginBottom: 12,
+    marginBottom: 10,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   emptyDescription: {
-    fontSize: 15,
+    fontSize: 14,
     color: theme.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    lineHeight: 21,
+    marginBottom: 28,
+    paddingHorizontal: 10,
   },
   exploreButton: {
     backgroundColor: theme.accent,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 24,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+    borderRadius: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    elevation: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   exploreButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: -0.2,
   },
   loadingContainer: {
     flex: 1,
@@ -766,9 +1216,8 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 15,
+    marginTop: 14,
+    fontSize: 14,
     color: theme.textSecondary,
-    fontWeight: '500',
   },
 });
