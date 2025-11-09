@@ -1,85 +1,133 @@
-// utils/messageNotificationHelper.js
-// Add this utility function to handle message notifications
-
+// utils/MessageNotificationHelper.js
 import { supabase } from '../supabase/supabaseClient';
 
 /**
- * Sends a notification when a new message is sent
- * @param {string} senderId - Email of the sender
- * @param {string} receiverId - Email of the receiver
- * @param {string} messageText - The message text (will be truncated if too long)
- * @param {boolean} hasImage - Whether the message contains an image
+ * 🔔 Send a notification when a message is sent
+ * @param {Object} params
+ * @param {string} params.senderEmail - Email of the sender
+ * @param {string} params.receiverEmail - Email of the receiver
+ * @param {string} params.messageText - The message text content
+ * @param {boolean} params.hasImages - Whether the message contains images
  */
-export const sendMessageNotification = async (senderId, receiverId, messageText, hasImage = false) => {
+export const sendMessageNotification = async ({
+  senderEmail,
+  receiverEmail,
+  messageText,
+  hasImages = false,
+}) => {
   try {
-    // Get sender's name
-    const { data: senderData } = await supabase
+    console.log('🔔 [NotificationHelper] Sending notification to:', receiverEmail);
+
+    // Fetch sender's name
+    const { data: senderData, error: senderError } = await supabase
       .from('users')
       .select('name')
-      .eq('email', senderId)
+      .eq('email', senderEmail)
       .maybeSingle();
 
-    const senderName = senderData?.name || senderId;
+    if (senderError) {
+      console.warn('⚠️ [NotificationHelper] Error fetching sender name:', senderError);
+    }
 
-    // Create notification message
+    const senderName = senderData?.name || senderEmail;
+
+    // Construct notification message
     let notificationMessage = '';
-    if (hasImage && !messageText) {
+    if (hasImages && !messageText) {
       notificationMessage = `${senderName} sent you a photo`;
-    } else if (hasImage && messageText) {
-      notificationMessage = `${senderName} sent you a photo: ${messageText.substring(0, 50)}${messageText.length > 50 ? '...' : ''}`;
+    } else if (hasImages && messageText) {
+      // Truncate message if too long
+      const truncatedText = messageText.length > 50 
+        ? `${messageText.substring(0, 50)}...` 
+        : messageText;
+      notificationMessage = `${senderName} sent you a photo: ${truncatedText}`;
+    } else if (messageText) {
+      // Truncate message if too long
+      const truncatedText = messageText.length > 100 
+        ? `${messageText.substring(0, 100)}...` 
+        : messageText;
+      notificationMessage = `${senderName}: ${truncatedText}`;
     } else {
-      notificationMessage = `${senderName}: ${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}`;
+      // Fallback (shouldn't happen)
+      notificationMessage = `${senderName} sent you a message`;
     }
 
     // Insert notification into database
-    const { error } = await supabase
+    const { data: notification, error: notificationError } = await supabase
       .from('notifications')
       .insert({
-        sender_id: senderId,
-        receiver_id: receiverId,
+        sender_id: senderEmail,
+        receiver_id: receiverEmail,
         title: 'New Message',
         message: notificationMessage,
+        is_read: false,
         created_at: new Date().toISOString(),
-      });
+      })
+      .select()
+      .single();
 
-    if (error) {
-      console.error('Error sending notification:', error);
+    if (notificationError) {
+      console.error('❌ [NotificationHelper] Failed to insert notification:', notificationError);
+      return false;
     }
+
+    console.log('✅ [NotificationHelper] Notification sent successfully:', notification.id);
+    return true;
+
   } catch (error) {
-    console.error('Error in sendMessageNotification:', error);
+    console.error('❌ [NotificationHelper] Unexpected error sending notification:', error);
+    return false;
   }
 };
 
 /**
- * Sends a notification for product sharing in messages
- * @param {string} senderId - Email of the sender
- * @param {string} receiverId - Email of the receiver
- * @param {string} productName - Name of the product
+ * 🔔 Send a product sold notification
+ * @param {Object} params
+ * @param {string} params.buyerEmail - Email of the buyer
+ * @param {string} params.sellerEmail - Email of the seller
+ * @param {string} params.productName - Name of the product
+ * @param {number} params.price - Price of the product
  */
-export const sendProductShareNotification = async (senderId, receiverId, productName) => {
+export const sendProductSoldNotification = async ({
+  buyerEmail,
+  sellerEmail,
+  productName,
+  price,
+}) => {
   try {
-    const { data: senderData } = await supabase
+    console.log('🔔 [NotificationHelper] Sending product sold notification to:', sellerEmail);
+
+    // Fetch buyer's name
+    const { data: buyerData } = await supabase
       .from('users')
       .select('name')
-      .eq('email', senderId)
+      .eq('email', buyerEmail)
       .maybeSingle();
 
-    const senderName = senderData?.name || senderId;
+    const buyerName = buyerData?.name || buyerEmail;
 
+    // Insert notification
     const { error } = await supabase
       .from('notifications')
       .insert({
-        sender_id: senderId,
-        receiver_id: receiverId,
-        title: 'Product Shared',
-        message: `${senderName} shared "${productName}" with you`,
+        sender_id: buyerEmail,
+        receiver_id: sellerEmail,
+        title: 'Product Sold',
+        message: `${buyerName} purchased "${productName}" for ₱${price}`,
+        is_read: false,
         created_at: new Date().toISOString(),
       });
 
     if (error) {
-      console.error('Error sending product notification:', error);
+      console.error('❌ [NotificationHelper] Failed to send product sold notification:', error);
+      return false;
     }
+
+    console.log('✅ [NotificationHelper] Product sold notification sent successfully');
+    return true;
+
   } catch (error) {
-    console.error('Error in sendProductShareNotification:', error);
+    console.error('❌ [NotificationHelper] Unexpected error:', error);
+    return false;
   }
 };

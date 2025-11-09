@@ -40,87 +40,10 @@ export default function NotificationsScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(30)).current;
   const headerAnim = useRef(new Animated.Value(-50)).current;
 
-  const fetchNotifications = async (isRefreshing = false) => {
-    if (!user?.email) {
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
+  // CRITICAL: Track if component is mounted
+  const isMounted = useRef(true);
 
-    if (!isRefreshing) setLoading(true);
-
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("receiver_id", user.email)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching notifications:", error);
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    const notificationsData = data || [];
-    
-    // Group notifications by sender
-    const grouped = groupNotifications(notificationsData);
-    
-    const uniqueSenders = Array.from(new Set(notificationsData.map(n => n.sender_id).filter(Boolean)));
-
-    let senderMap = {};
-    if (uniqueSenders.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('email,name')
-        .in('email', uniqueSenders);
-
-      if (usersError) {
-        console.warn('Error fetching sender names:', usersError);
-      } else if (usersData) {
-        senderMap = usersData.reduce((acc, u) => {
-          acc[u.email] = u.name;
-          return acc;
-        }, {});
-      }
-    }
-
-    const annotated = grouped.map(n => ({
-      ...n,
-      sender_name: senderMap[n.sender_id] || null,
-    }));
-
-    setNotifications(annotated);
-    
-    // Calculate unread count
-    const unread = annotated.filter(n => !n.is_read).length;
-    setUnreadCount(unread);
-    
-    setLoading(false);
-    setRefreshing(false);
-
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerAnim, {
-        toValue: 0,
-        duration: 700,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  // Group notifications from the same sender
+  // Group notifications by sender
   const groupNotifications = (notifs) => {
     const grouped = [];
     const messageGroups = {};
@@ -167,11 +90,102 @@ export default function NotificationsScreen({ navigation }) {
     );
   };
 
-  useEffect(() => {
-    fetchNotifications();
+  const fetchNotifications = async (isRefreshing = false) => {
+    if (!user?.email) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
+    if (!isRefreshing) setLoading(true);
+
+    console.log('📥 [NotificationsScreen] Fetching notifications for:', user.email);
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("receiver_id", user.email)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("❌ [NotificationsScreen] Error fetching notifications:", error);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    const notificationsData = data || [];
+    console.log('✅ [NotificationsScreen] Loaded', notificationsData.length, 'notifications');
+    
+    // Group notifications by sender
+    const grouped = groupNotifications(notificationsData);
+    
+    const uniqueSenders = Array.from(new Set(notificationsData.map(n => n.sender_id).filter(Boolean)));
+
+    let senderMap = {};
+    if (uniqueSenders.length > 0) {
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('email,name')
+        .in('email', uniqueSenders);
+
+      if (usersError) {
+        console.warn('⚠️ [NotificationsScreen] Error fetching sender names:', usersError);
+      } else if (usersData) {
+        senderMap = usersData.reduce((acc, u) => {
+          acc[u.email] = u.name;
+          return acc;
+        }, {});
+      }
+    }
+
+    const annotated = grouped.map(n => ({
+      ...n,
+      sender_name: senderMap[n.sender_id] || null,
+    }));
+
+    if (isMounted.current) {
+      setNotifications(annotated);
+      
+      // Calculate unread count
+      const unread = annotated.filter(n => !n.is_read).length;
+      setUnreadCount(unread);
+    }
+    
+    setLoading(false);
+    setRefreshing(false);
+
+    // Trigger animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerAnim, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // FIXED: Initial fetch and realtime subscription
+  useEffect(() => {
     if (!user?.email) return;
 
+    console.log('📨 [NotificationsScreen] Setting up notification subscription for:', user.email);
+
+    // Initial fetch
+    fetchNotifications();
+
+    // FIXED: Set up realtime subscription with proper event handling
     const channel = supabase
       .channel("notifications-channel")
       .on(
@@ -183,9 +197,13 @@ export default function NotificationsScreen({ navigation }) {
           filter: `receiver_id=eq.${user.email}`,
         },
         async (payload) => {
-          console.log("New notification received:", payload.new);
+          console.log("🔔 [NotificationsScreen] New notification received:", payload.new);
           
+          if (!isMounted.current) return;
+
           // Fetch sender name for the new notification
+          let annotatedNotification = { ...payload.new };
+          
           if (payload.new.sender_id) {
             const { data: senderData } = await supabase
               .from('users')
@@ -193,31 +211,88 @@ export default function NotificationsScreen({ navigation }) {
               .eq('email', payload.new.sender_id)
               .maybeSingle();
             
-            const annotatedNotification = {
+            annotatedNotification = {
               ...payload.new,
               sender_name: senderData?.name || null,
             };
-            
-            setNotifications((prev) => {
-              const newList = [annotatedNotification, ...prev];
-              return groupNotifications(newList);
-            });
-            
+          }
+          
+          // Update notifications state with proper grouping
+          setNotifications((prev) => {
+            const newList = [annotatedNotification, ...prev];
+            const regrouped = groupNotifications(newList);
+            return regrouped;
+          });
+          
+          // Increment unread count if notification is unread
+          if (!payload.new.is_read) {
             setUnreadCount(prev => prev + 1);
-          } else {
-            setNotifications((prev) => {
-              const newList = [payload.new, ...prev];
-              return groupNotifications(newList);
-            });
           }
         }
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `receiver_id=eq.${user.email}`,
+        },
+        (payload) => {
+          console.log("🔄 [NotificationsScreen] Notification updated:", payload.new);
+          
+          if (!isMounted.current) return;
+
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === payload.new.id ? { ...n, ...payload.new } : n))
+          );
+          
+          // Recalculate unread count
+          setNotifications((prev) => {
+            const unread = prev.filter(n => !n.is_read).length;
+            setUnreadCount(unread);
+            return prev;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "notifications",
+          filter: `receiver_id=eq.${user.email}`,
+        },
+        (payload) => {
+          console.log("🗑️ [NotificationsScreen] Notification deleted:", payload.old);
+          
+          if (!isMounted.current) return;
+
+          setNotifications((prev) => {
+            const filtered = prev.filter((n) => n.id !== payload.old.id);
+            const unread = filtered.filter(n => !n.is_read).length;
+            setUnreadCount(unread);
+            return filtered;
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 [NotificationsScreen] Subscription status:', status);
+      });
 
     return () => {
+      console.log('🧹 [NotificationsScreen] Cleaning up subscription');
+      isMounted.current = false;
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.email]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const navigateToMessaging = (params) => {
     try {
@@ -249,6 +324,8 @@ export default function NotificationsScreen({ navigation }) {
 
     const idsToUpdate = notification.grouped_ids || [notification.id];
 
+    console.log('✅ [NotificationsScreen] Marking as read:', idsToUpdate);
+
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -265,6 +342,8 @@ export default function NotificationsScreen({ navigation }) {
       
       const newUnreadCount = Math.max(0, unreadCount - idsToUpdate.length);
       setUnreadCount(newUnreadCount);
+    } else {
+      console.error('❌ [NotificationsScreen] Error marking as read:', error);
     }
   };
 
@@ -282,6 +361,8 @@ export default function NotificationsScreen({ navigation }) {
           onPress: async () => {
             const idsToDelete = notification.grouped_ids || [notification.id];
             
+            console.log('🗑️ [NotificationsScreen] Deleting notifications:', idsToDelete);
+
             const { error } = await supabase
               .from('notifications')
               .delete()
@@ -297,6 +378,7 @@ export default function NotificationsScreen({ navigation }) {
                 setUnreadCount(newUnreadCount);
               }
             } else {
+              console.error('❌ [NotificationsScreen] Error deleting:', error);
               Alert.alert('Error', 'Failed to delete notification');
             }
           },
@@ -306,6 +388,8 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const markAllAsRead = async () => {
+    console.log('✅ [NotificationsScreen] Marking all as read');
+
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -317,6 +401,8 @@ export default function NotificationsScreen({ navigation }) {
         prev.map(n => ({ ...n, is_read: true }))
       );
       setUnreadCount(0);
+    } else {
+      console.error('❌ [NotificationsScreen] Error marking all as read:', error);
     }
   };
 
@@ -330,6 +416,8 @@ export default function NotificationsScreen({ navigation }) {
           text: 'Clear All',
           style: 'destructive',
           onPress: async () => {
+            console.log('🗑️ [NotificationsScreen] Deleting all notifications');
+
             const { error } = await supabase
               .from('notifications')
               .delete()
@@ -339,6 +427,7 @@ export default function NotificationsScreen({ navigation }) {
               setNotifications([]);
               setUnreadCount(0);
             } else {
+              console.error('❌ [NotificationsScreen] Error clearing all:', error);
               Alert.alert('Error', 'Failed to clear notifications');
             }
           },
@@ -406,13 +495,6 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const filteredNotifications = getFilteredNotifications();
-
-  const todayCount = notifications.filter(n => {
-    const now = new Date();
-    const notifDate = new Date(n.created_at);
-    const diffHours = (now - notifDate) / (1000 * 60 * 60);
-    return diffHours < 24;
-  }).length;
 
   const messageCount = notifications.filter(n => n.title.includes('Message')).length;
 
@@ -635,7 +717,6 @@ export default function NotificationsScreen({ navigation }) {
     else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
     else timeAgo = notifDate.toLocaleDateString();
 
-    const isNew = diffHours < 24;
     const isUnread = !item.is_read;
 
     return (

@@ -24,9 +24,169 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { sendMessageNotification } from '../../utils/MessageNotificationHelper';
 import { handleDirectCheckout } from './CartScreen';
 
 const { width, height } = Dimensions.get('window');
+
+// Separate component for message items to handle animations properly
+const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, receiverAvatar, onReply, onLongPress, onImagePress, theme, styles }) => {
+  const isMine = item.sender_id === user.email;
+  const avatarSource = isMine ? userAvatar : receiverAvatar;
+  const isProductMessage = !!item.product_context;
+
+  // Fade animation for this item
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // Don't render empty messages unless they are product messages
+  if (!item.text && !item.messages_image_url && !isProductMessage) return null;
+
+  let imageUrls = [];
+  if (item.messages_image_url) {
+    try {
+      imageUrls = item.messages_image_url.trim().startsWith('[')
+        ? JSON.parse(item.messages_image_url)
+        : [item.messages_image_url];
+    } catch {
+      imageUrls = [item.messages_image_url];
+    }
+  }
+
+  const repliedMessage = messages.find(m => m.id === item.reply_to);
+  const prevMessage = index > 0 ? messages[index - 1] : null;
+  const shouldGroup = prevMessage && 
+    item.sender_id === prevMessage.sender_id && 
+    (new Date(item.created_at) - new Date(prevMessage.created_at)) < 60000;
+  const showAvatar = !shouldGroup;
+
+  const formatMessageTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim }}>
+      <Swipeable
+        friction={2}
+        leftThreshold={50}
+        rightThreshold={50}
+        onSwipeableLeftOpen={() => onReply(item)}
+        onSwipeableRightOpen={() => onReply(item)}
+        renderLeftActions={(progress, dragX) => {
+          const trans = dragX.interpolate({
+            inputRange: [0, 100],
+            outputRange: [-50, 0],
+            extrapolate: 'clamp',
+          });
+          return (
+            <Animated.View style={[styles.swipeAction, { transform: [{ translateX: trans }] }]}>
+              <View style={styles.swipeIconContainer}>
+                <Icon name="reply" size={18} color="#fff" />
+              </View>
+            </Animated.View>
+          );
+        }}
+        renderRightActions={(progress, dragX) => {
+          const trans = dragX.interpolate({
+            inputRange: [-100, 0],
+            outputRange: [0, 50],
+            extrapolate: 'clamp',
+          });
+          return (
+            <Animated.View style={[styles.swipeAction, { transform: [{ translateX: trans }] }]}>
+              <View style={styles.swipeIconContainer}>
+                <Icon name="reply" size={18} color="#fff" />
+              </View>
+            </Animated.View>
+          );
+        }}
+      >
+        <View style={[styles.messageWrapper, isMine ? styles.myWrapper : styles.otherWrapper]}>
+          {/* Avatar (only show if not grouped) */}
+          {!isMine && (
+            <View style={styles.avatarContainer}>
+              {showAvatar && avatarSource ? (
+                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+              ) : (
+                <View style={styles.avatarSpacer} />
+              )}
+            </View>
+          )}
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onLongPress={() => onLongPress(item)}
+            style={styles.messageContentWrapper}
+          >
+            {/* Reply indicator */}
+            {repliedMessage && (
+              <View style={[styles.replyIndicator, isMine && styles.replyIndicatorMine]}>
+                <View style={styles.replyLine} />
+                <View style={styles.replyContent}>
+                  <Text style={styles.replyLabel}>
+                    {repliedMessage.sender_id === user.email ? 'You' : receiverName}
+                  </Text>
+                  {repliedMessage.text ? (
+                    <Text numberOfLines={1} style={styles.replyText}>
+                      {repliedMessage.text}
+                    </Text>
+                  ) : repliedMessage.messages_image_url ? (
+                    <View style={styles.replyPhotoRow}>
+                      <Icon name="camera" size={10} color={theme.textTertiary} />
+                      <Text style={styles.replyText}> Photo</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            )}
+
+            {/* Message bubble */}
+            <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.otherBubble]}>
+              {item.text ? (
+                <Text style={[styles.bubbleText, isMine && styles.myBubbleText]}>
+                  {item.text}
+                </Text>
+              ) : null}
+              
+              {imageUrls.length > 0 && imageUrls.map((url, idx) => (
+                <TouchableOpacity key={idx} onPress={() => onImagePress(url)}>
+                  <Image source={{ uri: url }} style={styles.messageImage} />
+                </TouchableOpacity>
+              ))}
+
+              {/* Timestamp */}
+              <Text style={[styles.messageTime, isMine && styles.myMessageTime]}>
+                {formatMessageTime(item.created_at)}
+                {isMine && (
+                  <Text style={styles.checkMark}> ✓✓</Text>
+                )}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Avatar for sent messages */}
+          {isMine && (
+            <View style={styles.avatarContainer}>
+              {showAvatar && avatarSource ? (
+                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+              ) : (
+                <View style={styles.avatarSpacer} />
+              )}
+            </View>
+          )}
+        </View>
+      </Swipeable>
+    </Animated.View>
+  );
+};
 
 export default function MessagingScreen({ route }) {
   const navigation = useNavigation();
@@ -64,6 +224,9 @@ export default function MessagingScreen({ route }) {
   const styles = createStyles(theme);
 
   const flatListRef = useRef(null);
+  
+  // CRITICAL: Track if component is mounted to prevent state updates after unmount
+  const isMounted = useRef(true);
 
   // Fetch avatars
   useEffect(() => {
@@ -76,7 +239,7 @@ export default function MessagingScreen({ route }) {
         .select('profile_photo')
         .eq('email', receiverId)
         .single();
-      if (receiverData?.profile_photo) {
+      if (receiverData?.profile_photo && isMounted.current) {
         setReceiverAvatar(receiverData.profile_photo);
       }
 
@@ -86,7 +249,7 @@ export default function MessagingScreen({ route }) {
         .select('profile_photo')
         .eq('email', user.email)
         .single();
-      if (userData?.profile_photo) {
+      if (userData?.profile_photo && isMounted.current) {
         setUserAvatar(userData.profile_photo);
       }
     };
@@ -102,7 +265,7 @@ export default function MessagingScreen({ route }) {
         .select("name")
         .eq("email", user.email)
         .single();
-      if (!error && data) setBuyerName(data.name);
+      if (!error && data && isMounted.current) setBuyerName(data.name);
     };
     fetchBuyerName();
   }, [user]);
@@ -168,12 +331,15 @@ export default function MessagingScreen({ route }) {
 
   const cancelReply = () => setReplyTo(null);
 
-  // --- Fetch messages ---
+  // --- FIXED: Fetch messages with proper realtime subscription ---
   useEffect(() => {
-    if (!user) return;
+    if (!user?.email || !receiverId) return;
 
-    // 1. Define the function to fetch messages
+    console.log('📨 [MessagingScreen] Setting up message subscription for:', user.email, '<->', receiverId);
+
+    // 1. Initial fetch of messages
     const fetchMessages = async () => {
+      console.log('📥 [MessagingScreen] Fetching initial messages...');
       const { data, error } = await supabase
         .from('messages')
         .select('*, product_context')
@@ -182,36 +348,100 @@ export default function MessagingScreen({ route }) {
         )
         .order('created_at', { ascending: true });
 
-      if (!error) {
+      if (!error && isMounted.current) {
+        console.log('✅ [MessagingScreen] Loaded', data?.length || 0, 'messages');
         setMessages(data || []);
-      } else {
-        console.error("Error fetching messages:", error);
+      } else if (error) {
+        console.error("❌ [MessagingScreen] Error fetching messages:", error);
       }
     };
 
-    // 2. Fetch messages when the screen loads
     fetchMessages();
 
-    // 3. Set up the real-time subscription
+    // 2. FIXED: Set up realtime subscription with proper filtering
     const channel = supabase
       .channel(`messages-${user.email}-${receiverId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchMessages)
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          // Listen for messages where current user is sender OR receiver
+          filter: `sender_id=eq.${user.email},receiver_id=eq.${receiverId}`
+        },
+        (payload) => {
+          console.log('🔔 [MessagingScreen] New message (sent):', payload.new);
+          if (isMounted.current) {
+            setMessages((prev) => {
+              // Prevent duplicates
+              if (prev.some(m => m.id === payload.new.id)) {
+                return prev;
+              }
+              return [...prev, payload.new];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          // Listen for messages from receiver to current user
+          filter: `sender_id=eq.${receiverId},receiver_id=eq.${user.email}`
+        },
+        (payload) => {
+          console.log('🔔 [MessagingScreen] New message (received):', payload.new);
+          if (isMounted.current) {
+            setMessages((prev) => {
+              // Prevent duplicates
+              if (prev.some(m => m.id === payload.new.id)) {
+                return prev;
+              }
+              return [...prev, payload.new];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          console.log('🔄 [MessagingScreen] Message updated:', payload.new);
+          if (isMounted.current) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === payload.new.id ? payload.new : m))
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 [MessagingScreen] Subscription status:', status);
+      });
 
-    // 4. Return a cleanup function to remove the channel subscription when the component unmounts
+    // 3. Cleanup on unmount
     return () => {
+      console.log('🧹 [MessagingScreen] Cleaning up subscription');
+      isMounted.current = false;
       supabase.removeChannel(channel);
     };
-  }, [user, receiverId]);
+  }, [user?.email, receiverId]);
 
-  // Auto-scroll to bottom when messages change
+  // FIXED: Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (messages.length > 0 && flatListRef.current) {
+    if (messages.length > 0 && flatListRef.current && isMounted.current) {
+      // Small delay to ensure FlatList has rendered the new item
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages.length]);
+  }, [messages.length]); // Trigger on message count change
 
   // --- Pick multiple images ---
   const pickImage = async () => {
@@ -270,118 +500,127 @@ export default function MessagingScreen({ route }) {
     }
   };
 
-  // --- Send message ---
-const sendMessage = async () => {
-  if ((!input.trim() && images.length === 0) || !user) return;
+  // --- FIXED: Send message with optimistic UI update ---
+  const sendMessage = async () => {
+    if ((!input.trim() && images.length === 0) || !user) return;
 
-  let imageUrls = [];
-  if (images.length > 0) {
-    imageUrls = await uploadImagesToSupabase(images);
-  }
+    const messageText = input.trim() || null;
+    const tempId = `temp-${Date.now()}`; // Temporary ID for optimistic update
 
-  const messageText = input.trim() || null;
-  const hasImages = imageUrls.length > 0;
-
-  // Insert the message
-  const { error } = await supabase.from('messages').insert([
-    {
+    // OPTIMISTIC UPDATE: Add message to UI immediately
+    const optimisticMessage = {
+      id: tempId,
       sender_id: user.email,
       receiver_id: receiverId,
       text: messageText,
-      product_context: null,
-      messages_image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
+      messages_image_url: null,
       reply_to: replyTo ? replyTo.id : null,
-    },
-  ]);
+      created_at: new Date().toISOString(),
+      product_context: null,
+    };
 
-  if (!error) {
-    setInput('');
-    setImages([]);
+    setMessages((prev) => [...prev, optimisticMessage]);
+    setInput(''); // Clear input immediately
     setReplyTo(null);
 
-    // 🆕 SEND NOTIFICATION TO RECEIVER
-    try {
-      const { data: senderData } = await supabase
-        .from('users')
-        .select('name')
-        .eq('email', user.email)
-        .maybeSingle();
-
-      const senderName = senderData?.name || user.email;
-
-      let notificationMessage = '';
-      if (hasImages && !messageText) {
-        notificationMessage = `${senderName} sent you a photo`;
-      } else if (hasImages && messageText) {
-        notificationMessage = `${senderName} sent you a photo: ${messageText.substring(0, 50)}${messageText.length > 50 ? '...' : ''}`;
-      } else if (messageText) {
-        notificationMessage = `${senderName}: ${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}`;
-      }
-
-      await supabase.from('notifications').insert({
-        sender_id: user.email,
-        receiver_id: receiverId,
-        title: 'New Message',
-        message: notificationMessage,
-        created_at: new Date().toISOString(),
-      });
-    } catch (notifError) {
-      console.error('Error sending notification:', notifError);
+    let imageUrls = [];
+    if (images.length > 0) {
+      imageUrls = await uploadImagesToSupabase(images);
+      setImages([]); // Clear images after upload starts
     }
-  } else {
-    console.error('Send message error:', error.message);
-  }
-};
 
- const onProductCheckout = async (product) => {
-  Alert.alert(
-    "Confirm Checkout",
-    `Do you want to buy "${product.product_name}" for ₱${product.price}?`,
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Checkout",
-        onPress: async () => {
-          const success = await handleDirectCheckout(product, user, buyerName);
-          if (success) {
-            Alert.alert("Success!", "Your order has been placed.");
-            
-            // Send confirmation message
-            const confirmationText = `I have successfully purchased "${product.product_name}".`;
-            await supabase.from('messages').insert({
-              sender_id: user.email,
-              receiver_id: receiverId,
-              text: confirmationText,
-            });
+    const hasImages = imageUrls.length > 0;
 
-            // Send notification to seller
-            try {
-              const { data: buyerData } = await supabase
-                .from('users')
-                .select('name')
-                .eq('email', user.email)
-                .maybeSingle();
-
-              const buyerName = buyerData?.name || user.email;
-
-              await supabase
-                .from('notifications')
-                .insert({
-                  sender_id: user.email,
-                  receiver_id: receiverId,
-                  title: 'Product Sold',
-                  message: `${buyerName} purchased "${product.product_name}" for ₱${product.price}`,
-                  created_at: new Date().toISOString(),
-                });
-            } catch (notifError) {
-              console.error('Error sending purchase notification:', notifError);
-            }
-          }
+    // Insert the actual message
+    const { data: insertedMessage, error } = await supabase
+      .from('messages')
+      .insert([
+        {
+          sender_id: user.email,
+          receiver_id: receiverId,
+          text: messageText,
+          product_context: null,
+          messages_image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
+          reply_to: replyTo ? replyTo.id : null,
         },
-      },
-    ]
-  );
-};
+      ])
+      .select()
+      .single();
+
+    if (!error && insertedMessage) {
+      console.log('✅ [MessagingScreen] Message sent successfully:', insertedMessage.id);
+
+      // Replace optimistic message with real message
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? insertedMessage : m))
+      );
+
+      // 🆕 Send notification using helper
+      await sendMessageNotification({
+        senderEmail: user.email,
+        receiverEmail: receiverId,
+        messageText,
+        hasImages,
+      });
+
+    } else if (error) {
+      console.error('❌ [MessagingScreen] Send message error:', error.message);
+      // Remove optimistic message on error
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+    }
+  };
+
+  const onProductCheckout = async (product) => {
+    Alert.alert(
+      "Confirm Checkout",
+      `Do you want to buy "${product.product_name}" for ₱${product.price}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Checkout",
+          onPress: async () => {
+            const success = await handleDirectCheckout(product, user, buyerName);
+            if (success) {
+              Alert.alert("Success!", "Your order has been placed.");
+              
+              // Send confirmation message
+              const confirmationText = `I have successfully purchased "${product.product_name}".`;
+              await supabase.from('messages').insert({
+                sender_id: user.email,
+                receiver_id: receiverId,
+                text: confirmationText,
+              });
+
+              // Send notification to seller
+              try {
+                const { data: buyerData } = await supabase
+                  .from('users')
+                  .select('name')
+                  .eq('email', user.email)
+                  .maybeSingle();
+
+                const buyerName = buyerData?.name || user.email;
+
+                await supabase
+                  .from('notifications')
+                  .insert({
+                    sender_id: user.email,
+                    receiver_id: receiverId,
+                    title: 'Product Sold',
+                    message: `${buyerName} purchased "${product.product_name}" for ₱${product.price}`,
+                    created_at: new Date().toISOString(),
+                  });
+              } catch (notifError) {
+                console.error('Error sending purchase notification:', notifError);
+              }
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Format message time
   const formatMessageTime = (timestamp) => {
     const date = new Date(timestamp);
@@ -397,144 +636,32 @@ const sendMessage = async () => {
     return timeDiff < 60000; // Group if within 1 minute
   };
 
-  // --- Render item with swipe & animated movement ---
-  const renderItem = ({ item, index }) => {
-    const isMine = item.sender_id === user.email;
-    const avatarSource = isMine ? userAvatar : receiverAvatar;
-    const isProductMessage = !!item.product_context;
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
-    // Don't render empty messages unless they are product messages
-    if (!item.text && !item.messages_image_url && !isProductMessage) return null;
-
-    let imageUrls = [];
-    if (item.messages_image_url) {
-      try {
-        imageUrls = item.messages_image_url.trim().startsWith('[')
-          ? JSON.parse(item.messages_image_url)
-          : [item.messages_image_url];
-      } catch {
-        imageUrls = [item.messages_image_url];
-      }
-    }
-
-    const repliedMessage = messages.find(m => m.id === item.reply_to);
-    const prevMessage = index > 0 ? messages[index - 1] : null;
-    const isGrouped = shouldGroupMessage(item, prevMessage);
-    const showAvatar = !isGrouped;
-
-    return (
-      <Swipeable
-        friction={2}
-        leftThreshold={50}
-        rightThreshold={50}
-        onSwipeableLeftOpen={() => handleReply(item)}
-        onSwipeableRightOpen={() => handleReply(item)}
-        renderLeftActions={(progress, dragX) => {
-          const trans = dragX.interpolate({
-            inputRange: [0, 100],
-            outputRange: [-50, 0],
-            extrapolate: 'clamp',
-          });
-          return (
-            <Animated.View style={[styles.swipeAction, { transform: [{ translateX: trans }] }]}>
-              <View style={styles.swipeIconContainer}>
-                <Icon name="reply" size={18} color="#fff" />
-              </View>
-            </Animated.View>
-          );
-        }}
-        renderRightActions={(progress, dragX) => {
-          const trans = dragX.interpolate({
-            inputRange: [-100, 0],
-            outputRange: [0, 50],
-            extrapolate: 'clamp',
-          });
-          return (
-            <Animated.View style={[styles.swipeAction, { transform: [{ translateX: trans }] }]}>
-              <View style={styles.swipeIconContainer}>
-                <Icon name="reply" size={18} color="#fff" />
-              </View>
-            </Animated.View>
-          );
-        }}
-      >
-        <View style={[styles.messageWrapper, isMine ? styles.myWrapper : styles.otherWrapper]}>
-          {/* Avatar (only show if not grouped) */}
-          {!isMine && (
-            <View style={styles.avatarContainer}>
-              {showAvatar && avatarSource ? (
-                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
-              ) : (
-                <View style={styles.avatarSpacer} />
-              )}
-            </View>
-          )}
-
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onLongPress={() => showMessageOptions(item)}
-            style={styles.messageContentWrapper}
-          >
-            {/* Reply indicator */}
-            {repliedMessage && (
-              <View style={[styles.replyIndicator, isMine && styles.replyIndicatorMine]}>
-                <View style={styles.replyLine} />
-                <View style={styles.replyContent}>
-                  <Text style={styles.replyLabel}>
-                    {repliedMessage.sender_id === user.email ? 'You' : receiverName}
-                  </Text>
-                  {repliedMessage.text ? (
-                    <Text numberOfLines={1} style={styles.replyText}>
-                      {repliedMessage.text}
-                    </Text>
-                  ) : repliedMessage.messages_image_url ? (
-                    <View style={styles.replyPhotoRow}>
-                      <Icon name="camera" size={10} color={theme.textTertiary} />
-                      <Text style={styles.replyText}> Photo</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            )}
-
-            {/* Message bubble */}
-            <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.otherBubble]}>
-              {item.text ? (
-                <Text style={[styles.bubbleText, isMine && styles.myBubbleText]}>
-                  {item.text}
-                </Text>
-              ) : null}
-              
-              {imageUrls.length > 0 && imageUrls.map((url, idx) => (
-                <TouchableOpacity key={idx} onPress={() => setSelectedImage(url)}>
-                  <Image source={{ uri: url }} style={styles.messageImage} />
-                </TouchableOpacity>
-              ))}
-
-              {/* Timestamp */}
-              <Text style={[styles.messageTime, isMine && styles.myMessageTime]}>
-                {formatMessageTime(item.created_at)}
-                {isMine && (
-                  <Text style={styles.checkMark}> ✓✓</Text>
-                )}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Avatar for sent messages */}
-          {isMine && (
-            <View style={styles.avatarContainer}>
-              {showAvatar && avatarSource ? (
-                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
-              ) : (
-                <View style={styles.avatarSpacer} />
-              )}
-            </View>
-          )}
-        </View>
-      </Swipeable>
-    );
-  };
+    // --- Render item with swipe & animated movement ---
+    const renderItem = ({ item, index }) => {
+      return (
+        <MessageItem
+          item={item}
+          index={index}
+          messages={messages}
+          user={user}
+          receiverName={receiverName}
+          userAvatar={userAvatar}
+          receiverAvatar={receiverAvatar}
+          onReply={handleReply}
+          onLongPress={showMessageOptions}
+          onImagePress={setSelectedImage}
+          theme={theme}
+          styles={styles}
+        />
+      );
+   };
 
   return (
     <>
@@ -649,7 +776,12 @@ const sendMessage = async () => {
             style={styles.messagesList}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            onContentSizeChange={() => {
+              // Auto-scroll when content size changes (new message added)
+              if (flatListRef.current) {
+                flatListRef.current.scrollToEnd({ animated: true });
+              }
+            }}
           />
 
           {/* Typing Indicator */}
