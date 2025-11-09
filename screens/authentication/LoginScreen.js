@@ -465,7 +465,7 @@ const createStyles = (theme) => StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 50 : 90,
+    height: Platform.OS === 'ios' ? 50 : 50,
     backgroundColor: theme.gradientBackground,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -486,7 +486,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 50,
+    top: Platform.OS === 'ios' ? 10 : 10,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -499,14 +499,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoText: {
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: Platform.OS === 'android' ? '900' : '900',
     color: theme.accentSecondary,
     letterSpacing: -0.5,
   },
   header: {
     alignItems: 'center',
     paddingHorizontal: Math.max(width * 0.08, 30),
-    marginTop: Platform.OS === 'ios' ? 140 : 140,
+    marginTop: Platform.OS === 'ios' ? 120 : 120,
     marginBottom: 30,
     zIndex: 2,
   },
@@ -522,7 +522,7 @@ const createStyles = (theme) => StyleSheet.create({
   title: {
     fontSize: Math.min(width * 0.11, 42),
     color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: Platform.OS === 'android' ? '900' : '900',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -530,7 +530,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     fontSize: Math.min(width * 0.04, 16),
     textAlign: 'center',
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontWeight: Platform.OS === 'android' ? '500' : '500',
     lineHeight: 22,
     paddingHorizontal: 10,
   },
@@ -545,7 +545,7 @@ const createStyles = (theme) => StyleSheet.create({
   inputLabel: {
     color: theme.text,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
+    fontWeight: Platform.OS === 'android' ? '600' : '600',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -555,7 +555,7 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.inputBackground,
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 4 : 2,
+    paddingVertical: Platform.OS === 'ios' ? 4 : 4,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -592,17 +592,17 @@ const createStyles = (theme) => StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 16,
     fontSize: 16,
     color: theme.inputText,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontWeight: Platform.OS === 'android' ? '500' : '500',
   },
   errorText: {
     color: theme.error,
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontWeight: Platform.OS === 'android' ? '500' : '500',
   },
   errorRow: {
     flexDirection: 'row',
@@ -616,10 +616,10 @@ const createStyles = (theme) => StyleSheet.create({
   forgotPasswordText: {
     color: theme.accentSecondary,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: Platform.OS === 'android' ? '700' : '700',
   },
   button: {
-    paddingVertical: Platform.OS === 'ios' ? 18 : 16,
+    paddingVertical: Platform.OS === 'ios' ? 18 : 18,
     borderRadius: 25,
     alignItems: 'center',
     marginBottom: 25,
@@ -655,7 +655,7 @@ const createStyles = (theme) => StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: Platform.OS === 'android' ? '800' : '800',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -675,7 +675,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.dividerText,
     paddingHorizontal: 15,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontWeight: Platform.OS === 'android' ? '500' : '500',
   },
   registerContainer: {
     alignItems: 'center',
@@ -684,11 +684,11 @@ const createStyles = (theme) => StyleSheet.create({
   registerText: {
     color: theme.textTertiary,
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '500' : '400',
+    fontWeight: Platform.OS === 'android' ? '500' : '500',
   },
   registerLink: {
     color: theme.accentSecondary,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
+    fontWeight: Platform.OS === 'android' ? '700' : '700',
     textDecorationLine: 'underline',
   },
 });
