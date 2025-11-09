@@ -1,5 +1,6 @@
 // screens/tabs/NotificationsScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,9 +19,159 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from "../../firebase/firebaseConfig";
-import { supabase } from "../../supabase/supabaseClient";
+import { supabase } from '../../supabase/supabaseClient'; // ✅ Fixed path
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
+import { sendPushNotification } from '../../utils/PushNotificationSender'; // ✅ Fixed path
+
+// ✅ MOVED: Message notification helpers - these should ideally be in utils/MessageNotificationHelper.js
+export const sendMessageNotification = async ({
+  senderEmail,
+  receiverEmail,
+  messageText,
+  hasImages = false,
+}) => {
+  try {
+    console.log('🔔 [NotificationHelper] Sending notification to:', receiverEmail);
+
+    // Fetch sender's name
+    const { data: senderData, error: senderError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('email', senderEmail)
+      .maybeSingle();
+
+    if (senderError) {
+      console.warn('⚠️ [NotificationHelper] Error fetching sender name:', senderError);
+    }
+
+    const senderName = senderData?.name || senderEmail;
+
+    // Construct notification message
+    let notificationMessage = '';
+    let pushTitle = 'New Message';
+    
+    if (hasImages && !messageText) {
+      notificationMessage = `${senderName} sent you a photo`;
+    } else if (hasImages && messageText) {
+      const truncatedText = messageText.length > 50 
+        ? `${messageText.substring(0, 50)}...` 
+        : messageText;
+      notificationMessage = `${senderName} sent you a photo: ${truncatedText}`;
+    } else if (messageText) {
+      const truncatedText = messageText.length > 100 
+        ? `${messageText.substring(0, 100)}...` 
+        : messageText;
+      notificationMessage = `${truncatedText}`;
+      pushTitle = senderName; // Use sender name as title for text messages
+    } else {
+      notificationMessage = `${senderName} sent you a message`;
+    }
+
+    // Insert notification into database
+    const { data: notification, error: notificationError } = await supabase
+      .from('notifications')
+      .insert({
+        sender_id: senderEmail,
+        receiver_id: receiverEmail,
+        title: 'New Message',
+        message: notificationMessage,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (notificationError) {
+      console.error('❌ [NotificationHelper] Failed to insert notification:', notificationError);
+      return false;
+    }
+
+    console.log('✅ [NotificationHelper] Database notification created:', notification.id);
+
+    // 🆕 Send push notification
+    await sendPushNotification(
+      receiverEmail,
+      pushTitle,
+      notificationMessage,
+      {
+        type: 'message',
+        senderId: senderEmail,
+        senderName: senderName,
+        screen: 'MessagingScreen',
+        params: {
+          receiverId: senderEmail,
+          receiverName: senderName,
+        },
+      }
+    );
+
+    return true;
+
+  } catch (error) {
+    console.error('❌ [NotificationHelper] Unexpected error:', error);
+    return false;
+  }
+};
+
+export const sendProductSoldNotification = async ({
+  buyerEmail,
+  sellerEmail,
+  productName,
+  price,
+}) => {
+  try {
+    console.log('🔔 [NotificationHelper] Sending product sold notification to:', sellerEmail);
+
+    // Fetch buyer's name
+    const { data: buyerData } = await supabase
+      .from('users')
+      .select('name')
+      .eq('email', buyerEmail)
+      .maybeSingle();
+
+    const buyerName = buyerData?.name || buyerEmail;
+    const notificationMessage = `${buyerName} purchased "${productName}" for ₱${price}`;
+
+    // Insert notification
+    const { error } = await supabase
+      .from('notifications')
+      .insert({
+        sender_id: buyerEmail,
+        receiver_id: sellerEmail,
+        title: 'Product Sold',
+        message: notificationMessage,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error('❌ [NotificationHelper] Failed to send product sold notification:', error);
+      return false;
+    }
+
+    // 🆕 Send push notification
+    await sendPushNotification(
+      sellerEmail,
+      'Product Sold! 🎉',
+      notificationMessage,
+      {
+        type: 'order',
+        buyerEmail: buyerEmail,
+        productName: productName,
+        price: price,
+        screen: 'OrderHistory',
+      }
+    );
+
+    console.log('✅ [NotificationHelper] Product sold notification sent successfully');
+    return true;
+
+  } catch (error) {
+    console.error('❌ [NotificationHelper] Unexpected error:', error);
+    return false;
+  }
+};
 
 const { width, height } = Dimensions.get('window');
 
@@ -294,26 +445,31 @@ export default function NotificationsScreen({ navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    // Update badge when unread count changes
+    Notifications.setBadgeCountAsync(unreadCount);
+  }, [unreadCount]);
+
   const navigateToMessaging = (params) => {
     try {
-      navigation.navigate('Messaging', params);
+      navigation.navigate('MessagingScreen', params);
       return;
     } catch (e) {}
 
     const parent = navigation.getParent && navigation.getParent();
     if (parent && parent.navigate) {
-      parent.navigate('Messaging', params);
+      parent.navigate('MessagingScreen', params);
       return;
     }
 
     const grandParent = parent && parent.getParent && parent.getParent();
     if (grandParent && grandParent.navigate) {
-      grandParent.navigate('Messaging', params);
+      grandParent.navigate('MessagingScreen', params);
       return;
     }
 
     try {
-      navigation.navigate('Tabs', { screen: 'Messaging', params });
+      navigation.navigate('MainTabs', { screen: 'Messaging', params });
     } catch (err) {
       console.error('Failed to navigate to Messaging via any navigator:', err);
     }
@@ -825,7 +981,7 @@ export default function NotificationsScreen({ navigation }) {
         style={styles.exploreButton}
         onPress={() => {
           try {
-            navigation.navigate('Tabs', { screen: 'Home' });
+            navigation.navigate('MainTabs', { screen: 'Home' });
           } catch (e) {
             navigation.goBack();
           }
@@ -1301,4 +1457,4 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     color: theme.textSecondary,
   },
-});
+})
