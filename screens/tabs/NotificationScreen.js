@@ -4,13 +4,14 @@ import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   Platform,
   RefreshControl,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,12 +20,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from "../../firebase/firebaseConfig";
-import { supabase } from '../../supabase/supabaseClient'; // ✅ Fixed path
+import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
-import { sendPushNotification } from '../../utils/PushNotificationSender'; // ✅ Fixed path
+import { sendPushNotification } from '../../utils/PushNotificationSender';
 
-// ✅ MOVED: Message notification helpers - these should ideally be in utils/MessageNotificationHelper.js
+// Message notification helpers (unchanged)
 export const sendMessageNotification = async ({
   senderEmail,
   receiverEmail,
@@ -34,7 +35,6 @@ export const sendMessageNotification = async ({
   try {
     console.log('🔔 [NotificationHelper] Sending notification to:', receiverEmail);
 
-    // Fetch sender's name
     const { data: senderData, error: senderError } = await supabase
       .from('users')
       .select('name')
@@ -47,7 +47,6 @@ export const sendMessageNotification = async ({
 
     const senderName = senderData?.name || senderEmail;
 
-    // Construct notification message
     let notificationMessage = '';
     let pushTitle = 'New Message';
     
@@ -63,12 +62,11 @@ export const sendMessageNotification = async ({
         ? `${messageText.substring(0, 100)}...` 
         : messageText;
       notificationMessage = `${truncatedText}`;
-      pushTitle = senderName; // Use sender name as title for text messages
+      pushTitle = senderName;
     } else {
       notificationMessage = `${senderName} sent you a message`;
     }
 
-    // Insert notification into database
     const { data: notification, error: notificationError } = await supabase
       .from('notifications')
       .insert({
@@ -89,7 +87,6 @@ export const sendMessageNotification = async ({
 
     console.log('✅ [NotificationHelper] Database notification created:', notification.id);
 
-    // 🆕 Send push notification
     await sendPushNotification(
       receiverEmail,
       pushTitle,
@@ -123,7 +120,6 @@ export const sendProductSoldNotification = async ({
   try {
     console.log('🔔 [NotificationHelper] Sending product sold notification to:', sellerEmail);
 
-    // Fetch buyer's name
     const { data: buyerData } = await supabase
       .from('users')
       .select('name')
@@ -133,7 +129,6 @@ export const sendProductSoldNotification = async ({
     const buyerName = buyerData?.name || buyerEmail;
     const notificationMessage = `${buyerName} purchased "${productName}" for ₱${price}`;
 
-    // Insert notification
     const { error } = await supabase
       .from('notifications')
       .insert({
@@ -150,7 +145,6 @@ export const sendProductSoldNotification = async ({
       return false;
     }
 
-    // 🆕 Send push notification
     await sendPushNotification(
       sellerEmail,
       'Product Sold! 🎉',
@@ -175,12 +169,195 @@ export const sendProductSoldNotification = async ({
 
 const { width, height } = Dimensions.get('window');
 
+// Enhanced notification item component with improved UI
+const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete }) => {
+  const animatedScale = useRef(new Animated.Value(1)).current;
+  const actionOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(actionOpacity, {
+      toValue: 1,
+      duration: 300,
+      delay: index * 50,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(animatedScale, {
+      toValue: 0.98,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(animatedScale, {
+      toValue: 1,
+      tension: 100,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const senderDisplay = item.sender_name || item.sender_id;
+  let displayMessage = item.message || '';
+  if (item.sender_id && displayMessage.includes(item.sender_id)) {
+    displayMessage = displayMessage.replace(item.sender_id, senderDisplay);
+  }
+
+  if (item.grouped_count > 1) {
+    displayMessage = `${item.grouped_count} new messages`;
+  }
+
+  const iconName = getNotificationIcon(item.title);
+  const iconColor = getNotificationColor(item.title, theme);
+
+  const notifDate = new Date(item.created_at);
+  const now = new Date();
+  const diffMs = now - notifDate;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  let timeAgo;
+  if (diffMins < 1) timeAgo = 'Just now';
+  else if (diffMins < 60) timeAgo = `${diffMins}m ago`;
+  else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
+  else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
+  else timeAgo = notifDate.toLocaleDateString();
+
+  const isUnread = !item.is_read;
+  const styles = createStyles(theme);
+
+  return (
+    <Animated.View 
+      style={[
+        styles.itemContainer,
+        { 
+          transform: [{ scale: animatedScale }],
+          opacity: actionOpacity
+        }
+      ]}
+    >
+      <TouchableOpacity
+        onPress={() => onPress(item)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+        style={[
+          styles.notificationCard, 
+          isUnread && styles.notificationCardUnread
+        ]}
+      >
+        {/* Left Icon Section */}
+        <View style={[styles.iconCircle, { backgroundColor: `${iconColor}15` }]}>
+          <Icon name={iconName} size={22} color={iconColor} />
+          {item.grouped_count > 1 && (
+            <View style={styles.groupBadge}>
+              <Text style={[styles.groupBadgeText, { fontFamily: fontFamily.bold }]}>
+                {item.grouped_count}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Content Area */}
+        <View style={styles.contentArea}>
+          <View style={styles.headerRow}>
+            <Text 
+              style={[styles.titleText, { fontFamily: fontFamily.bold }]} 
+              numberOfLines={1}
+            >
+              {item.title}
+            </Text>
+            {isUnread && (
+              <View style={styles.unreadBadge}>
+                <View style={styles.unreadDot} />
+              </View>
+            )}
+          </View>
+
+          <Text 
+            style={[styles.messageText, { fontFamily: fontFamily.regular }]} 
+            numberOfLines={2}
+          >
+            {displayMessage}
+          </Text>
+
+          <View style={styles.metaRow}>
+            <View style={styles.timeRow}>
+              <Ionicons name="time-outline" size={12} color={theme.textSecondary} />
+              <Text style={[styles.timeText, { fontFamily: fontFamily.medium }]}>
+                {timeAgo}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Action Buttons - Properly Centered */}
+        <View style={styles.actionButtonsContainer}>
+          {!item.is_read && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                onMarkAsRead(item);
+              }}
+              style={[styles.actionButton, styles.readButton]}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="checkmark-circle" size={22} color={theme.accent} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onDelete(item);
+            }}
+            style={[styles.actionButton, styles.deleteButton]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+// Helper functions (unchanged)
+const getNotificationIcon = (title) => {
+  if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'shopping-cart';
+  if (title.includes('Rent') || title.includes('Rental')) return 'calendar';
+  if (title.includes('Message')) return 'envelope';
+  if (title.includes('Review')) return 'star';
+  return 'bell';
+};
+
+const getNotificationColor = (title, theme) => {
+  if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return theme.accent;
+  if (title.includes('Rent') || title.includes('Rental')) return theme.rentalColor || '#6366F1';
+  if (title.includes('Message')) return theme.messageColor || '#10B981';
+  if (title.includes('Review')) return theme.reviewColor || '#F59E0B';
+  return theme.accent;
+};
+
+const getNotificationCategory = (title) => {
+  if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'orders';
+  if (title.includes('Rent') || title.includes('Rental')) return 'rentals';
+  if (title.includes('Message')) return 'messages';
+  return 'other';
+};
+
 export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const user = auth.currentUser;
 
   const systemColorScheme = useColorScheme();
@@ -190,11 +367,30 @@ export default function NotificationsScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const headerAnim = useRef(new Animated.Value(-50)).current;
-
-  // CRITICAL: Track if component is mounted
+  const toastAnim = useRef(new Animated.Value(-100)).current;
   const isMounted = useRef(true);
 
-  // Group notifications by sender
+  // Toast notification
+  const showToast = (message) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    Animated.sequence([
+      Animated.spring(toastAnim, {
+        toValue: 0,
+        tension: 80,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(toastAnim, {
+        toValue: -100,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setToastVisible(false));
+  };
+
+  // Group notifications by sender (unchanged)
   const groupNotifications = (notifs) => {
     const grouped = [];
     const messageGroups = {};
@@ -213,14 +409,12 @@ export default function NotificationsScreen({ navigation }) {
           messageGroups[notif.sender_id].grouped_count++;
           messageGroups[notif.sender_id].grouped_ids.push(notif.id);
           
-          // Update to latest message
           if (new Date(notif.created_at) > new Date(messageGroups[notif.sender_id].latest_created_at)) {
             messageGroups[notif.sender_id].message = notif.message;
             messageGroups[notif.sender_id].latest_created_at = notif.created_at;
             messageGroups[notif.sender_id].created_at = notif.created_at;
           }
           
-          // If any message in group is unread, mark group as unread
           if (!notif.is_read) {
             messageGroups[notif.sender_id].is_read = false;
           }
@@ -230,12 +424,10 @@ export default function NotificationsScreen({ navigation }) {
       }
     });
 
-    // Add grouped messages
     Object.values(messageGroups).forEach(group => {
       grouped.push(group);
     });
 
-    // Sort by created_at
     return grouped.sort((a, b) => 
       new Date(b.created_at) - new Date(a.created_at)
     );
@@ -250,8 +442,6 @@ export default function NotificationsScreen({ navigation }) {
 
     if (!isRefreshing) setLoading(true);
 
-    console.log('📥 [NotificationsScreen] Fetching notifications for:', user.email);
-
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
@@ -259,16 +449,13 @@ export default function NotificationsScreen({ navigation }) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("❌ [NotificationsScreen] Error fetching notifications:", error);
+      console.error("❌ Error fetching notifications:", error);
       setLoading(false);
       setRefreshing(false);
       return;
     }
 
     const notificationsData = data || [];
-    console.log('✅ [NotificationsScreen] Loaded', notificationsData.length, 'notifications');
-    
-    // Group notifications by sender
     const grouped = groupNotifications(notificationsData);
     
     const uniqueSenders = Array.from(new Set(notificationsData.map(n => n.sender_id).filter(Boolean)));
@@ -280,9 +467,7 @@ export default function NotificationsScreen({ navigation }) {
         .select('email,name')
         .in('email', uniqueSenders);
 
-      if (usersError) {
-        console.warn('⚠️ [NotificationsScreen] Error fetching sender names:', usersError);
-      } else if (usersData) {
+      if (!usersError && usersData) {
         senderMap = usersData.reduce((acc, u) => {
           acc[u.email] = u.name;
           return acc;
@@ -297,8 +482,6 @@ export default function NotificationsScreen({ navigation }) {
 
     if (isMounted.current) {
       setNotifications(annotated);
-      
-      // Calculate unread count
       const unread = annotated.filter(n => !n.is_read).length;
       setUnreadCount(unread);
     }
@@ -306,7 +489,6 @@ export default function NotificationsScreen({ navigation }) {
     setLoading(false);
     setRefreshing(false);
 
-    // Trigger animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -327,16 +509,11 @@ export default function NotificationsScreen({ navigation }) {
     ]).start();
   };
 
-  // FIXED: Initial fetch and realtime subscription
   useEffect(() => {
     if (!user?.email) return;
 
-    console.log('📨 [NotificationsScreen] Setting up notification subscription for:', user.email);
-
-    // Initial fetch
     fetchNotifications();
 
-    // FIXED: Set up realtime subscription with proper event handling
     const channel = supabase
       .channel("notifications-channel")
       .on(
@@ -348,11 +525,8 @@ export default function NotificationsScreen({ navigation }) {
           filter: `receiver_id=eq.${user.email}`,
         },
         async (payload) => {
-          console.log("🔔 [NotificationsScreen] New notification received:", payload.new);
-          
           if (!isMounted.current) return;
 
-          // Fetch sender name for the new notification
           let annotatedNotification = { ...payload.new };
           
           if (payload.new.sender_id) {
@@ -368,14 +542,11 @@ export default function NotificationsScreen({ navigation }) {
             };
           }
           
-          // Update notifications state with proper grouping
           setNotifications((prev) => {
             const newList = [annotatedNotification, ...prev];
-            const regrouped = groupNotifications(newList);
-            return regrouped;
+            return groupNotifications(newList);
           });
           
-          // Increment unread count if notification is unread
           if (!payload.new.is_read) {
             setUnreadCount(prev => prev + 1);
           }
@@ -390,19 +561,13 @@ export default function NotificationsScreen({ navigation }) {
           filter: `receiver_id=eq.${user.email}`,
         },
         (payload) => {
-          console.log("🔄 [NotificationsScreen] Notification updated:", payload.new);
-          
           if (!isMounted.current) return;
 
-          setNotifications((prev) =>
-            prev.map((n) => (n.id === payload.new.id ? { ...n, ...payload.new } : n))
-          );
-          
-          // Recalculate unread count
           setNotifications((prev) => {
-            const unread = prev.filter(n => !n.is_read).length;
+            const updated = prev.map((n) => (n.id === payload.new.id ? { ...n, ...payload.new } : n));
+            const unread = updated.filter(n => !n.is_read).length;
             setUnreadCount(unread);
-            return prev;
+            return updated;
           });
         }
       )
@@ -415,8 +580,6 @@ export default function NotificationsScreen({ navigation }) {
           filter: `receiver_id=eq.${user.email}`,
         },
         (payload) => {
-          console.log("🗑️ [NotificationsScreen] Notification deleted:", payload.old);
-          
           if (!isMounted.current) return;
 
           setNotifications((prev) => {
@@ -427,18 +590,14 @@ export default function NotificationsScreen({ navigation }) {
           });
         }
       )
-      .subscribe((status) => {
-        console.log('🔌 [NotificationsScreen] Subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
-      console.log('🧹 [NotificationsScreen] Cleaning up subscription');
       isMounted.current = false;
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
   }, [user?.email]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMounted.current = false;
@@ -446,8 +605,11 @@ export default function NotificationsScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    // Update badge when unread count changes
-    Notifications.setBadgeCountAsync(unreadCount);
+    if (Notifications.setBadgeCountAsync) {
+      Notifications.setBadgeCountAsync(unreadCount).catch(err => {
+        console.warn('Failed to set badge count:', err);
+      });
+    }
   }, [unreadCount]);
 
   const navigateToMessaging = (params) => {
@@ -471,7 +633,7 @@ export default function NotificationsScreen({ navigation }) {
     try {
       navigation.navigate('MainTabs', { screen: 'Messaging', params });
     } catch (err) {
-      console.error('Failed to navigate to Messaging via any navigator:', err);
+      console.error('Failed to navigate:', err);
     }
   };
 
@@ -479,8 +641,6 @@ export default function NotificationsScreen({ navigation }) {
     if (notification.is_read) return;
 
     const idsToUpdate = notification.grouped_ids || [notification.id];
-
-    console.log('✅ [NotificationsScreen] Marking as read:', idsToUpdate);
 
     const { error } = await supabase
       .from('notifications')
@@ -498,54 +658,41 @@ export default function NotificationsScreen({ navigation }) {
       
       const newUnreadCount = Math.max(0, unreadCount - idsToUpdate.length);
       setUnreadCount(newUnreadCount);
-    } else {
-      console.error('❌ [NotificationsScreen] Error marking as read:', error);
+      showToast('Marked as read');
     }
   };
 
   const deleteNotification = async (notification) => {
-    Alert.alert(
-      'Delete Notification',
-      notification.grouped_count > 1 
+    const idsToDelete = notification.grouped_ids || [notification.id];
+    
+    setConfirmAction({
+      title: 'Delete Notification',
+      message: notification.grouped_count > 1 
         ? `Delete all ${notification.grouped_count} messages from this conversation?`
-        : 'Delete this notification?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const idsToDelete = notification.grouped_ids || [notification.id];
-            
-            console.log('🗑️ [NotificationsScreen] Deleting notifications:', idsToDelete);
+        : 'Are you sure you want to delete this notification?',
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .in('id', idsToDelete);
 
-            const { error } = await supabase
-              .from('notifications')
-              .delete()
-              .in('id', idsToDelete);
-
-            if (!error) {
-              setNotifications(prev =>
-                prev.filter(n => !idsToDelete.includes(n.id))
-              );
-              
-              if (!notification.is_read) {
-                const newUnreadCount = Math.max(0, unreadCount - idsToDelete.length);
-                setUnreadCount(newUnreadCount);
-              }
-            } else {
-              console.error('❌ [NotificationsScreen] Error deleting:', error);
-              Alert.alert('Error', 'Failed to delete notification');
-            }
-          },
-        },
-      ]
-    );
+        if (!error) {
+          setNotifications(prev =>
+            prev.filter(n => !idsToDelete.includes(n.id))
+          );
+          
+          if (!notification.is_read) {
+            const newUnreadCount = Math.max(0, unreadCount - idsToDelete.length);
+            setUnreadCount(newUnreadCount);
+          }
+          showToast('Notification deleted');
+        }
+      },
+    });
+    setConfirmModalVisible(true);
   };
 
   const markAllAsRead = async () => {
-    console.log('✅ [NotificationsScreen] Marking all as read');
-
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -557,60 +704,44 @@ export default function NotificationsScreen({ navigation }) {
         prev.map(n => ({ ...n, is_read: true }))
       );
       setUnreadCount(0);
-    } else {
-      console.error('❌ [NotificationsScreen] Error marking all as read:', error);
+      showToast('All notifications marked as read');
     }
   };
 
   const deleteAllNotifications = async () => {
-    Alert.alert(
-      'Clear All Notifications',
-      'Are you sure you want to delete all notifications?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All',
-          style: 'destructive',
-          onPress: async () => {
-            console.log('🗑️ [NotificationsScreen] Deleting all notifications');
+    setConfirmAction({
+      title: 'Clear All Notifications',
+      message: 'Are you sure you want to delete all notifications? This action cannot be undone.',
+      onConfirm: async () => {
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .eq('receiver_id', user.email);
 
-            const { error } = await supabase
-              .from('notifications')
-              .delete()
-              .eq('receiver_id', user.email);
-
-            if (!error) {
-              setNotifications([]);
-              setUnreadCount(0);
-            } else {
-              console.error('❌ [NotificationsScreen] Error clearing all:', error);
-              Alert.alert('Error', 'Failed to clear notifications');
-            }
-          },
-        },
-      ]
-    );
+        if (!error) {
+          setNotifications([]);
+          setUnreadCount(0);
+          showToast('All notifications cleared');
+        }
+      },
+    });
+    setConfirmModalVisible(true);
   };
 
   const handleNotificationPress = async (notification) => {
-    // Mark as read
     await markAsRead(notification);
 
-    // Check if it's a message notification
     if (notification.title.includes('Message') && notification.sender_id) {
       try {
-        const { data: userData, error: userError } = await supabase
+        const { data: userData } = await supabase
           .from('users')
           .select('name')
           .eq('email', notification.sender_id)
           .maybeSingle();
 
-        if (userError) console.warn('Error fetching sender name:', userError);
-
         const receiverName = userData?.name || null;
         navigateToMessaging({ receiverId: notification.sender_id, receiverName });
       } catch (err) {
-        console.error('Error navigating from notification:', err);
         navigateToMessaging({ receiverId: notification.sender_id });
       }
     }
@@ -621,29 +752,6 @@ export default function NotificationsScreen({ navigation }) {
     fetchNotifications(true);
   };
 
-  const getNotificationIcon = (title) => {
-    if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'shopping-cart';
-    if (title.includes('Rent') || title.includes('Rental')) return 'calendar';
-    if (title.includes('Message')) return 'envelope';
-    if (title.includes('Review')) return 'star';
-    return 'bell';
-  };
-
-  const getNotificationColor = (title) => {
-    if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return theme.accent;
-    if (title.includes('Rent') || title.includes('Rental')) return theme.rentalColor || '#6366F1';
-    if (title.includes('Message')) return theme.messageColor || '#10B981';
-    if (title.includes('Review')) return theme.reviewColor || '#F59E0B';
-    return theme.accent;
-  };
-
-  const getNotificationCategory = (title) => {
-    if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'orders';
-    if (title.includes('Rent') || title.includes('Rental')) return 'rentals';
-    if (title.includes('Message')) return 'messages';
-    return 'other';
-  };
-
   const getFilteredNotifications = () => {
     if (filter === 'all') return notifications;
     if (filter === 'unread') return notifications.filter(n => !n.is_read);
@@ -651,7 +759,6 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   const filteredNotifications = getFilteredNotifications();
-
   const messageCount = notifications.filter(n => n.title.includes('Message')).length;
 
   const styles = createStyles(theme);
@@ -695,23 +802,24 @@ export default function NotificationsScreen({ navigation }) {
         </View>
 
         {notifications.length > 0 && (
-          <TouchableOpacity
-            onPress={() => {
-              Alert.alert(
-                'Notification Actions',
-                'Choose an action',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Mark All Read', onPress: markAllAsRead },
-                  { text: 'Clear All', style: 'destructive', onPress: deleteAllNotifications },
-                ]
-              );
-            }}
-            style={styles.moreButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="ellipsis-vertical" size={20} color={theme.text} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {unreadCount > 0 && (
+              <TouchableOpacity
+                onPress={markAllAsRead}
+                style={styles.actionIconButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="checkmark-done" size={20} color={theme.accent} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={deleteAllNotifications}
+              style={styles.actionIconButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -844,119 +952,16 @@ export default function NotificationsScreen({ navigation }) {
     </Animated.View>
   );
 
-  const renderItem = ({ item, index }) => {
-    const senderDisplay = item.sender_name || item.sender_id;
-    let displayMessage = item.message || '';
-    if (item.sender_id && displayMessage.includes(item.sender_id)) {
-      displayMessage = displayMessage.replace(item.sender_id, senderDisplay);
-    }
-
-    // Add grouping info to message
-    if (item.grouped_count > 1) {
-      displayMessage = `${item.grouped_count} new messages`;
-    }
-
-    const iconName = getNotificationIcon(item.title);
-    const iconColor = getNotificationColor(item.title);
-
-    const notifDate = new Date(item.created_at);
-    const now = new Date();
-    const diffMs = now - notifDate;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    let timeAgo;
-    if (diffMins < 1) timeAgo = 'Just now';
-    else if (diffMins < 60) timeAgo = `${diffMins}m ago`;
-    else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
-    else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
-    else timeAgo = notifDate.toLocaleDateString();
-
-    const isUnread = !item.is_read;
-
-    return (
-      <Animated.View 
-        style={[
-          styles.itemContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => handleNotificationPress(item)}
-          onLongPress={() => {
-            Alert.alert(
-              'Notification Options',
-              'Choose an action',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                !item.is_read && { 
-                  text: 'Mark as Read', 
-                  onPress: () => markAsRead(item) 
-                },
-                { 
-                  text: 'Delete', 
-                  style: 'destructive',
-                  onPress: () => deleteNotification(item) 
-                },
-              ].filter(Boolean)
-            );
-          }}
-          activeOpacity={0.8}
-          style={[
-            styles.notificationCard, 
-            isUnread && styles.notificationCardUnread
-          ]}
-        >
-          <View style={[styles.iconCircle, { backgroundColor: `${iconColor}20` }]}>
-            <Icon name={iconName} size={20} color={iconColor} />
-            {item.grouped_count > 1 && (
-              <View style={styles.groupBadge}>
-                <Text style={styles.groupBadgeText}>{item.grouped_count}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.contentArea}>
-            <View style={styles.headerRow}>
-              <Text 
-                style={[styles.titleText, { fontFamily: fontFamily.bold }]} 
-                numberOfLines={1}
-              >
-                {item.title}
-              </Text>
-              {isUnread && <View style={styles.unreadDot} />}
-            </View>
-
-            <Text 
-              style={[styles.messageText, { fontFamily: fontFamily.regular }]} 
-              numberOfLines={2}
-            >
-              {displayMessage}
-            </Text>
-
-            <View style={styles.metaRow}>
-              <View style={styles.timeRow}>
-                <Icon name="clock-o" size={11} color={theme.textSecondary} />
-                <Text style={[styles.timeText, { fontFamily: fontFamily.medium }]}>
-                  {' '}{timeAgo}
-                </Text>
-              </View>
-              <View style={styles.actionHint}>
-                <Text style={[styles.hintText, { fontFamily: fontFamily.semiBold }]}>
-                  Tap to open
-                </Text>
-                <Ionicons name="chevron-forward" size={14} color={theme.accent} />
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
+  const renderItem = ({ item, index }) => (
+    <NotificationItem
+      item={item}
+      index={index}
+      theme={theme}
+      onPress={handleNotificationPress}
+      onMarkAsRead={markAsRead}
+      onDelete={deleteNotification}
+    />
+  );
 
   const renderEmptyState = () => (
     <Animated.View 
@@ -1009,6 +1014,10 @@ export default function NotificationsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.background}
+      />
       <FlatList
         data={filteredNotifications}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
@@ -1026,6 +1035,72 @@ export default function NotificationsScreen({ navigation }) {
           />
         }
       />
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={confirmModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconContainer}>
+                <Ionicons name="alert-circle" size={32} color="#FF3B30" />
+              </View>
+              <Text style={[styles.modalTitle, { fontFamily: fontFamily.bold }]}>
+                {confirmAction?.title}
+              </Text>
+            </View>
+            
+            <Text style={[styles.modalMessage, { fontFamily: fontFamily.regular }]}>
+              {confirmAction?.message}
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => setConfirmModalVisible(false)}
+                style={[styles.modalButton, styles.cancelButton]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { fontFamily: fontFamily.semiBold }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  confirmAction?.onConfirm();
+                  setConfirmModalVisible(false);
+                }}
+                style={[styles.modalButton, styles.confirmButton]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.confirmButtonText, { fontFamily: fontFamily.bold }]}>
+                  Confirm
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Toast Notification */}
+      {toastVisible && (
+        <Animated.View
+          style={[
+            styles.toastContainer,
+            { transform: [{ translateY: toastAnim }] }
+          ]}
+        >
+          <View style={styles.toastContent}>
+            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+            <Text style={[styles.toastText, { fontFamily: fontFamily.semiBold }]}>
+              {toastMessage}
+            </Text>
+          </View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1043,7 +1118,7 @@ const createStyles = (theme) => StyleSheet.create({
     marginBottom: 16,
   },
   headerBackground: {
-    height: 340,
+    height: 60,
     backgroundColor: theme.gradientBackground || theme.headerBackground,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -1080,11 +1155,18 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
     }),
   },
-  moreButton: {
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionIconButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -1099,7 +1181,10 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
     }),
   },
@@ -1125,7 +1210,10 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
       },
     }),
   },
@@ -1147,7 +1235,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   welcomeContainer: {
     paddingHorizontal: 20,
-    paddingTop: 64,
+    paddingTop: 30,
     paddingBottom: 20,
   },
   greetingText: {
@@ -1230,7 +1318,10 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 3,
       },
       android: {
-        elevation: 1,
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
       },
     }),
   },
@@ -1245,7 +1336,10 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
       },
     }),
   },
@@ -1266,13 +1360,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   itemContainer: {
     paddingHorizontal: 20,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   notificationCard: {
     backgroundColor: theme.cardBackground,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.borderColor || theme.border,
     ...Platform.select({
@@ -1280,10 +1375,13 @@ const createStyles = (theme) => StyleSheet.create({
         shadowColor: theme.shadowColor || '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
-        shadowRadius: 6,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 2,
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
     }),
   },
@@ -1294,22 +1392,25 @@ const createStyles = (theme) => StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
       },
     }),
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
     position: 'relative',
   },
   groupBadge: {
@@ -1329,15 +1430,15 @@ const createStyles = (theme) => StyleSheet.create({
   groupBadgeText: {
     color: '#fff',
     fontSize: 10,
-    fontWeight: '700',
   },
   contentArea: {
     flex: 1,
+    justifyContent: 'center',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 6,
   },
   titleText: {
     flex: 1,
@@ -1345,12 +1446,14 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.text,
     letterSpacing: -0.2,
   },
+  unreadBadge: {
+    marginLeft: 8,
+  },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#FF3B30',
-    marginLeft: 8,
   },
   messageText: {
     fontSize: 13,
@@ -1366,19 +1469,45 @@ const createStyles = (theme) => StyleSheet.create({
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
   },
   timeText: {
     fontSize: 11,
     color: theme.textSecondary,
   },
-  actionHint: {
+  actionButtonsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginLeft: 12,
   },
-  hintText: {
-    fontSize: 11,
-    color: theme.accent,
-    marginRight: 3,
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.cardBackground,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  readButton: {
+    backgroundColor: `${theme.accent}15`,
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B3015',
   },
   emptyState: {
     flex: 1,
@@ -1403,7 +1532,10 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 4,
+        shadowColor: theme.shadowColor || '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
       },
     }),
   },
@@ -1437,7 +1569,10 @@ const createStyles = (theme) => StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 6,
+        shadowColor: theme.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
       },
     }),
   },
@@ -1457,4 +1592,133 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     color: theme.textSecondary,
   },
-})
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  modalContent: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+      android: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+    }),
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF3B3015',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    color: theme.text,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: theme.borderColor || theme.border,
+  },
+  confirmButton: {
+    backgroundColor: '#FF3B30',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FF3B30',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        shadowColor: '#FF3B30',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    color: theme.text,
+    letterSpacing: -0.2,
+  },
+  confirmButtonText: {
+    fontSize: 15,
+    color: '#fff',
+    letterSpacing: -0.2,
+  },
+  toastContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+  },
+  toastContent: {
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+    }),
+  },
+  toastText: {
+    color: '#fff',
+    fontSize: 14,
+    letterSpacing: -0.2,
+  },
+});

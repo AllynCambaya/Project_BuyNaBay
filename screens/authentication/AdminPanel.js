@@ -8,14 +8,13 @@ const AdminPanel = () => {
   const [verificationRequests, setVerificationRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch pending verification requests from Supabase
   const fetchRequests = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('email_verification_codes')
         .select('*')
-        .eq('status', 'pending'); // Assuming we have a status column: 'pending', 'approved', 'rejected'
+        .eq('status', 'pending');
 
       if (error) throw error;
       setVerificationRequests(data || []);
@@ -120,7 +119,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderRadius: 10,
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   userText: {
     fontSize: 16,

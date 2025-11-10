@@ -1905,7 +1905,7 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: '100%',
+    height: '110%',
     backgroundColor: theme.gradientBackground,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,

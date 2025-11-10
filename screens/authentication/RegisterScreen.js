@@ -1,4 +1,4 @@
-// screens/RegisterScreen.js
+// screens/authentication/RegisterScreen.js
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
@@ -10,7 +10,6 @@ import {
   Dimensions,
   Image,
   Keyboard,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -38,7 +37,6 @@ const RegisterScreen = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   
@@ -48,16 +46,13 @@ const RegisterScreen = () => {
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
   
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
 
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Keyboard listeners
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
@@ -72,7 +67,6 @@ const RegisterScreen = () => {
     };
   }, []);
 
-  // Initial animations
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -100,7 +94,6 @@ const RegisterScreen = () => {
     ]).start();
   }, []);
 
-  // Form validation
   useEffect(() => {
     const newErrors = {};
     
@@ -145,17 +138,13 @@ const RegisterScreen = () => {
     setIsLoading(true);
 
     try {
-      // Create user in Firebase
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
-      // Save display name
       await updateProfile(user, { displayName: name.trim() });
 
-      // Send verification email
       await sendEmailVerification(user);
 
-      // Store user in Supabase table
       const { error } = await supabase.from("users").insert([
         {
           id: user.uid,
@@ -469,7 +458,7 @@ const RegisterScreen = () => {
   );
 };
 
-// Dark theme colors (matching LoginScreen)
+// Dark theme colors
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
@@ -495,7 +484,7 @@ const darkTheme = {
   borderTransparent: 'transparent',
 };
 
-// Light theme colors (matching LoginScreen)
+// Light theme colors 
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
@@ -539,7 +528,7 @@ const createStyles = (theme) => StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 50 : 50,
+    height: 50,
     backgroundColor: theme.gradientBackground,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -560,7 +549,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 10,
+    top: 10,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -573,14 +562,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoText: {
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '900' : '900',
+    fontWeight: '900',
     color: theme.accentSecondary,
     letterSpacing: -0.5,
   },
   header: {
     alignItems: 'center',
     paddingHorizontal: Math.max(width * 0.08, 30),
-    marginTop: Platform.OS === 'ios' ? 120 : 120,
+    marginTop: 120,
     marginBottom: 30,
     zIndex: 2,
   },
@@ -596,7 +585,7 @@ const createStyles = (theme) => StyleSheet.create({
   title: {
     fontSize: Math.min(width * 0.11, 42),
     color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '900',
+    fontWeight: '900',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -604,7 +593,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     fontSize: Math.min(width * 0.04, 16),
     textAlign: 'center',
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
     lineHeight: 22,
     paddingHorizontal: 10,
   },
@@ -619,7 +608,7 @@ const createStyles = (theme) => StyleSheet.create({
   inputLabel: {
     color: theme.text,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '600' : '600',
+    fontWeight: '600',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -629,33 +618,19 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.inputBackground,
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 4 : 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     borderWidth: 1,
     borderColor: theme.borderTransparent,
   },
   inputWrapperFocused: {
     borderColor: theme.accent,
     backgroundColor: theme.inputBackgroundFocused,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   inputWrapperError: {
     borderColor: theme.error,
@@ -666,17 +641,17 @@ const createStyles = (theme) => StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: Platform.OS === 'ios' ? 16 : 16,
+    paddingVertical: 16,
     fontSize: 16,
     color: theme.inputText,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   errorText: {
     color: theme.error,
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   errorRow: {
     flexDirection: 'row',
@@ -684,7 +659,7 @@ const createStyles = (theme) => StyleSheet.create({
     marginTop: 6,
   },
   button: {
-    paddingVertical: Platform.OS === 'ios' ? 18 : 18,
+    paddingVertical: 18,
     borderRadius: 25,
     alignItems: 'center',
     marginBottom: 25,
@@ -692,36 +667,22 @@ const createStyles = (theme) => StyleSheet.create({
   },
   buttonEnabled: {
     backgroundColor: theme.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   buttonDisabled: {
     backgroundColor: theme.buttonDisabled,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '800',
+    fontWeight: '800',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -734,14 +695,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   divider: {
     flex: 1,
-    height: Platform.OS === 'ios' ? 1 : StyleSheet.hairlineWidth,
+    height: 1,
     backgroundColor: theme.divider,
   },
   dividerText: {
     color: theme.dividerText,
     paddingHorizontal: 15,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   loginContainer: {
     alignItems: 'center',
@@ -750,11 +711,11 @@ const createStyles = (theme) => StyleSheet.create({
   loginText: {
     color: theme.textTertiary,
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   loginLink: {
     color: theme.accentSecondary,
-    fontWeight: Platform.OS === 'android' ? '700' : '700',
+    fontWeight: '700',
     textDecorationLine: 'underline',
   },
 });

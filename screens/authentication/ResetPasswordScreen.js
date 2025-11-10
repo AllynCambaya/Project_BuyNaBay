@@ -10,7 +10,6 @@ import {
   Dimensions,
   Image,
   Keyboard,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -32,23 +31,19 @@ const ResetPasswordScreen = () => {
   const [isFormValid, setIsFormValid] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   
   const navigation = useNavigation();
   const emailRef = useRef(null);
   
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
 
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Keyboard listeners
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
@@ -63,7 +58,6 @@ const ResetPasswordScreen = () => {
     };
   }, []);
 
-  // Initial animations
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -91,7 +85,6 @@ const ResetPasswordScreen = () => {
     ]).start();
   }, []);
 
-  // Form validation
   useEffect(() => {
     const newErrors = {};
     
@@ -161,10 +154,8 @@ const ResetPasswordScreen = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Background gradient effect */}
           <View style={styles.backgroundGradient} />
           
-          {/* Background logo watermark */}
           <View style={styles.backgroundLogoContainer}>
             <Image 
               source={require('../../assets/images/OfficialBuyNaBay.png')} 
@@ -173,7 +164,6 @@ const ResetPasswordScreen = () => {
             />
           </View>
           
-          {/* Branded logo - upper right */}
           <View style={styles.brandedLogoContainer}>
             <Image 
               source={require('../../assets/images/OfficialBuyNaBay.png')} 
@@ -184,7 +174,6 @@ const ResetPasswordScreen = () => {
           </View>
           
     
-          {/* Animated header */}
           <Animated.View 
             style={[
               styles.header, 
@@ -205,7 +194,6 @@ const ResetPasswordScreen = () => {
             </Text>
           </Animated.View>
 
-          {/* Animated form container */}
           <Animated.View
             style={[
               styles.formContainer,
@@ -218,7 +206,6 @@ const ResetPasswordScreen = () => {
               }
             ]}
           >
-            {/* Info Box */}
             <View style={styles.infoBox}>
               <Icon name="info-circle" size={16} color={theme.accent} style={styles.infoIcon} />
               <Text style={styles.infoText}>
@@ -226,7 +213,6 @@ const ResetPasswordScreen = () => {
               </Text>
             </View>
 
-            {/* Email Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email Address</Text>
               <View style={[
@@ -260,7 +246,6 @@ const ResetPasswordScreen = () => {
               )}
             </View>
 
-            {/* Reset Password Button */}
             <TouchableOpacity
               style={[
                 styles.button,
@@ -280,14 +265,12 @@ const ResetPasswordScreen = () => {
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
             <View style={styles.dividerContainer}>
               <View style={styles.divider} />
               <Text style={styles.dividerText}>or</Text>
               <View style={styles.divider} />
             </View>
 
-            {/* Back to Login Link */}
             <View style={styles.loginContainer}>
               <Text style={styles.loginText}>
                 Remember your password?{' '}
@@ -300,7 +283,6 @@ const ResetPasswordScreen = () => {
               </Text>
             </View>
 
-            {/* Help Text */}
             <View style={styles.helpContainer}>
               <Icon name="question-circle" size={14} color={theme.textSecondary} style={styles.helpIcon} />
               <Text style={styles.helpText}>
@@ -314,7 +296,7 @@ const ResetPasswordScreen = () => {
   );
 };
 
-// Dark theme colors (matching LoginScreen)
+// Dark theme colors 
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
@@ -341,7 +323,7 @@ const darkTheme = {
   iconCircleBackground: 'rgba(253, 173, 0, 0.15)',
 };
 
-// Light theme colors (matching LoginScreen)
+// Light theme colors 
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
@@ -386,7 +368,7 @@ const createStyles = (theme) => StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 50 : 50,
+    height: 50,
     backgroundColor: theme.gradientBackground,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -407,7 +389,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 10,
+    top: 10,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -420,14 +402,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoText: {
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '900' : '900',
+    fontWeight: '900',
     color: theme.accentSecondary,
     letterSpacing: -0.5,
   },
   header: {
     alignItems: 'center',
     paddingHorizontal: Math.max(width * 0.08, 30),
-    marginTop: Platform.OS === 'ios' ? 120 : 120,
+    marginTop: 120,
     marginBottom: 30,
     zIndex: 2,
   },
@@ -443,22 +425,15 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.iconCircleBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   title: {
     fontSize: Math.min(width * 0.11, 42),
     color: theme.text,
-    fontWeight: Platform.OS === 'android' ? '900' : '900',
+    fontWeight: '900',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -466,7 +441,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     fontSize: Math.min(width * 0.04, 16),
     textAlign: 'center',
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
     lineHeight: 22,
     paddingHorizontal: 10,
   },
@@ -493,7 +468,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.infoText,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   inputContainer: {
     marginBottom: 20,
@@ -501,7 +476,7 @@ const createStyles = (theme) => StyleSheet.create({
   inputLabel: {
     color: theme.text,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '600' : '600',
+    fontWeight: '600',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -511,33 +486,19 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.inputBackground,
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 4 : 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     borderWidth: 1,
     borderColor: theme.borderTransparent,
   },
   inputWrapperFocused: {
     borderColor: theme.accent,
     backgroundColor: theme.inputBackgroundFocused,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   inputWrapperError: {
     borderColor: theme.error,
@@ -548,17 +509,17 @@ const createStyles = (theme) => StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: Platform.OS === 'ios' ? 16 : 16,
+    paddingVertical: 16,
     fontSize: 16,
     color: theme.inputText,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   errorText: {
     color: theme.error,
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   errorRow: {
     flexDirection: 'row',
@@ -566,7 +527,7 @@ const createStyles = (theme) => StyleSheet.create({
     marginTop: 6,
   },
   button: {
-    paddingVertical: Platform.OS === 'ios' ? 18 : 18,
+    paddingVertical: 18,
     borderRadius: 25,
     alignItems: 'center',
     marginBottom: 25,
@@ -574,36 +535,22 @@ const createStyles = (theme) => StyleSheet.create({
   },
   buttonEnabled: {
     backgroundColor: theme.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   buttonDisabled: {
     backgroundColor: theme.buttonDisabled,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '800',
+    fontWeight: '800',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -616,14 +563,14 @@ const createStyles = (theme) => StyleSheet.create({
   },
   divider: {
     flex: 1,
-    height: Platform.OS === 'ios' ? 1 : StyleSheet.hairlineWidth,
+    height: 1,
     backgroundColor: theme.divider,
   },
   dividerText: {
     color: theme.dividerText,
     paddingHorizontal: 15,
     fontSize: 14,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   loginContainer: {
     alignItems: 'center',
@@ -632,11 +579,11 @@ const createStyles = (theme) => StyleSheet.create({
   loginText: {
     color: theme.textTertiary,
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '500' : '500',
+    fontWeight: '500',
   },
   loginLink: {
     color: theme.accentSecondary,
-    fontWeight: Platform.OS === 'android' ? '700' : '700',
+    fontWeight: '700',
     textDecorationLine: 'underline',
   },
   helpContainer: {
@@ -654,7 +601,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: Platform.OS === 'android' ? '400' : '400',
+    fontWeight: '400',
   },
 });
 
