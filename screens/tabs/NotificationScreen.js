@@ -974,13 +974,7 @@ export default function NotificationsScreen({ navigation }) {
       </Text>
       <TouchableOpacity
         style={styles.exploreButton}
-        onPress={() => {
-          try {
-            navigation.navigate('MainTabs', { screen: 'Home' });
-          } catch (e) {
-            navigation.goBack();
-          }
-        }}
+        onPress={() => navigation.navigate('MainTabs', { screen: 'Tabs', params: { screen: 'Home' } })}
         activeOpacity={0.8}
       >
         <Icon name="shopping-bag" size={18} color="#fff" style={{ marginRight: 10 }} />
