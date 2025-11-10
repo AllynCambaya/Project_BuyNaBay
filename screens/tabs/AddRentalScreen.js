@@ -1,4 +1,4 @@
-// screens/AddRentalScreen.js
+// screens/tabs/AddLostItemScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -11,7 +11,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -25,13 +24,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-// Typography system (matching HomeScreen.js)
 const fontFamily = {
-  regular: Platform.select({ ios: 'Poppins-Regular', android: 'Poppins-Regular', default: 'System' }),
-  medium: Platform.select({ ios: 'Poppins-Medium', android: 'Poppins-Medium', default: 'System' }),
-  semiBold: Platform.select({ ios: 'Poppins-SemiBold', android: 'Poppins-SemiBold', default: 'System' }),
-  bold: Platform.select({ ios: 'Poppins-Bold', android: 'Poppins-Bold', default: 'System' }),
-  extraBold: Platform.select({ ios: 'Poppins-ExtraBold', android: 'Poppins-ExtraBold', default: 'System' }),
+  regular: 'Poppins-Regular',
+  medium: 'Poppins-Medium',
+  semiBold: 'Poppins-SemiBold',
+  bold: 'Poppins-Bold',
+  extraBold: 'Poppins-ExtraBold',
 };
 
 const DURATION_OPTIONS = ['per hour', 'per day', 'per week', 'per month'];
@@ -105,7 +103,6 @@ export default function AddRentalScreen({ navigation }) {
     Keyboard.dismiss();
     setUploading(true);
     
-    // Simulate upload
     const progressInterval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 100) {
@@ -124,7 +121,6 @@ export default function AddRentalScreen({ navigation }) {
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
       
-      // Reset form
       setItemName('');
       setDescription('');
       setQuantity('1');
@@ -248,7 +244,7 @@ export default function AddRentalScreen({ navigation }) {
     <>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.keyboardView} behavior={'padding'}>
           
           {/* Header */}
           <View style={styles.headerContainer}>
@@ -545,9 +541,9 @@ const createStyles = (theme) => StyleSheet.create({
   headerContainer: { position: 'relative', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, marginBottom: 8 },
   backgroundGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 180, backgroundColor: theme.gradientBackground, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerContent: { zIndex: 1 },
-  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.cardBackground, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: theme.borderColor, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }, android: { elevation: 3 } }) },
+  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.cardBackground, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: theme.borderColor, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-  iconCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.accent, justifyContent: 'center', alignItems: 'center', marginRight: 14, ...Platform.select({ ios: { shadowColor: theme.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }, android: { elevation: 6 } }) },
+  iconCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.accent, justifyContent: 'center', alignItems: 'center', marginRight: 14, shadowColor: theme.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
   headerTitles: { flex: 1 },
   headerTitle: { fontSize: 24, color: theme.text, fontWeight: '700', marginBottom: 4, fontFamily: fontFamily.extraBold },
   headerSubtitle: { fontSize: 13, color: theme.textSecondary, fontFamily: fontFamily.regular, lineHeight: 18 },
@@ -559,7 +555,7 @@ const createStyles = (theme) => StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '700', color: theme.text, flex: 1, fontFamily: fontFamily.bold },
   sectionBadge: { backgroundColor: theme.cardBackgroundAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   sectionBadgeText: { fontSize: 11, color: theme.textSecondary, fontFamily: fontFamily.semiBold },
-  card: { backgroundColor: theme.cardBackground, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: theme.borderColor, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12 }, android: { elevation: 3 } }) },
+  card: { backgroundColor: theme.cardBackground, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: theme.borderColor, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12 },
   imagePicker: { width: '100%', borderRadius: 20, overflow: 'hidden' },
   imagePlaceholder: { width: '100%', minHeight: 200, borderRadius: 20, borderWidth: 2, borderColor: theme.borderColor, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: theme.cardBackgroundAlt, paddingVertical: 40, paddingHorizontal: 24 },
   cameraIconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: theme.inputBackground, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 3, borderColor: theme.borderColor },
@@ -567,7 +563,7 @@ const createStyles = (theme) => StyleSheet.create({
   imagePlaceholderSubtext: { fontSize: 13, color: theme.textSecondary, marginTop: 6, textAlign: 'center', lineHeight: 18, fontFamily: fontFamily.regular },
   imageScrollContent: { paddingHorizontal: 20, paddingVertical: 4 },
   imagePreviewContainer: { position: 'relative', marginRight: 12 },
-  imagePreview: { width: 160, height: 160, borderRadius: 16, backgroundColor: theme.cardBackgroundAlt, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8 }, android: { elevation: 4 } }) },
+  imagePreview: { width: 160, height: 160, borderRadius: 16, backgroundColor: theme.cardBackgroundAlt, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8 },
   removeImageButton: { position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: theme.error, justifyContent: 'center', alignItems: 'center' },
   primaryBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: theme.accent, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   primaryBadgeText: { fontSize: 11, color: '#fff', fontFamily: fontFamily.bold },
@@ -577,8 +573,8 @@ const createStyles = (theme) => StyleSheet.create({
   inputGroup: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 10, fontFamily: fontFamily.semiBold },
   requiredStar: { color: theme.error },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBackground, borderWidth: 1.5, borderColor: theme.borderColor, borderRadius: 14, paddingHorizontal: 16, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 }, android: { elevation: 1 } }) },
-  inputWrapperFocused: { borderColor: theme.accent, borderWidth: 2, ...Platform.select({ ios: { shadowColor: theme.accent, shadowOpacity: 0.15, shadowRadius: 6 }, android: { elevation: 3 } }) },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBackground, borderWidth: 1.5, borderColor: theme.borderColor, borderRadius: 14, paddingHorizontal: 16, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
+  inputWrapperFocused: { borderColor: theme.accent, borderWidth: 2, shadowColor: theme.accent, shadowOpacity: 0.15, shadowRadius: 6 },
   inputIcon: { marginRight: 12, opacity: 0.6 },
   input: { flex: 1, fontSize: 15, color: theme.text, paddingVertical: 14, fontFamily: fontFamily.regular },
   characterCount: { fontSize: 11, color: theme.textSecondary, textAlign: 'right', marginTop: 6, fontFamily: fontFamily.regular },
@@ -586,18 +582,18 @@ const createStyles = (theme) => StyleSheet.create({
   halfWidth: { flex: 1 },
   priceInput: { fontSize: 18, fontWeight: '700', fontFamily: fontFamily.bold },
   quantityContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  quantityButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.cardBackgroundAlt, borderWidth: 1.5, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center', ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 }, android: { elevation: 2 } }) },
+  quantityButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.cardBackgroundAlt, borderWidth: 1.5, borderColor: theme.borderColor, justifyContent: 'center', alignItems: 'center', shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
   quantityButtonDisabled: { opacity: 0.5 },
   quantityInput: { backgroundColor: theme.inputBackground, borderWidth: 1.5, borderColor: theme.borderColor, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 18, fontWeight: '700', color: theme.text, minWidth: 70, fontFamily: fontFamily.bold },
   textAreaWrapper: { alignItems: 'flex-start', paddingTop: 4 },
   textArea: { flex: 1, width: '100%', fontSize: 15, color: theme.text, paddingVertical: 12, minHeight: 120, fontFamily: fontFamily.regular },
   selectorContainer: { marginBottom: 20 },
-  selector: { borderWidth: 1.5, borderColor: theme.borderColor, borderRadius: 14, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.inputBackground, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 }, android: { elevation: 1 } }) },
+  selector: { borderWidth: 1.5, borderColor: theme.borderColor, borderRadius: 14, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.inputBackground, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
   selectorContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   selectorIconCircle: { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.cardBackgroundAlt, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   selectorText: { fontSize: 15, color: theme.text, fontWeight: '500', fontFamily: fontFamily.medium },
   modalOverlay: { flex: 1, backgroundColor: theme.overlayBackground, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalBox: { width: '100%', maxWidth: 400, maxHeight: '75%', backgroundColor: theme.cardBackground, borderRadius: 24, overflow: 'hidden', ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 }, android: { elevation: 10 } }) },
+  modalBox: { width: '100%', maxWidth: 400, maxHeight: '75%', backgroundColor: theme.cardBackground, borderRadius: 24, overflow: 'hidden', shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: theme.borderColor, backgroundColor: theme.cardBackgroundAlt },
   modalTitle: { fontSize: 18, fontWeight: '700', color: theme.text, fontFamily: fontFamily.bold },
   modalCloseButton: { padding: 4 },
@@ -610,8 +606,8 @@ const createStyles = (theme) => StyleSheet.create({
   optionText: { fontSize: 15, color: theme.text, fontWeight: '500', fontFamily: fontFamily.medium },
   optionTextSelected: { fontWeight: '700', color: theme.accent, fontFamily: fontFamily.bold },
   conditionContainer: { gap: 12 },
-  conditionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 14, backgroundColor: theme.cardBackgroundAlt, borderWidth: 1.5, borderColor: theme.borderColor, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 }, android: { elevation: 2 } }) },
-  conditionButtonActive: { backgroundColor: theme.accent, borderColor: theme.accent, ...Platform.select({ ios: { shadowColor: theme.accent, shadowOpacity: 0.4, shadowRadius: 8 }, android: { elevation: 6 } }) },
+  conditionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderRadius: 14, backgroundColor: theme.cardBackgroundAlt, borderWidth: 1.5, borderColor: theme.borderColor, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
+  conditionButtonActive: { backgroundColor: theme.accent, borderColor: theme.accent, shadowColor: theme.accent, shadowOpacity: 0.4, shadowRadius: 8 },
   conditionIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.inputBackground, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   conditionIconCircleActive: { backgroundColor: 'rgba(255, 255, 255, 0.25)' },
   conditionTextContainer: { flex: 1 },
@@ -625,12 +621,12 @@ const createStyles = (theme) => StyleSheet.create({
   progressBar: { height: 10, backgroundColor: theme.cardBackgroundAlt, borderRadius: 6, overflow: 'hidden', marginBottom: 10 },
   progressFill: { height: '100%', backgroundColor: theme.accent, borderRadius: 6 },
   progressText: { fontSize: 13, color: theme.textSecondary, textAlign: 'center', fontFamily: fontFamily.regular },
-  infoBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.infoBannerBg, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: theme.borderColor, marginBottom: 16, ...Platform.select({ ios: { shadowColor: theme.accent, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }, android: { elevation: 2 } }) },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.infoBannerBg, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: theme.borderColor, marginBottom: 16, shadowColor: theme.accent, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   infoBannerIconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.cardBackground, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   infoBannerText: { flex: 1, fontSize: 13, color: theme.text, lineHeight: 19, fontWeight: '500', fontFamily: fontFamily.medium },
-  bottomContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: theme.cardBackground, paddingHorizontal: 20, paddingVertical: 16, paddingBottom: Platform.OS === 'ios' ? 28 : 16, borderTopWidth: 1, borderTopColor: theme.borderColor, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 }, android: { elevation: 10 } }) },
-  publishButton: { backgroundColor: theme.accent, paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', ...Platform.select({ ios: { shadowColor: theme.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 }, android: { elevation: 8 } }) },
-  publishButtonDisabled: { backgroundColor: theme.buttonDisabled, ...Platform.select({ ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }, android: { elevation: 2 } }) },
+  bottomContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: theme.cardBackground, paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 28, borderTopWidth: 1, borderTopColor: theme.borderColor, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 },
+  publishButton: { backgroundColor: theme.accent, paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: theme.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  publishButtonDisabled: { backgroundColor: theme.buttonDisabled, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   buttonContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   publishButtonText: { color: '#fff', fontSize: 17, fontWeight: '700', fontFamily: fontFamily.bold },
 });

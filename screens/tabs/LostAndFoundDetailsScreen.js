@@ -1,3 +1,4 @@
+// screens/tabs/LostAndFoundDetailsScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
@@ -7,7 +8,6 @@ import {
   Animated,
   Dimensions,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -52,13 +52,11 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation refs
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
-  // Header animation
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [0, 1],
@@ -71,17 +69,14 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
     extrapolate: 'clamp',
   });
 
-  // Image scale animation
   const imageScale = scrollY.interpolate({
     inputRange: [-100, 0],
     outputRange: [1.2, 1],
     extrapolate: 'clamp',
   });
 
-  // Parse image URLs
   const imageUrls = item?.lost_and_found_url || item?.image_urls || [];
 
-  // Fetch reporter information
   useEffect(() => {
     let mounted = true;
     const fetchReporterInfo = async () => {
@@ -106,7 +101,6 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
       
       if (mounted) {
         setLoading(false);
-        // Trigger entrance animations
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -147,7 +141,6 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
 
     setContacting(true);
 
-    // Navigate to messaging screen
     navigation.navigate('Messaging', {
       receiverId: item.user_email,
       receiverName: reporterName,
@@ -545,7 +538,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingBottom: 32,
   },
 
-  // Collapsible Header
   collapsibleHeader: {
     position: 'absolute',
     top: 0,
@@ -560,17 +552,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
     zIndex: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   headerButton: {
     width: 40,
@@ -579,17 +564,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   headerTitleContainer: {
     flex: 1,
@@ -611,17 +589,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
 
   // Image Section
@@ -681,7 +652,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.textSecondary,
   },
 
-  // Content Card
+  // Content Card 
   contentCard: {
     marginHorizontal: 20,
     backgroundColor: theme.cardBackground,
@@ -689,17 +660,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   statusBadge: {
     alignSelf: 'flex-start',
@@ -878,7 +842,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Bottom Container
+  // Bottom Container 
   bottomContainer: {
     position: 'absolute',
     bottom: 0,
@@ -887,20 +851,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.background,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: 24, 
     borderTopWidth: 1,
     borderTopColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -911,28 +868,14 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
   },
   contactButtonDisabled: {
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOpacity: 0.2,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOpacity: 0.2,
   },
   contactButtonGradient: {
     flexDirection: 'row',
@@ -951,17 +894,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     height: 56,
     borderRadius: 18,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
   },
   iconButtonGradient: {
     width: '100%',
@@ -972,7 +908,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
   },
 
-  // Error State
+  // Error State 
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1007,17 +943,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   errorButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   errorButtonGradient: {
     flexDirection: 'row',

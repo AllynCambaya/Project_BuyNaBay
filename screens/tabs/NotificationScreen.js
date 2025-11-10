@@ -9,7 +9,6 @@ import {
   FlatList,
   Image,
   Modal,
-  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -25,7 +24,8 @@ import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
 import { sendPushNotification } from '../../utils/PushNotificationSender';
 
-// Message notification helpers (unchanged)
+const { width, height } = Dimensions.get('window');
+
 export const sendMessageNotification = async ({
   senderEmail,
   receiverEmail,
@@ -33,8 +33,6 @@ export const sendMessageNotification = async ({
   hasImages = false,
 }) => {
   try {
-    console.log('🔔 [NotificationHelper] Sending notification to:', receiverEmail);
-
     const { data: senderData, error: senderError } = await supabase
       .from('users')
       .select('name')
@@ -85,8 +83,6 @@ export const sendMessageNotification = async ({
       return false;
     }
 
-    console.log('✅ [NotificationHelper] Database notification created:', notification.id);
-
     await sendPushNotification(
       receiverEmail,
       pushTitle,
@@ -118,8 +114,6 @@ export const sendProductSoldNotification = async ({
   price,
 }) => {
   try {
-    console.log('🔔 [NotificationHelper] Sending product sold notification to:', sellerEmail);
-
     const { data: buyerData } = await supabase
       .from('users')
       .select('name')
@@ -158,7 +152,6 @@ export const sendProductSoldNotification = async ({
       }
     );
 
-    console.log('✅ [NotificationHelper] Product sold notification sent successfully');
     return true;
 
   } catch (error) {
@@ -167,9 +160,6 @@ export const sendProductSoldNotification = async ({
   }
 };
 
-const { width, height } = Dimensions.get('window');
-
-// Enhanced notification item component with improved UI
 const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete }) => {
   const animatedScale = useRef(new Animated.Value(1)).current;
   const actionOpacity = useRef(new Animated.Value(0)).current;
@@ -324,7 +314,7 @@ const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete 
   );
 };
 
-// Helper functions (unchanged)
+// Helper functions
 const getNotificationIcon = (title) => {
   if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'shopping-cart';
   if (title.includes('Rent') || title.includes('Rental')) return 'calendar';
@@ -390,7 +380,7 @@ export default function NotificationsScreen({ navigation }) {
     ]).start(() => setToastVisible(false));
   };
 
-  // Group notifications by sender (unchanged)
+  // Group notifications by sender 
   const groupNotifications = (notifs) => {
     const grouped = [];
     const messageGroups = {};
@@ -806,7 +796,7 @@ export default function NotificationsScreen({ navigation }) {
             {unreadCount > 0 && (
               <TouchableOpacity
                 onPress={markAllAsRead}
-                style={styles.actionIconButton}
+                style={[styles.actionIconButton, { backgroundColor: `${theme.accent}15` }]}
                 activeOpacity={0.7}
               >
                 <Ionicons name="checkmark-done" size={20} color={theme.accent} />
@@ -814,7 +804,7 @@ export default function NotificationsScreen({ navigation }) {
             )}
             <TouchableOpacity
               onPress={deleteAllNotifications}
-              style={styles.actionIconButton}
+              style={[styles.actionIconButton, { backgroundColor: `#FF3B3015` }]}
               activeOpacity={0.7}
             >
               <Ionicons name="trash-outline" size={20} color="#FF3B30" />
@@ -1147,20 +1137,10 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   headerActions: {
     flexDirection: 'row',
@@ -1173,20 +1153,10 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   brandContainer: {
     flexDirection: 'row',
@@ -1202,20 +1172,10 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   brandLogo: {
     width: 22,
@@ -1265,17 +1225,10 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   cardIcon: {
     width: 34,
@@ -1310,38 +1263,18 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: theme.borderColor || theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   filterChipActive: {
     backgroundColor: theme.accent,
     borderColor: theme.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   filterText: {
     fontSize: 12,
@@ -1370,39 +1303,19 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.borderColor || theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   notificationCardUnread: {
     backgroundColor: theme.cardBackgroundNew || `${theme.accent}08`,
     borderColor: theme.accent,
     borderWidth: 1.5,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   iconCircle: {
     width: 48,
@@ -1488,20 +1401,10 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: theme.cardBackground,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   readButton: {
     backgroundColor: `${theme.accent}15`,
@@ -1524,20 +1427,10 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        shadowColor: theme.shadowColor || '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   emptyTitle: {
     fontSize: 22,
@@ -1561,20 +1454,10 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   exploreButtonText: {
     color: '#fff',
@@ -1605,20 +1488,10 @@ const createStyles = (theme) => StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-      android: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
   },
   modalHeader: {
     alignItems: 'center',
@@ -1662,20 +1535,10 @@ const createStyles = (theme) => StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: '#FF3B30',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FF3B30',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        shadowColor: '#FF3B30',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-    }),
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   cancelButtonText: {
     fontSize: 15,
@@ -1701,20 +1564,10 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   toastText: {
     color: '#fff',

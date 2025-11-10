@@ -1,3 +1,4 @@
+// screens/tabs/ProductScreen.js
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -51,7 +52,6 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
   const [viewMode, setViewMode] = useState('grid');
   const [userStatus, setUserStatus] = useState('not_requested');
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -61,7 +61,6 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
 
   const styles = createStyles(theme);
 
-  // Shimmer effect for loading states
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -82,7 +81,7 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products.filter(product => {
       const matchesSearch = product.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           product.description?.toLowerCase().includes(searchQuery.toLowerCase());
+                            product.description?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
@@ -460,9 +459,14 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
   const renderFilterModal = () => {
     if (!showFilterModal) return null;
 
+    const modalTranslateY = filterModalAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [height, 0], 
+    });
+
     const modalScale = filterModalAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [0.9, 1],
+      outputRange: [0.95, 1], 
     });
 
     return (
@@ -478,12 +482,7 @@ export default function ProductScreen({ navigation, theme, searchQuery, isVisibl
               opacity: filterModalAnim,
               transform: [
                 { scale: modalScale },
-                {
-                  translateY: filterModalAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0],
-                  }),
-                },
+                { translateY: modalTranslateY },
               ],
             },
           ]}
@@ -696,12 +695,12 @@ const createStyles = (theme) =>
       gap: 12,
     },
     
-    // Enhanced Header - SOLID BACKGROUND (NO OPACITY)
+    // Header
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.04, 16),
       paddingTop: 8,
       paddingBottom: 16,
-      backgroundColor: theme.background, // SOLID - matches HomeScreen
+      backgroundColor: theme.background, 
     },
     headerTop: {
       flexDirection: 'row',
@@ -777,7 +776,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
       shadowRadius: 2,
-      elevation: 1,
     },
     viewToggleBtn: {
       paddingHorizontal: 14,
@@ -793,7 +791,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
-      elevation: 3,
     },
     viewToggleDivider: {
       width: 1,
@@ -814,7 +811,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 8,
-      elevation: 4,
     },
     filterBtnText: {
       color: '#fff',
@@ -919,7 +915,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.35,
       shadowRadius: 12,
-      elevation: 8,
     },
     emptyActionBtnGradient: {
       backgroundColor: theme.accent,
@@ -935,7 +930,7 @@ const createStyles = (theme) =>
       letterSpacing: 0.3,
     },
     
-    // Enhanced Loading State
+    // Loading State
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',
@@ -957,6 +952,7 @@ const createStyles = (theme) =>
       overflow: 'hidden',
       borderWidth: 2,
       borderColor: `${theme.accent}25`,
+      position: 'relative',
     },
     shimmerOverlay: {
       position: 'absolute',
@@ -980,7 +976,7 @@ const createStyles = (theme) =>
       lineHeight: 20,
     },
     
-    // Enhanced Modal Styles - SOLID BACKGROUND (NO OPACITY)
+    // Modal Styles
     modalOverlay: {
       position: 'absolute',
       top: 0,
@@ -992,7 +988,7 @@ const createStyles = (theme) =>
       zIndex: 1000,
     },
     modalContainer: {
-      backgroundColor: theme.modalBackground || theme.cardBackground, // SOLID
+      backgroundColor: theme.cardBackground,
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
       paddingTop: 8,
@@ -1002,7 +998,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: -4 },
       shadowOpacity: 0.25,
       shadowRadius: 20,
-      elevation: 10,
     },
     modalHandle: {
       width: 40,
@@ -1084,7 +1079,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
-      elevation: 3,
     },
     categoryChipText: {
       fontSize: 14,
@@ -1114,7 +1108,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.15,
       shadowRadius: 4,
-      elevation: 2,
     },
     sortOptionLeft: {
       flexDirection: 'row',
@@ -1185,7 +1178,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 8,
-      elevation: 4,
     },
     modalApplyBtnText: {
       fontSize: 15,

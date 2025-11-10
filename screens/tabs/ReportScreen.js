@@ -1,4 +1,4 @@
-// screens/ReportScreen.js
+// screens/tabs/ReportScreen.js
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -8,7 +8,7 @@ import {
   Dimensions,
   Image,
   KeyboardAvoidingView,
-  Platform,
+  Modal,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -23,7 +23,7 @@ import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
- 
+
 const REPORT_REASONS = [
   { id: 'spam', label: 'Spam or misleading', icon: 'exclamation-triangle', description: 'Unwanted or deceptive content' },
   { id: 'scam', label: 'Scam or fraud', icon: 'ban', description: 'Fraudulent activity or deception' },
@@ -43,21 +43,17 @@ export default function ReportScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
 
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Trigger animations on mount
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -106,7 +102,6 @@ export default function ReportScreen({ route, navigation }) {
 
       if (error) throw error;
 
-      // Animate success modal
       setShowSuccessModal(true);
       Animated.spring(successAnim, {
         toValue: 1,
@@ -115,7 +110,6 @@ export default function ReportScreen({ route, navigation }) {
         useNativeDriver: true,
       }).start();
 
-      // Auto-dismiss after 2 seconds
       setTimeout(() => {
         navigation.goBack();
       }, 2000);
@@ -142,8 +136,8 @@ export default function ReportScreen({ route, navigation }) {
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={'padding'} 
+          keyboardVerticalOffset={0}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -155,8 +149,8 @@ export default function ReportScreen({ route, navigation }) {
               <Icon name="chevron-left" size={24} color={theme.text} />
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Report User</Text>
-              <Text style={styles.headerSubtitle}>Help keep BuyNaBay safe</Text>
+              <Text style={[styles.headerTitle, { fontWeight: fontFamily.semiBold }]}>Report User</Text>
+              <Text style={[styles.headerSubtitle, { fontWeight: fontFamily.medium }]}>Help keep BuyNaBay safe</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
@@ -181,8 +175,8 @@ export default function ReportScreen({ route, navigation }) {
                   <Icon name="shield" size={28} color={theme.error} />
                 </View>
                 <View style={styles.warningContent}>
-                  <Text style={styles.warningTitle}>Confidential Report</Text>
-                  <Text style={styles.warningText}>
+                  <Text style={[styles.warningTitle, { fontWeight: fontFamily.bold }]}>Confidential Report</Text>
+                  <Text style={[styles.warningText, { fontWeight: fontFamily.regular }]}>
                     Your report helps protect our community. All submissions are reviewed confidentially.
                   </Text>
                 </View>
@@ -194,7 +188,7 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.sectionIconContainer}>
                     <Icon name="user" size={14} color={theme.accent} />
                   </View>
-                  <Text style={styles.sectionTitle}>Reporting</Text>
+                  <Text style={[styles.sectionTitle, { fontWeight: fontFamily.semiBold }]}>Reporting</Text>
                 </View>
                 
                 <View style={styles.userCard}>
@@ -211,8 +205,8 @@ export default function ReportScreen({ route, navigation }) {
                     </View>
                   </View>
                   <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{reported_name || 'User'}</Text>
-                    <Text style={styles.userEmail}>{reported_student_id}</Text>
+                    <Text style={[styles.userName, { fontWeight: fontFamily.bold }]}>{reported_name || 'User'}</Text>
+                    <Text style={[styles.userEmail, { fontWeight: fontFamily.regular }]}>{reported_student_id}</Text>
                   </View>
                 </View>
               </View>
@@ -223,8 +217,8 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.sectionIconContainer}>
                     <Icon name="list-ul" size={14} color={theme.accent} />
                   </View>
-                  <Text style={styles.sectionTitle}>Select Reason</Text>
-                  {selectedReason && <Text style={styles.sectionBadge}>Selected</Text>}
+                  <Text style={[styles.sectionTitle, { fontWeight: fontFamily.semiBold }]}>Select Reason</Text>
+                  {selectedReason && <Text style={[styles.sectionBadge, { fontWeight: fontFamily.bold }]}>Selected</Text>}
                 </View>
 
                 <View style={styles.reasonsGrid}>
@@ -263,11 +257,12 @@ export default function ReportScreen({ route, navigation }) {
                           style={[
                             styles.reasonLabel,
                             isSelected && styles.reasonLabelSelected,
+                            { fontWeight: isSelected ? fontFamily.bold : fontFamily.semiBold }
                           ]}
                         >
                           {reason.label}
                         </Text>
-                        <Text style={styles.reasonDescription}>{reason.description}</Text>
+                        <Text style={[styles.reasonDescription, { fontWeight: fontFamily.regular }]}>{reason.description}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -280,13 +275,13 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.sectionIconContainer}>
                     <Icon name="align-left" size={14} color={theme.accent} />
                   </View>
-                  <Text style={styles.sectionTitle}>Additional Details</Text>
-                  <Text style={styles.requiredBadge}>Required</Text>
+                  <Text style={[styles.sectionTitle, { fontWeight: fontFamily.semiBold }]}>Additional Details</Text>
+                  <Text style={[styles.requiredBadge, { fontWeight: fontFamily.bold }]}>Required</Text>
                 </View>
 
                 <View style={styles.textAreaCard}>
                   <TextInput
-                    style={styles.textArea}
+                    style={[styles.textArea, { fontWeight: fontFamily.regular }]}
                     value={description}
                     onChangeText={setDescription}
                     multiline
@@ -298,11 +293,12 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.textAreaFooter}>
                     <View style={styles.textAreaHint}>
                       <Icon name="info-circle" size={12} color={theme.textSecondary} />
-                      <Text style={styles.hintText}>Be as specific as possible</Text>
+                      <Text style={[styles.hintText, { fontWeight: fontFamily.regular }]}>Be as specific as possible</Text>
                     </View>
                     <Text style={[
                       styles.charCount,
-                      description.length >= 450 && styles.charCountWarning
+                      description.length >= 450 && styles.charCountWarning,
+                      { fontWeight: fontFamily.semiBold }
                     ]}>
                       {description.length}/500
                     </Text>
@@ -317,8 +313,8 @@ export default function ReportScreen({ route, navigation }) {
                     <Icon name="lock" size={16} color={theme.success} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoTitle}>Your Privacy Protected</Text>
-                    <Text style={styles.infoText}>
+                    <Text style={[styles.infoTitle, { fontWeight: fontFamily.semiBold }]}>Your Privacy Protected</Text>
+                    <Text style={[styles.infoText, { fontWeight: fontFamily.regular }]}>
                       Reports are confidential and will not be shared with the reported user.
                     </Text>
                   </View>
@@ -329,8 +325,8 @@ export default function ReportScreen({ route, navigation }) {
                     <Icon name="clock-o" size={16} color={theme.accent} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoTitle}>Review Process</Text>
-                    <Text style={styles.infoText}>
+                    <Text style={[styles.infoTitle, { fontWeight: fontFamily.semiBold }]}>Review Process</Text>
+                    <Text style={[styles.infoText, { fontWeight: fontFamily.regular }]}>
                       Our team will review your report within 24-48 hours and take appropriate action.
                     </Text>
                   </View>
@@ -344,7 +340,7 @@ export default function ReportScreen({ route, navigation }) {
             {selectedReasonData && (
               <View style={styles.selectionSummary}>
                 <Icon name={selectedReasonData.icon} size={16} color={theme.accent} />
-                <Text style={styles.summaryText}>{selectedReasonData.label}</Text>
+                <Text style={[styles.summaryText, { fontWeight: fontFamily.semiBold }]}>{selectedReasonData.label}</Text>
               </View>
             )}
             <TouchableOpacity
@@ -360,12 +356,12 @@ export default function ReportScreen({ route, navigation }) {
               {submitting ? (
                 <View style={styles.buttonContent}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={styles.submitButtonText}>Submitting Report...</Text>
+                  <Text style={[styles.submitButtonText, { fontWeight: fontFamily.semiBold }]}>Submitting Report...</Text>
                 </View>
               ) : (
                 <View style={styles.buttonContent}>
                   <Icon name="send" size={18} color="#fff" />
-                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                  <Text style={[styles.submitButtonText, { fontWeight: fontFamily.bold }]}>Submit Report</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -373,32 +369,34 @@ export default function ReportScreen({ route, navigation }) {
 
           {/* Success Modal Overlay */}
           {showSuccessModal && (
-            <View style={styles.successModalOverlay}>
-              <Animated.View
-                style={[
-                  styles.successModal,
-                  {
-                    opacity: successAnim,
-                    transform: [
-                      {
-                        scale: successAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.8, 1],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.successIconCircle}>
-                  <Icon name="check" size={48} color="#fff" />
-                </View>
-                <Text style={styles.successTitle}>Report Submitted!</Text>
-                <Text style={styles.successMessage}>
-                  Thank you for helping keep BuyNaBay safe. We'll review your report shortly.
-                </Text>
-              </Animated.View>
-            </View>
+            <Modal transparent visible={showSuccessModal} onRequestClose={() => setShowSuccessModal(false)}>
+              <View style={styles.successModalOverlay}>
+                <Animated.View
+                  style={[
+                    styles.successModal,
+                    {
+                      opacity: successAnim,
+                      transform: [
+                        {
+                          scale: successAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.8, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.successIconCircle}>
+                    <Icon name="check" size={48} color="#fff" />
+                  </View>
+                  <Text style={[styles.successTitle, { fontWeight: fontFamily.extraBold }]}>Report Submitted!</Text>
+                  <Text style={[styles.successMessage, { fontWeight: fontFamily.regular }]}>
+                    Thank you for helping keep BuyNaBay safe. We'll review your report shortly.
+                  </Text>
+                </Animated.View>
+              </View>
+            </Modal>
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -406,7 +404,7 @@ export default function ReportScreen({ route, navigation }) {
   );
 }
 
-// Dark theme colors (matching InboxScreen and MessagingScreen)
+// Dark theme colors 
 const darkTheme = {
   background: '#0a0e27',
   cardBackground: '#141b3c',
@@ -428,7 +426,7 @@ const darkTheme = {
   overlayBg: 'rgba(10, 14, 39, 0.95)',
 };
 
-// Light theme colors (matching InboxScreen and MessagingScreen)
+// Light theme colors 
 const lightTheme = {
   background: '#f8fafc',
   cardBackground: '#ffffff',
@@ -459,7 +457,7 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1,
   },
   
-  // Header
+  // Header 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -469,17 +467,10 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   backButton: {
     width: 40,
@@ -493,15 +484,12 @@ const createStyles = (theme) => StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
     color: theme.text,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   headerSubtitle: {
     fontSize: 12,
     color: theme.textSecondary,
     marginTop: 2,
-    fontWeight: '500',
   },
   headerSpacer: {
     width: 40,
@@ -516,7 +504,7 @@ const createStyles = (theme) => StyleSheet.create({
     paddingBottom: 120,
   },
   
-  // Warning Banner
+  // Warning Banner 
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -526,17 +514,10 @@ const createStyles = (theme) => StyleSheet.create({
     marginBottom: 24,
     borderWidth: 1,
     borderColor: theme.error,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.error,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.error,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   warningIconCircle: {
     width: 48,
@@ -552,10 +533,8 @@ const createStyles = (theme) => StyleSheet.create({
   },
   warningTitle: {
     fontSize: 16,
-    fontWeight: '700',
     color: theme.error,
     marginBottom: 6,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   warningText: {
     fontSize: 14,
@@ -583,10 +562,8 @@ const createStyles = (theme) => StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '700',
     color: theme.text,
     flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   sectionBadge: {
     backgroundColor: theme.success,
@@ -594,7 +571,6 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     fontSize: 11,
-    fontWeight: '700',
     color: '#fff',
   },
   requiredBadge: {
@@ -603,11 +579,10 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     fontSize: 11,
-    fontWeight: '700',
     color: '#fff',
   },
   
-  // User Card
+  // User Card 
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -616,17 +591,10 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   userAvatarContainer: {
     position: 'relative',
@@ -662,10 +630,8 @@ const createStyles = (theme) => StyleSheet.create({
   },
   userName: {
     fontSize: 17,
-    fontWeight: '700',
     color: theme.text,
     marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   userEmail: {
     fontSize: 14,
@@ -682,30 +648,16 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 14,
     borderWidth: 2,
     borderColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   reasonCardSelected: {
     backgroundColor: theme.reasonSelectedBg,
     borderColor: theme.accent,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   reasonHeader: {
     flexDirection: 'row',
@@ -734,13 +686,10 @@ const createStyles = (theme) => StyleSheet.create({
   },
   reasonLabel: {
     fontSize: 16,
-    fontWeight: '600',
     color: theme.text,
     marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   reasonLabelSelected: {
-    fontWeight: '700',
     color: theme.text,
   },
   reasonDescription: {
@@ -749,24 +698,17 @@ const createStyles = (theme) => StyleSheet.create({
     lineHeight: 18,
   },
   
-  // Text Area
+  // Text Area 
   textAreaCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.border,
     padding: 14,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   textArea: {
     backgroundColor: theme.inputBackground,
@@ -775,7 +717,6 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 15,
     color: theme.text,
     minHeight: 140,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   textAreaFooter: {
     flexDirection: 'row',
@@ -795,7 +736,6 @@ const createStyles = (theme) => StyleSheet.create({
   charCount: {
     fontSize: 13,
     color: theme.textSecondary,
-    fontWeight: '600',
   },
   charCountWarning: {
     color: theme.warning,
@@ -828,7 +768,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   infoTitle: {
     fontSize: 14,
-    fontWeight: '600',
     color: theme.text,
     marginBottom: 3,
   },
@@ -838,25 +777,18 @@ const createStyles = (theme) => StyleSheet.create({
     lineHeight: 18,
   },
   
-  // Bottom Bar
+  // Bottom Bar 
   bottomBar: {
     backgroundColor: theme.cardBackground,
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    paddingBottom: 28, 
     borderTopWidth: 1,
     borderTopColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
   },
   selectionSummary: {
     flexDirection: 'row',
@@ -871,7 +803,6 @@ const createStyles = (theme) => StyleSheet.create({
   summaryText: {
     fontSize: 14,
     color: theme.text,
-    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: theme.error,
@@ -879,28 +810,14 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.error,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: theme.error,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   submitButtonDisabled: {
     backgroundColor: theme.buttonDisabled,
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.1,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowOpacity: 0.1,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -910,11 +827,9 @@ const createStyles = (theme) => StyleSheet.create({
   submitButtonText: {
     color: '#fff',
     fontSize: 17,
-    fontWeight: '700',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   
-  // Success Modal
+  // Success Modal 
   successModalOverlay: {
     position: 'absolute',
     top: 0,
@@ -933,20 +848,31 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     width: width * 0.85,
     maxWidth: 340,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
   },
-  buttonLoadingContainer: {
-    flexDirection: 'row',
+  successIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.success,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 20,
+  },
+  successTitle: {
+    fontSize: 24,
+    color: theme.text,
+    marginBottom: 10,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  successMessage: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

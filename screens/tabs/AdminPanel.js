@@ -1,3 +1,4 @@
+// screens/tabs/AdminPanel.js
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -7,7 +8,6 @@ import {
   Dimensions,
   Image,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -1038,7 +1038,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   headerContainer: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingTop: 10,
     paddingBottom: 20,
     position: 'relative',
   },
@@ -1047,7 +1047,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 380 : 400,
+    height: 380,
     backgroundColor: theme.gradientBackground,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -1079,17 +1079,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   brandedLogoImage: {
     width: 26,
@@ -1126,33 +1119,19 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   statCardActive: {
     backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.15)' : 'rgba(253, 173, 0, 0.08)',
     borderColor: theme.accent,
     borderWidth: 2,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   statIconContainer: {
     position: 'relative',
@@ -1199,17 +1178,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   searchInput: {
     flex: 1,
@@ -1240,17 +1212,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   itemCardHeader: {
     flexDirection: 'row',
@@ -1334,17 +1299,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 8,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
   },
   actionMenuItem: {
     flexDirection: 'row',
@@ -1517,17 +1475,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     gap: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   approveBtn: {
     backgroundColor: theme.success,
@@ -1585,17 +1536,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
   activityIcon: {
     width: 40,
@@ -1635,17 +1579,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 12,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
   },
   modalHeader: {
     alignItems: 'center',
@@ -1706,17 +1643,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   modalConfirmBtn: {
     backgroundColor: theme.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   modalCancelText: {
     color: theme.text,

@@ -1,3 +1,4 @@
+// screens/tabs/LostAndFoundScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,7 +9,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -49,7 +49,6 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
   const isDarkMode = systemColorScheme === 'dark';
   const activeTheme = theme || (isDarkMode ? darkTheme : lightTheme);
 
-  // Enhanced animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -58,7 +57,6 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
 
   const styles = createStyles(activeTheme);
 
-  // Shimmer effect for loading
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -76,7 +74,6 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
     ).start();
   }, []);
 
-  // Initial animations
   useEffect(() => {
     if (isVisible || isFocused) {
       Animated.parallel([
@@ -462,7 +459,6 @@ function createStyles(theme) {
       paddingBottom: 24,
     },
     
-    // Enhanced Header - SOLID BACKGROUND
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.04, 16),
       paddingTop: 8,
@@ -526,7 +522,6 @@ function createStyles(theme) {
       letterSpacing: 0.5,
     },
     
-    // Status Filter
     statusFilterContainer: {
       flexDirection: 'row',
       gap: 10,
@@ -551,7 +546,6 @@ function createStyles(theme) {
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
-      elevation: 3,
     },
     statusChipText: {
       fontSize: 14,
@@ -561,67 +555,6 @@ function createStyles(theme) {
       color: '#fff',
     },
     
-    // Category Section
-    categorySection: {
-      marginBottom: 12,
-    },
-    categorySectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 12,
-      gap: 8,
-    },
-    categorySectionTitle: {
-      fontSize: 13,
-      color: theme.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.8,
-    },
-    activeFilterBadge: {
-      backgroundColor: theme.accent,
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    activeFilterBadgeText: {
-      color: '#fff',
-      fontSize: 10,
-    },
-    categoryScrollContent: {
-      flexDirection: 'row',
-      gap: 10,
-      paddingRight: 16,
-    },
-    categoryChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 20,
-      backgroundColor: theme.cardBackground,
-      borderWidth: 1.5,
-      borderColor: theme.borderColor,
-    },
-    categoryChipActive: {
-      backgroundColor: theme.accent,
-      borderColor: theme.accent,
-      shadowColor: theme.accent,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 3,
-    },
-    categoryChipText: {
-      fontSize: 14,
-      color: theme.text,
-    },
-    categoryChipTextActive: {
-      color: '#fff',
-    },
-    
-    // Active Filters Display
     activeFilterContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -666,7 +599,6 @@ function createStyles(theme) {
       color: theme.accent,
     },
     
-    // Card Styles
     card: {
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
@@ -675,17 +607,10 @@ function createStyles(theme) {
       marginHorizontal: Math.max(width * 0.04, 16),
       borderWidth: 1,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor || '#000',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.12,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: theme.shadowColor || '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
     },
     cardImageContainer: {
       position: 'relative',
@@ -738,17 +663,10 @@ function createStyles(theme) {
       backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.4,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.4,
+      shadowRadius: 6,
     },
     cardContent: {
       padding: 16,
@@ -806,19 +724,6 @@ function createStyles(theme) {
       borderTopWidth: 1,
       borderTopColor: theme.borderColor,
     },
-    categoryTag: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.cardBackgroundAlt || theme.background,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 12,
-      gap: 6,
-    },
-    categoryTagText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
     timeTag: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -833,7 +738,6 @@ function createStyles(theme) {
       color: theme.textSecondary,
     },
     
-    // Enhanced Empty State
     emptyContainer: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -901,7 +805,6 @@ function createStyles(theme) {
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.35,
       shadowRadius: 12,
-      elevation: 8,
     },
     emptyActionBtnContent: {
       backgroundColor: theme.accent,
@@ -917,7 +820,6 @@ function createStyles(theme) {
       letterSpacing: 0.3,
     },
     
-    // Enhanced Loading State
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',

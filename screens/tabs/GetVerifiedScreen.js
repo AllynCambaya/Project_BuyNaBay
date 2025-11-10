@@ -1,12 +1,13 @@
+// screens/tabs/GetVerifiedScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -34,6 +35,11 @@ export default function GetVerifiedScreen({ navigation }) {
   // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -358,7 +364,7 @@ export default function GetVerifiedScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
+// Dark theme colors 
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
@@ -376,7 +382,7 @@ const darkTheme = {
   inputBackground: '#252550',
 };
 
-// Light theme colors (matching CartScreen)
+// Light theme colors 
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
@@ -412,7 +418,7 @@ const createStyles = (theme) =>
       top: 0,
       left: 0,
       right: 0,
-      height: Platform.OS === 'ios' ? 280 : 300,
+      height: 280,
       backgroundColor: theme.gradientBackground,
       borderBottomLeftRadius: 30,
       borderBottomRightRadius: 30,
@@ -420,7 +426,7 @@ const createStyles = (theme) =>
     },
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.05, 20),
-      paddingTop: Platform.OS === 'ios' ? 10 : 20,
+      paddingTop: 10,
       paddingBottom: 20,
       zIndex: 1,
     },
@@ -436,7 +442,7 @@ const createStyles = (theme) =>
     },
     brandedLogoText: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
+      fontWeight: '800', 
       color: theme.accentSecondary,
       letterSpacing: -0.5,
     },
@@ -452,34 +458,27 @@ const createStyles = (theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 16,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
     },
     welcomeText: {
       fontSize: 16,
       color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
+      fontWeight: '400', 
       marginBottom: 4,
     },
     userName: {
       fontSize: Math.min(width * 0.08, 32),
       color: theme.text,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
+      fontWeight: '800', 
       marginBottom: 4,
     },
     subtitle: {
       fontSize: 14,
       color: theme.textSecondary,
-      fontWeight: Platform.OS === 'android' ? '500' : '400',
+      fontWeight: '400', 
       textAlign: 'center',
     },
     banner: {
@@ -490,17 +489,10 @@ const createStyles = (theme) =>
       padding: 16,
       marginHorizontal: Math.max(width * 0.05, 20),
       marginBottom: 20,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.error,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.error,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     bannerHeader: {
       flexDirection: 'row',
@@ -509,7 +501,7 @@ const createStyles = (theme) =>
     },
     bannerTitle: {
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontWeight: '600', 
       color: theme.error,
     },
     bannerText: {
@@ -527,17 +519,10 @@ const createStyles = (theme) =>
       marginBottom: 24,
       borderWidth: 1,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 6,
     },
     instructionsHeader: {
       flexDirection: 'row',
@@ -549,7 +534,7 @@ const createStyles = (theme) =>
     },
     instructionsTitle: {
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontWeight: '600', 
       color: theme.text,
     },
     instructionItem: {
@@ -566,7 +551,7 @@ const createStyles = (theme) =>
     },
     inputLabel: {
       fontSize: 14,
-      fontWeight: Platform.OS === 'android' ? '600' : '500',
+      fontWeight: '600', 
       color: theme.text,
       marginBottom: 8,
     },
@@ -578,17 +563,10 @@ const createStyles = (theme) =>
       borderColor: theme.borderColor,
       borderRadius: 12,
       paddingHorizontal: 16,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-        },
-        android: {
-          elevation: 1,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
     },
     inputIcon: {
       marginRight: 12,
@@ -597,14 +575,14 @@ const createStyles = (theme) =>
       flex: 1,
       fontSize: 16,
       color: theme.text,
-      paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+      paddingVertical: 16, 
     },
     uploadSection: {
       marginBottom: 24,
     },
     uploadLabel: {
       fontSize: 14,
-      fontWeight: Platform.OS === 'android' ? '600' : '500',
+      fontWeight: '600', 
       color: theme.text,
       marginBottom: 12,
     },
@@ -615,17 +593,10 @@ const createStyles = (theme) =>
       backgroundColor: theme.accent,
       paddingVertical: 14,
       borderRadius: 12,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
     },
     uploadButtonIcon: {
       marginRight: 8,
@@ -633,7 +604,7 @@ const createStyles = (theme) =>
     uploadButtonText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontWeight: '600', 
     },
     previewContainer: {
       marginTop: 16,
@@ -655,48 +626,27 @@ const createStyles = (theme) =>
       backgroundColor: '#fff',
       borderRadius: 20,
       padding: 4,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.2,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
     },
     submitButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.success,
-      paddingVertical: Platform.OS === 'ios' ? 18 : 16,
+      paddingVertical: 18,  
       borderRadius: 16,
       marginTop: 8,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.success,
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.4,
-          shadowRadius: 12,
-        },
-        android: {
-          elevation: 8,
-        },
-      }),
+      shadowColor: theme.success,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
     },
     submitButtonDisabled: {
       backgroundColor: theme.textSecondary,
-      ...Platform.select({
-        ios: {
-          shadowOpacity: 0.2,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowOpacity: 0.2,
     },
     submitButtonIcon: {
       marginRight: 10,
@@ -704,7 +654,7 @@ const createStyles = (theme) =>
     submitButtonText: {
       color: '#fff',
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontWeight: '700', 
     },
     submitLoadingContainer: {
       flexDirection: 'row',
@@ -721,5 +671,16 @@ const createStyles = (theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       lineHeight: 18,
+    },
+    loadingOverlay: {
+      flex: 1,
+      backgroundColor: theme.background,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: theme.textSecondary,
     },
   });

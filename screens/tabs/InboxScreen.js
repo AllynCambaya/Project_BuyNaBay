@@ -1,4 +1,4 @@
-// screens/InboxScreen.js
+// screens/tabs/InboxScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -8,7 +8,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -588,7 +587,6 @@ export default function InboxScreen({ navigation }) {
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -668,17 +666,10 @@ const createStyles = (theme, isDarkMode) =>
       backgroundColor: 'rgba(253, 173, 0, 0.15)',
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.15,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
     },
     brandedLogoImage: {
       width: 26,
@@ -708,17 +699,10 @@ const createStyles = (theme, isDarkMode) =>
       backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
     },
     profileImageWrapper: {
       width: 40,
@@ -729,17 +713,10 @@ const createStyles = (theme, isDarkMode) =>
       padding: 2,
       backgroundColor: theme.cardBackground,
       position: 'relative',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
     },
     profileImage: {
       width: '100%',
@@ -760,7 +737,7 @@ const createStyles = (theme, isDarkMode) =>
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.inputBackground,
+      backgroundColor: theme.cardBackground,
       borderRadius: 14,
       paddingHorizontal: 14,
       paddingVertical: 12,
@@ -768,17 +745,10 @@ const createStyles = (theme, isDarkMode) =>
       marginBottom: 16,
       borderWidth: 1.5,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     searchIcon: {
       marginRight: 10,
@@ -800,17 +770,10 @@ const createStyles = (theme, isDarkMode) =>
       borderRadius: 16,
       padding: 16,
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
     },
     cardIconContainer: {
       width: 40,
@@ -860,32 +823,18 @@ const createStyles = (theme, isDarkMode) =>
       alignItems: 'center',
       borderWidth: 1.5,
       borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
     },
     conversationCardUnread: {
       borderColor: theme.accent,
       backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.05)' : 'rgba(253, 173, 0, 0.08)',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.15,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
     },
     avatarWrapper: {
       position: 'relative',
@@ -1004,17 +953,10 @@ const createStyles = (theme, isDarkMode) =>
     ctaButton: {
       borderRadius: 16,
       overflow: 'hidden',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-        },
-        android: {
-          elevation: 6,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
     },
     ctaGradient: {
       flexDirection: 'row',

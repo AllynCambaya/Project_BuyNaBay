@@ -1,3 +1,4 @@
+// screens/tabs/CheckoutScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -6,7 +7,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -20,6 +20,48 @@ import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 
 const { width, height } = Dimensions.get('window');
+
+const darkTheme = {
+  background: '#0f0f2e',
+  headerBackground: '#1b1b41',
+  text: '#ffffff',
+  textSecondary: '#a8a8c8',
+  cardBackground: '#1e1e3f',
+  cardBackgroundRecent: '#252550',
+  cardBackgroundAlt: '#252550',
+  accent: '#FDAD00',
+  success: '#4CAF50',
+  secondary: '#3b82f6',
+  border: '#2a2a4a',
+  iconPlaceholder: '#4a4a6a',
+  imagePlaceholder: '#252545',
+};
+
+const lightTheme = {
+  background: '#f8f9fa',
+  headerBackground: '#e8ecf1',
+  text: '#1a1a2e',
+  textSecondary: '#6b7280',
+  cardBackground: '#ffffff',
+  cardBackgroundRecent: '#fffbf0',
+  cardBackgroundAlt: '#f9f9fc',
+  accent: '#f39c12',
+  success: '#27ae60',
+  secondary: '#3b82f6',
+  border: '#e5e7eb',
+  iconPlaceholder: '#9ca3af',
+  imagePlaceholder: '#f3f4f6',
+};
+
+const fontFamily = {
+  regular: 'System', 
+  medium: '500', 
+  semiBold: '600', 
+  bold: '700', 
+  extraBold: '800', 
+  black: '900' 
+};
+
 
 export default function CheckoutScreen({ navigation }) {
   const [history, setHistory] = useState([]);
@@ -179,14 +221,14 @@ export default function CheckoutScreen({ navigation }) {
             style={styles.brandLogo}
             resizeMode="contain"
           />
-          <Text style={styles.brandText}>BuyNaBay</Text>
+          <Text style={[styles.brandText, { fontWeight: fontFamily.extraBold }]}>BuyNaBay</Text>
         </View>
       </View>
 
       <View style={styles.welcomeContainer}>
-        <Text style={styles.greetingText}>Your Orders</Text>
-        <Text style={styles.userNameText}>Checkout History</Text>
-        <Text style={styles.descriptionText}>Review your purchase history</Text>
+        <Text style={[styles.greetingText, { fontWeight: fontFamily.medium }]}>Your Orders</Text>
+        <Text style={[styles.userNameText, { fontWeight: fontFamily.extraBold }]}>Checkout History</Text>
+        <Text style={[styles.descriptionText, { fontWeight: fontFamily.regular }]}>Review your purchase history</Text>
       </View>
 
       {history.length > 0 && (
@@ -195,22 +237,22 @@ export default function CheckoutScreen({ navigation }) {
             <View style={[styles.cardIcon, { backgroundColor: `${theme.accent}15` }]}>
               <Icon name="shopping-bag" size={18} color={theme.accent} />
             </View>
-            <Text style={styles.cardValue}>{stats.totalOrders}</Text>
-            <Text style={styles.cardLabel}>Orders</Text>
+            <Text style={[styles.cardValue, { fontWeight: fontFamily.bold }]}>{stats.totalOrders}</Text>
+            <Text style={[styles.cardLabel, { fontWeight: fontFamily.medium }]}>Orders</Text>
           </View>
           <View style={styles.summaryCard}>
             <View style={[styles.cardIcon, { backgroundColor: `${theme.success}15` }]}>
               <Icon name="money" size={18} color={theme.success} />
             </View>
-            <Text style={styles.cardValue}>₱{stats.totalSpent}</Text>
-            <Text style={styles.cardLabel}>Total Spent</Text>
+            <Text style={[styles.cardValue, { fontWeight: fontFamily.bold }]}>₱{stats.totalSpent}</Text>
+            <Text style={[styles.cardLabel, { fontWeight: fontFamily.medium }]}>Total Spent</Text>
           </View>
           <View style={styles.summaryCard}>
             <View style={[styles.cardIcon, { backgroundColor: `${theme.secondary}15` }]}>
               <Icon name="users" size={18} color={theme.secondary} />
             </View>
-            <Text style={styles.cardValue}>{stats.uniqueSellers}</Text>
-            <Text style={styles.cardLabel}>Sellers</Text>
+            <Text style={[styles.cardValue, { fontWeight: fontFamily.bold }]}>{stats.uniqueSellers}</Text>
+            <Text style={[styles.cardLabel, { fontWeight: fontFamily.medium }]}>Sellers</Text>
           </View>
         </View>
       )}
@@ -222,7 +264,7 @@ export default function CheckoutScreen({ navigation }) {
             onPress={() => setFilter('all')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive, { fontWeight: fontFamily.semiBold }]}>
               All Time
             </Text>
           </TouchableOpacity>
@@ -238,7 +280,7 @@ export default function CheckoutScreen({ navigation }) {
               color={filter === 'today' ? '#fff' : theme.textSecondary} 
               style={{ marginRight: 6 }}
             />
-            <Text style={[styles.filterText, filter === 'today' && styles.filterTextActive]}>
+            <Text style={[styles.filterText, filter === 'today' && styles.filterTextActive, { fontWeight: fontFamily.semiBold }]}>
               Today
             </Text>
           </TouchableOpacity>
@@ -254,7 +296,7 @@ export default function CheckoutScreen({ navigation }) {
               color={filter === 'week' ? '#fff' : theme.textSecondary} 
               style={{ marginRight: 6 }}
             />
-            <Text style={[styles.filterText, filter === 'week' && styles.filterTextActive]}>
+            <Text style={[styles.filterText, filter === 'week' && styles.filterTextActive, { fontWeight: fontFamily.semiBold }]}>
               This Week
             </Text>
           </TouchableOpacity>
@@ -270,7 +312,7 @@ export default function CheckoutScreen({ navigation }) {
               color={filter === 'month' ? '#fff' : theme.textSecondary} 
               style={{ marginRight: 6 }}
             />
-            <Text style={[styles.filterText, filter === 'month' && styles.filterTextActive]}>
+            <Text style={[styles.filterText, filter === 'month' && styles.filterTextActive, { fontWeight: fontFamily.semiBold }]}>
               30 Days
             </Text>
           </TouchableOpacity>
@@ -316,11 +358,11 @@ export default function CheckoutScreen({ navigation }) {
           <View style={styles.cardTopBar}>
             <View style={styles.dateInfo}>
               <Icon name="calendar" size={13} color={theme.accent} />
-              <Text style={styles.dateLabel}> {date}</Text>
+              <Text style={[styles.dateLabel, { fontWeight: fontFamily.semiBold }]}> {date}</Text>
             </View>
             <View style={styles.timeInfo}>
               <Icon name="clock-o" size={13} color={theme.textSecondary} />
-              <Text style={styles.timeLabel}> {time}</Text>
+              <Text style={[styles.timeLabel, { fontWeight: fontFamily.medium }]}> {time}</Text>
             </View>
           </View>
 
@@ -335,43 +377,43 @@ export default function CheckoutScreen({ navigation }) {
               )}
               {isRecent && (
                 <View style={styles.recentBadge}>
-                  <Text style={styles.recentText}>New</Text>
+                  <Text style={[styles.recentText, { fontWeight: fontFamily.bold }]}>New</Text>
                 </View>
               )}
             </View>
 
             <View style={styles.infoSection}>
-              <Text style={styles.productTitle} numberOfLines={2}>
+              <Text style={[styles.productTitle, { fontWeight: fontFamily.bold }]} numberOfLines={2}>
                 {item.product_name}
               </Text>
 
               <View style={styles.priceRow}>
                 <View style={styles.priceBlock}>
-                  <Text style={styles.priceTag}>Unit Price</Text>
-                  <Text style={styles.priceAmount}>₱{item.price}</Text>
+                  <Text style={[styles.priceTag, { fontWeight: fontFamily.medium }]}>Unit Price</Text>
+                  <Text style={[styles.priceAmount, { fontWeight: fontFamily.bold }]}>₱{item.price}</Text>
                 </View>
                 <View style={styles.qtyBlock}>
-                  <Text style={styles.qtyTag}>Qty</Text>
-                  <Text style={styles.qtyAmount}>×{item.quantity}</Text>
+                  <Text style={[styles.qtyTag, { fontWeight: fontFamily.medium }]}>Qty</Text>
+                  <Text style={[styles.qtyAmount, { fontWeight: fontFamily.bold }]}>×{item.quantity}</Text>
                 </View>
               </View>
 
               <View style={styles.sellerInfo}>
                 <Icon name="user" size={11} color={theme.textSecondary} />
-                <Text style={styles.sellerName} numberOfLines={1}>
+                <Text style={[styles.sellerName, { fontWeight: fontFamily.medium }]} numberOfLines={1}>
                   {' '}Sold by: {item.seller_name || 'Unknown'}
                 </Text>
               </View>
 
               <View style={styles.totalRow}>
-                <Text style={styles.totalTag}>Order Total</Text>
-                <Text style={styles.totalAmount}>₱{subtotal}</Text>
+                <Text style={[styles.totalTag, { fontWeight: fontFamily.medium }]}>Order Total</Text>
+                <Text style={[styles.totalAmount, { fontWeight: fontFamily.bold }]}>₱{subtotal}</Text>
               </View>
             </View>
           </View>
 
           <TouchableOpacity style={styles.detailsButton} activeOpacity={0.7}>
-            <Text style={styles.detailsButtonText}>View Details</Text>
+            <Text style={[styles.detailsButtonText, { fontWeight: fontFamily.semiBold }]}>View Details</Text>
             <Ionicons name="chevron-forward" size={16} color={theme.accent} />
           </TouchableOpacity>
         </View>
@@ -392,8 +434,8 @@ export default function CheckoutScreen({ navigation }) {
       <View style={styles.emptyIconContainer}>
         <Icon name="receipt" size={72} color={theme.iconPlaceholder} />
       </View>
-      <Text style={styles.emptyTitle}>No Orders Yet</Text>
-      <Text style={styles.emptyDescription}>
+      <Text style={[styles.emptyTitle, { fontWeight: fontFamily.bold }]}>No Orders Yet</Text>
+      <Text style={[styles.emptyDescription, { fontWeight: fontFamily.medium }]}>
         Your checkout history will appear here once you make a purchase
       </Text>
       <TouchableOpacity
@@ -402,7 +444,7 @@ export default function CheckoutScreen({ navigation }) {
         activeOpacity={0.8}
       >
         <Icon name="shopping-bag" size={18} color="#fff" style={{ marginRight: 10 }} />
-        <Text style={styles.shopButtonText}>Start Shopping</Text>
+        <Text style={[styles.shopButtonText, { fontWeight: fontFamily.bold }]}>Start Shopping</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -411,7 +453,7 @@ export default function CheckoutScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={styles.loadingText}>Loading your orders...</Text>
+        <Text style={[styles.loadingText, { fontWeight: fontFamily.semiBold }]}>Loading your orders...</Text>
       </View>
     );
   }
@@ -449,38 +491,6 @@ export default function CheckoutScreen({ navigation }) {
   );
 }
 
-const darkTheme = {
-  background: '#0f0f2e',
-  headerBackground: '#1b1b41',
-  text: '#ffffff',
-  textSecondary: '#a8a8c8',
-  cardBackground: '#1e1e3f',
-  cardBackgroundRecent: '#252550',
-  cardBackgroundAlt: '#252550',
-  accent: '#FDAD00',
-  success: '#4CAF50',
-  secondary: '#3b82f6',
-  border: '#2a2a4a',
-  iconPlaceholder: '#4a4a6a',
-  imagePlaceholder: '#252545',
-};
-
-const lightTheme = {
-  background: '#f8f9fa',
-  headerBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#6b7280',
-  cardBackground: '#ffffff',
-  cardBackgroundRecent: '#fffbf0',
-  cardBackgroundAlt: '#f9f9fc',
-  accent: '#f39c12',
-  success: '#27ae60',
-  secondary: '#3b82f6',
-  border: '#e5e7eb',
-  iconPlaceholder: '#9ca3af',
-  imagePlaceholder: '#f3f4f6',
-};
-
 const createStyles = (theme) =>
   StyleSheet.create({
     container: {
@@ -495,7 +505,7 @@ const createStyles = (theme) =>
       marginBottom: 20,
     },
     headerBackground: {
-      height: Platform.OS === 'ios' ? 360 : 380,
+      height: 360, 
       backgroundColor: theme.headerBackground,
       borderBottomLeftRadius: 32,
       borderBottomRightRadius: 32,
@@ -509,7 +519,7 @@ const createStyles = (theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 20,
-      paddingTop: Platform.OS === 'ios' ? 12 : 20,
+      paddingTop: 12, 
       position: 'absolute',
       top: 0,
       left: 0,
@@ -524,17 +534,10 @@ const createStyles = (theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 12,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     brandContainer: {
       flexDirection: 'row',
@@ -547,7 +550,6 @@ const createStyles = (theme) =>
     },
     brandText: {
       fontSize: 17,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.text,
       letterSpacing: -0.3,
     },
@@ -559,12 +561,10 @@ const createStyles = (theme) =>
     greetingText: {
       fontSize: 15,
       color: theme.textSecondary,
-      fontWeight: '500',
       marginBottom: 4,
     },
     userNameText: {
       fontSize: Math.min(width * 0.075, 30),
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
       color: theme.text,
       marginBottom: 6,
       letterSpacing: -0.5,
@@ -572,7 +572,6 @@ const createStyles = (theme) =>
     descriptionText: {
       fontSize: 14,
       color: theme.textSecondary,
-      fontWeight: '400',
     },
     summaryCards: {
       flexDirection: 'row',
@@ -586,17 +585,10 @@ const createStyles = (theme) =>
       borderRadius: 16,
       padding: 16,
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
     },
     cardIcon: {
       width: 36,
@@ -608,7 +600,6 @@ const createStyles = (theme) =>
     },
     cardValue: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
       marginTop: 4,
     },
@@ -616,7 +607,6 @@ const createStyles = (theme) =>
       fontSize: 11,
       color: theme.textSecondary,
       marginTop: 2,
-      fontWeight: '500',
     },
     filterContainer: {
       flexDirection: 'row',
@@ -633,36 +623,21 @@ const createStyles = (theme) =>
       borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.border,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-        },
-        android: {
-          elevation: 1,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
     },
     filterChipActive: {
       backgroundColor: theme.accent,
       borderColor: theme.accent,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
     },
     filterText: {
       fontSize: 13,
-      fontWeight: '600',
       color: theme.textSecondary,
     },
     filterTextActive: {
@@ -678,31 +653,17 @@ const createStyles = (theme) =>
       borderWidth: 1,
       borderColor: theme.border,
       overflow: 'hidden',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
     },
     orderCardRecent: {
       backgroundColor: theme.cardBackgroundRecent,
       borderColor: theme.accent,
       borderWidth: 1.5,
-      ...Platform.select({
-        ios: {
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
     },
     cardTopBar: {
       flexDirection: 'row',
@@ -720,7 +681,6 @@ const createStyles = (theme) =>
     },
     dateLabel: {
       fontSize: 13,
-      fontWeight: '600',
       color: theme.text,
     },
     timeInfo: {
@@ -767,14 +727,12 @@ const createStyles = (theme) =>
     recentText: {
       color: '#fff',
       fontSize: 10,
-      fontWeight: '700',
     },
     infoSection: {
       flex: 1,
     },
     productTitle: {
       fontSize: 16,
-      fontWeight: '700',
       color: theme.text,
       marginBottom: 10,
       lineHeight: 20,
@@ -794,7 +752,6 @@ const createStyles = (theme) =>
     },
     priceAmount: {
       fontSize: 15,
-      fontWeight: '700',
       color: theme.accent,
     },
     qtyBlock: {
@@ -807,7 +764,6 @@ const createStyles = (theme) =>
     },
     qtyAmount: {
       fontSize: 15,
-      fontWeight: '700',
       color: theme.text,
     },
     sellerInfo: {
@@ -831,11 +787,9 @@ const createStyles = (theme) =>
     totalTag: {
       fontSize: 13,
       color: theme.textSecondary,
-      fontWeight: '500',
     },
     totalAmount: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.accent,
     },
     detailsButton: {
@@ -849,7 +803,6 @@ const createStyles = (theme) =>
     },
     detailsButtonText: {
       fontSize: 14,
-      fontWeight: '600',
       color: theme.accent,
       marginRight: 6,
     },
@@ -868,21 +821,13 @@ const createStyles = (theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 24,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
     },
     emptyTitle: {
       fontSize: 24,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
       color: theme.text,
       marginBottom: 12,
       textAlign: 'center',
@@ -902,22 +847,14 @@ const createStyles = (theme) =>
       borderRadius: 24,
       flexDirection: 'row',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 6,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
     },
     shopButtonText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
     },
     loadingContainer: {
       flex: 1,
@@ -929,6 +866,5 @@ const createStyles = (theme) =>
       marginTop: 16,
       fontSize: 15,
       color: theme.textSecondary,
-      fontWeight: '500',
     },
   });

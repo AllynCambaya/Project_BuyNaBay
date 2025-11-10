@@ -1,3 +1,4 @@
+// screens/tabs/CommunityScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +11,6 @@ import {
   FlatList,
   Image,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -1938,17 +1938,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   brandedLogoImage: {
     width: 26,
@@ -1977,17 +1970,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   filterButton: {
     backgroundColor: '#10b981',
@@ -2001,17 +1987,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     padding: 2,
     backgroundColor: theme.cardBackground,
     position: 'relative',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   profileImage: {
     width: '100%',
@@ -2051,17 +2030,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     padding: 16,
     borderWidth: isDark ? 0 : 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   postHeader: {
     flexDirection: 'row',
@@ -2177,17 +2149,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: theme.cardBackground,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   reactionEmojiText: {
     fontSize: 12,
@@ -2237,17 +2202,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   fabGradient: {
     width: '100%',
@@ -2367,17 +2325,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     height: 26,
     borderRadius: 13,
     backgroundColor: '#fff',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   switchThumbActive: {
     transform: [{ translateX: 20 }],
@@ -2596,17 +2547,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     borderRadius: 20,
     padding: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
   },
   reactionPickerTitle: {
     fontSize: 17,
@@ -2627,17 +2571,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     borderRadius: 14,
     minWidth: 80,
     backgroundColor: isDark ? 'rgba(42, 40, 86, 0.4)' : 'rgba(245, 245, 245, 1)',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   reactionOptionEmoji: {
     fontSize: 36,
@@ -2660,17 +2597,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 32,
     paddingHorizontal: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   sortPickerHandle: {
     width: 40,
@@ -2721,7 +2651,7 @@ const createStyles = (theme, isDark) => StyleSheet.create({
   },
   imageViewerClose: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
+    top: 50,
     right: 20,
     zIndex: 10,
   },
@@ -2732,17 +2662,10 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   imageViewerImage: {
     width: '100%',

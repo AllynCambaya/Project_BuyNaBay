@@ -1,9 +1,10 @@
+// screens/tabs/NotVerifiedScreen.js
+import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useEffect, useRef } from 'react';
 import {
   Animated,
   Dimensions,
   Image,
-  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -12,7 +13,6 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FontAwesome as Icon } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -192,7 +192,7 @@ export default function NotVerifiedScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
+// Dark theme colors 
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
@@ -210,7 +210,7 @@ const darkTheme = {
   iconBackground: '#2a2a55',
 };
 
-// Light theme colors (matching CartScreen)
+// Light theme colors 
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
@@ -252,7 +252,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    top: 60, 
     left: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,7 +265,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   brandedLogoText: {
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: '800', 
     color: theme.accentSecondary,
     letterSpacing: -0.5,
   },
@@ -286,41 +286,24 @@ const createStyles = (theme) => StyleSheet.create({
     backgroundColor: theme.iconBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
   },
   title: {
     fontSize: Math.min(width * 0.07, 28),
-    fontWeight: Platform.OS === 'android' ? '900' : '800',
+    fontWeight: '800', 
     color: theme.text,
     textAlign: 'center',
     marginBottom: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-ExtraBold',
-      android: 'Poppins-Black',
-      default: 'Poppins-ExtraBold',
-    }),
   },
   subtitle: {
     fontSize: 16,
     color: theme.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
-    fontWeight: Platform.OS === 'android' ? '600' : '500',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Medium',
-      android: 'Poppins-SemiBold',
-      default: 'Poppins-Medium',
-    }),
+    fontWeight: '600', 
   },
   messageCard: {
     backgroundColor: theme.cardBackground,
@@ -332,17 +315,10 @@ const createStyles = (theme) => StyleSheet.create({
     borderColor: theme.borderColor,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   messageIconContainer: {
     marginRight: 12,
@@ -354,11 +330,7 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     lineHeight: 22,
     textAlign: 'left',
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500', 
   },
   benefitsContainer: {
     width: '100%',
@@ -368,28 +340,16 @@ const createStyles = (theme) => StyleSheet.create({
     marginBottom: 32,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   benefitsTitle: {
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '800', 
     color: theme.text,
     marginBottom: 16,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   benefitItem: {
     flexDirection: 'row',
@@ -403,15 +363,11 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '500', 
   },
   primaryButton: {
     backgroundColor: theme.accent,
-    paddingVertical: Platform.OS === 'ios' ? 18 : 16,
+    paddingVertical: 18, 
     paddingHorizontal: 32,
     borderRadius: 16,
     width: '100%',
@@ -419,17 +375,10 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   buttonIcon: {
     marginRight: 8,
@@ -437,17 +386,12 @@ const createStyles = (theme) => StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: Platform.OS === 'android' ? '800' : '700',
+    fontWeight: '700', 
     marginRight: 8,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Bold',
-      android: 'Poppins-ExtraBold',
-      default: 'Poppins-Bold',
-    }),
   },
   secondaryButton: {
     backgroundColor: theme.cardBackground,
-    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    paddingVertical: 16, 
     paddingHorizontal: 32,
     borderRadius: 16,
     width: '100%',
@@ -456,31 +400,19 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   secondaryButtonText: {
     color: theme.text,
     fontSize: 16,
-    fontWeight: Platform.OS === 'android' ? '700' : '600',
-    fontFamily: Platform.select({
-      ios: 'Poppins-SemiBold',
-      android: 'Poppins-Bold',
-      default: 'Poppins-SemiBold',
-    }),
+    fontWeight: '600', 
   },
   footer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 40 : 20,
+    bottom: 40, 
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -488,10 +420,17 @@ const createStyles = (theme) => StyleSheet.create({
   footerText: {
     fontSize: 13,
     color: theme.textSecondary,
-    fontFamily: Platform.select({
-      ios: 'Poppins-Regular',
-      android: 'Poppins-Medium',
-      default: 'Poppins-Regular',
-    }),
+    fontWeight: '400', 
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: theme.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.textSecondary,
   },
 });

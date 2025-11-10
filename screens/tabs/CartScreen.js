@@ -1,4 +1,4 @@
-// screens/CartScreen.js
+// screens/tabs/CartScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import ExpoCheckbox from "expo-checkbox";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +10,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -341,7 +340,6 @@ export default function CartScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
-
 
 
       {/* Summary Cards */}
@@ -694,17 +692,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   brandedLogoImage: {
     width: 26,
@@ -733,17 +725,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
+    
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   historyButton: {
     backgroundColor: '#10b981',
@@ -757,17 +743,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 2,
     backgroundColor: theme.cardBackground,
     position: 'relative',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   profileImage: {
     width: '100%',
@@ -816,17 +796,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   cardIconContainer: {
     width: 40,
@@ -854,17 +828,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 14,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   checkbox: {
     width: 20,
@@ -896,32 +864,20 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   itemCardSelected: {
     borderColor: theme.accent,
     backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.05)' : 'rgba(253, 173, 0, 0.08)',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
   },
   checkboxContainer: {
     position: 'absolute',
@@ -931,17 +887,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     borderRadius: 8,
     padding: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   itemCheckbox: {
     width: 20,
@@ -1034,17 +984,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#ef4444',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   emptyState: {
     flex: 1,
@@ -1082,17 +1026,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   shopButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   shopButtonGradient: {
     flexDirection: 'row',
@@ -1108,22 +1046,16 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 20,
+    paddingBottom: 28, 
     borderTopWidth: 1,
     borderTopColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -1148,17 +1080,11 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   checkoutButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   checkoutButtonDisabled: {
     opacity: 0.5,

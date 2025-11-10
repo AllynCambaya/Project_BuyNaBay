@@ -1,3 +1,4 @@
+// screens/tabs/ProfileScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +11,6 @@ import {
   Dimensions,
   Image,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -82,6 +82,13 @@ export default function ProfileScreen({ navigation, route }) {
   const headerTranslate = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [-50, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Image scale animation
+  const imageScale = scrollY.interpolate({
+    inputRange: [-100, 0],
+    outputRange: [1.2, 1],
     extrapolate: 'clamp',
   });
 
@@ -976,7 +983,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
   },
 
-  // Collapsible Header
+  // Collapsible Header 
   collapsibleHeader: {
     position: 'absolute',
     top: 0,
@@ -991,17 +998,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
     zIndex: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   backButton: {
     width: 40,
@@ -1010,17 +1010,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -1072,17 +1065,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
   },
   avatarImage: {
     width: 100,
@@ -1151,7 +1137,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderTopRightRadius: 32,
   },
 
-  // Stats Container
+  // Stats Container 
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -1165,17 +1151,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   statIconCircle: {
     width: 48,
@@ -1193,7 +1172,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     fontSize: 12,
   },
 
-  // Info Section
+  // Info Section 
   infoSection: {
     paddingHorizontal: 20,
     marginBottom: 24,
@@ -1210,17 +1189,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
   infoRow: {
     flexDirection: 'row',
@@ -1255,7 +1227,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     opacity: 0.5,
   },
 
-  // Action Buttons
+  // Action Buttons 
   actionRow: {
     flexDirection: 'row',
     gap: 12,
@@ -1264,17 +1236,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#4CAF50',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   buttonGradient: {
     flexDirection: 'row',
@@ -1322,7 +1287,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.textSecondary,
   },
 
-  // Tab Wrapper
+  // Tab Wrapper 
   tabWrapper: {
     paddingHorizontal: 20,
     marginBottom: 16,
@@ -1332,17 +1297,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? 'rgba(42, 40, 86, 0.6)' : 'rgba(245, 245, 245, 1)',
     borderRadius: 14,
     padding: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   tab: {
     flex: 1,
@@ -1370,7 +1328,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Search Bar
+  // Search Bar 
   searchWrapper: {
     paddingHorizontal: 20,
     marginBottom: 16,
@@ -1385,17 +1343,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
   searchInput: {
     flex: 1,
@@ -1436,7 +1387,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Product Cards
+  // Product Cards 
   cardWrapper: {
     width: CARD_WIDTH,
     marginBottom: 16,
@@ -1447,17 +1398,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   imageContainer: {
     width: '100%',
@@ -1619,17 +1563,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   emptyAction: {
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   emptyActionGradient: {
     flexDirection: 'row',
@@ -1652,7 +1589,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   },
   modalCloseButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    top: 60, 
     right: 20,
     zIndex: 10,
   },

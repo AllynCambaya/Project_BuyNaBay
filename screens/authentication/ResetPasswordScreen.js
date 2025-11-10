@@ -1,4 +1,4 @@
-// screens/ResetPasswordScreen.js
+// screens/authentication/ResetPasswordScreen.js
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { sendPasswordResetEmail } from 'firebase/auth';

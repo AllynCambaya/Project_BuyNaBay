@@ -1,10 +1,10 @@
-// navigation/MainTabNavigator.js
+// screens/tabs/MainTabNavigator.js
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, View, useColorScheme } from 'react-native';
+import { Animated, StyleSheet, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
@@ -35,7 +35,6 @@ import LostAndFoundScreen from './LostAndFoundScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Animated Tab Icon with smooth spring animations (NO DOT INDICATOR)
 function AnimatedTabIcon({ name, color, size, focused, theme }) {
   const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
@@ -104,7 +103,6 @@ function BreathingAddButton({ size, theme }) {
   const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Continuous breathing animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(breatheAnim, {
@@ -142,12 +140,14 @@ function BreathingAddButton({ size, theme }) {
     outputRange: [0.2, 0.5],
   });
 
+  const buttonStyles = createStyles(theme);
+
   return (
-    <View style={styles.addButtonWrapper}>
+    <View style={buttonStyles.addButtonWrapper}>
       {/* Outer glow ring */}
       <Animated.View
         style={[
-          styles.glowRing,
+          buttonStyles.glowRing,
           {
             opacity: glowOpacity,
             transform: [{ scale: breatheAnim }],
@@ -159,21 +159,14 @@ function BreathingAddButton({ size, theme }) {
       {/* Main button */}
       <Animated.View
         style={[
-          styles.addButtonOuter,
+          buttonStyles.addButtonOuter,
           {
             backgroundColor: theme.accent,
             transform: [{ scale: breatheAnim }],
-            ...Platform.select({
-              ios: {
-                shadowColor: theme.accent,
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.4,
-                shadowRadius: 12,
-              },
-              android: {
-                elevation: 8,
-              },
-            }),
+            shadowColor: theme.accent,
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
           },
         ]}
       >
@@ -184,34 +177,30 @@ function BreathingAddButton({ size, theme }) {
 }
 
 // Custom Tab Bar Background matching CartScreen aesthetic
-function CustomTabBarBackground({ theme, isDarkMode }) {
+function CustomTabBarBackground({ theme, isDarkMode, insets }) {
+  // Use BlurView on all platforms for unified look and transparent effect
+  const backgroundColor = isDarkMode
+    ? 'rgba(27, 27, 65, 0.90)'
+    : 'rgba(255, 255, 255, 0.90)';
+
+  const backgroundStyles = createStyles(theme, insets);
+
   return (
-    <View style={styles.tabBarContainer}>
-      {Platform.OS === 'ios' ? (
-        <BlurView
-          intensity={isDarkMode ? 90 : 80}
-          tint={isDarkMode ? 'dark' : 'light'}
-          style={[
-            styles.blurView,
-            {
-              backgroundColor: isDarkMode
-                ? 'rgba(27, 27, 65, 0.90)'
-                : 'rgba(255, 255, 255, 0.90)',
-            },
-          ]}
-        />
-      ) : (
-        <View
-          style={[
-            styles.solidBackground,
-            { backgroundColor: theme.cardBackground },
-          ]}
-        />
-      )}
+    <View style={backgroundStyles.tabBarContainer}>
+      <BlurView
+        intensity={isDarkMode ? 90 : 80}
+        tint={isDarkMode ? 'dark' : 'light'}
+        style={[
+          backgroundStyles.blurView,
+          {
+            backgroundColor: backgroundColor,
+          },
+        ]}
+      />
       {/* Subtle top border matching CartScreen */}
       <View
         style={[
-          styles.topBorder,
+          backgroundStyles.topBorder,
           {
             backgroundColor: isDarkMode
               ? 'rgba(253, 173, 0, 0.12)'
@@ -223,14 +212,16 @@ function CustomTabBarBackground({ theme, isDarkMode }) {
   );
 }
 
-function Tabs({ showAdmin, userStatus }) {
-  const systemColorScheme = useColorScheme();
-  const isDarkMode = systemColorScheme === 'dark';
-  const theme = isDarkMode ? darkTheme : lightTheme;
-  const insets = useSafeAreaInsets();
+function Tabs({ showAdmin, userStatus, theme, insets }) {
+  const tabBarHeight = 75;
+  const tabBarLabelStyle = {
+    fontSize: fontSizes.xs,
+    fontFamily: fontFamily.semiBold,
+    letterSpacing: 0.2,
+  };
 
   const handleTabPress = (e, navigation, tabName) => {
-    if (userStatus === 'approved') return;
+    if (tabName === 'Home' || userStatus === 'approved') return;
 
     e.preventDefault();
     const parent = navigation.getParent ? navigation.getParent() : null;
@@ -239,17 +230,14 @@ function Tabs({ showAdmin, userStatus }) {
       if (parent && parent.navigate) parent.navigate('VerificationStatus');
       else navigation.navigate('VerificationStatus');
     } else {
-      if (parent && parent.navigate) parent.navigate('NotVerified');
-      else navigation.navigate('NotVerified');
+      if (parent && parent.navigate) parent.navigate('GetVerified');
+      else navigation.navigate('GetVerified'); 
     }
   };
 
-  // Calculate tab bar height with proper safe area
-  const tabBarHeight = Platform.OS === 'ios' ? 88 : 68;
-
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={({ route, navigation }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size, focused }) => {
           const icons = {
@@ -262,7 +250,6 @@ function Tabs({ showAdmin, userStatus }) {
           };
           const name = icons[route.name] || 'ellipse';
 
-          // Special elevated Add button with breathing animation
           if (route.name === 'Add') {
             return <BreathingAddButton size={size} theme={theme} />;
           }
@@ -280,23 +267,25 @@ function Tabs({ showAdmin, userStatus }) {
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarBackground: () => (
-          <CustomTabBarBackground theme={theme} isDarkMode={isDarkMode} />
+          <CustomTabBarBackground theme={theme} isDarkMode={theme === darkTheme} insets={insets} />
         ),
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
           borderTopWidth: 0,
           height: tabBarHeight,
-          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 12,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 12, 
           paddingTop: 8,
           paddingHorizontal: 8,
-          elevation: 0,
+          shadowColor: 'transparent',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0,
+          shadowRadius: 0,
+          elevation: 0, 
         },
         tabBarLabelStyle: {
-          fontSize: fontSizes.xs,
-          fontFamily: fontFamily.semiBold,
+          ...tabBarLabelStyle,
           marginTop: route.name === 'Add' ? 6 : 2,
-          letterSpacing: 0.2,
         },
         tabBarItemStyle: {
           paddingVertical: 4,
@@ -306,27 +295,19 @@ function Tabs({ showAdmin, userStatus }) {
         tabBarBadgeStyle: {
           backgroundColor: theme.error,
           color: '#fff',
-          fontSize: 9,
+          fontSize: fontSizes.xxs, 
           fontFamily: fontFamily.bold,
           minWidth: 18,
           height: 18,
           borderRadius: 9,
           borderWidth: 2,
           borderColor: theme.cardBackground,
-          lineHeight: Platform.OS === 'ios' ? 14 : 12,
-          ...Platform.select({
-            ios: {
-              shadowColor: theme.error,
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.4,
-              shadowRadius: 4,
-            },
-            android: {
-              elevation: 4,
-            },
-          }),
+          lineHeight: 14, 
+          shadowColor: theme.error,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.4,
+          shadowRadius: 4,
         },
-        // This removes any default indicator/dot
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
       })}
@@ -436,9 +417,6 @@ export default function MainTabNavigator({ route }) {
     fetchStatus();
   }, []);
 
-  // Tab bar height to ensure proper padding
-  const tabBarHeight = Platform.OS === 'ios' ? 88 + insets.bottom : 68;
-
   return (
     <Stack.Navigator
       screenOptions={{
@@ -450,7 +428,6 @@ export default function MainTabNavigator({ route }) {
         animationEnabled: true,
         gestureEnabled: true,
         gestureDirection: 'horizontal',
-        // Smooth horizontal slide matching CartScreen transitions
         cardStyleInterpolator: ({ current, next, layouts }) => {
           return {
             cardStyle: {
@@ -483,7 +460,6 @@ export default function MainTabNavigator({ route }) {
             },
           };
         },
-        // Ensure content doesn't get cut off by tab bar
         contentStyle: {
           paddingBottom: 0,
         },
@@ -491,7 +467,7 @@ export default function MainTabNavigator({ route }) {
     >
       <Stack.Screen
         name="Tabs"
-        children={() => <Tabs showAdmin={showAdmin} userStatus={userStatus} />}
+        children={() => <Tabs showAdmin={showAdmin} userStatus={userStatus} theme={theme} insets={insets} />}
         options={{
           contentStyle: {
             paddingBottom: 0,
@@ -652,63 +628,56 @@ export default function MainTabNavigator({ route }) {
   );
 }
 
-const styles = StyleSheet.create({
-  // Tab Bar Container
-  tabBarContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-  },
-  blurView: {
-    flex: 1,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-  },
-  solidBackground: {
-    flex: 1,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    ...Platform.select({
-      android: {
-        elevation: 12,
-      },
-    }),
-  },
-  topBorder: {
-    position: 'absolute',
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1,
-    opacity: 0.6,
-  },
+const createStyles = (theme) =>
+  StyleSheet.create({
+    tabBarContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflow: 'hidden',
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+    },
+    blurView: {
+      flex: 1,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+    },
+    topBorder: {
+      position: 'absolute',
+      top: 0,
+      left: 16,
+      right: 16,
+      height: 1,
+      opacity: 0.6,
+    },
 
-  // Add Button with Breathing Effect
-  addButtonWrapper: {
-    marginTop: -8,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  glowRing: {
-    position: 'absolute',
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    opacity: 0.3,
-  },
-  addButtonOuter: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-  },
-});
+    addButtonWrapper: {
+      marginTop: -8,
+      position: 'relative',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    glowRing: {
+      position: 'absolute',
+      width: 66,
+      height: 66,
+      borderRadius: 33,
+      opacity: 0.3,
+    },
+    addButtonOuter: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 3,
+      borderColor: 'rgba(255, 255, 255, 0.25)',
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
+    },
+  });

@@ -1,4 +1,4 @@
-// screens/ProductDetailsScreen.js
+// screens/tabs/ProductDetailsScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +8,6 @@ import {
   Animated,
   Dimensions,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -38,13 +37,11 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation refs
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
-  // Header animation
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [0, 1],
@@ -57,14 +54,12 @@ export default function ProductDetailsScreen({ route, navigation }) {
     extrapolate: 'clamp',
   });
 
-  // Image scale animation
   const imageScale = scrollY.interpolate({
     inputRange: [-100, 0],
     outputRange: [1.2, 1],
     extrapolate: 'clamp',
   });
 
-  // Parse image URLs
   const imageUrls = product?.product_image_url
     ? Array.isArray(product.product_image_url)
       ? product.product_image_url
@@ -77,7 +72,6 @@ export default function ProductDetailsScreen({ route, navigation }) {
         })()
     : [];
 
-  // Fetch seller information
   useEffect(() => {
     let mounted = true;
     const fetchSellerInfo = async () => {
@@ -99,7 +93,6 @@ export default function ProductDetailsScreen({ route, navigation }) {
       
       if (mounted) {
         setLoading(false);
-        // Trigger entrance animations
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -126,7 +119,6 @@ export default function ProductDetailsScreen({ route, navigation }) {
     return () => { mounted = false; };
   }, [product]);
 
-  // Fetch user verification status
   const [userStatus, setUserStatus] = useState('not_requested');
   const [adding, setAdding] = useState(false);
 
@@ -176,7 +168,6 @@ export default function ProductDetailsScreen({ route, navigation }) {
       return;
     }
     
-    // Require verified users
     if (userStatus !== 'approved') {
       navigation.navigate('GetVerified');
       return;
@@ -584,17 +575,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
     zIndex: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   headerButton: {
     width: 40,
@@ -603,17 +587,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   headerTitleContainer: {
     flex: 1,
@@ -635,17 +612,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
 
   // Image Section
@@ -713,17 +683,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   categoryBadge: {
     alignSelf: 'flex-start',
@@ -888,20 +851,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.background,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: 24, 
     borderTopWidth: 1,
     borderTopColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -912,28 +868,14 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
   },
   addToCartButtonDisabled: {
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOpacity: 0.2,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOpacity: 0.2,
   },
   addToCartButtonGradient: {
     flexDirection: 'row',
@@ -952,17 +894,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     height: 56,
     borderRadius: 18,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
   },
   iconButtonGradient: {
     width: '100%',
@@ -1008,17 +943,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   errorButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   errorButtonGradient: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+// screens/tabs/RentalDetailsScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
@@ -7,7 +8,6 @@ import {
   Animated,
   Dimensions,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -39,13 +39,11 @@ export default function RentalDetailsScreen({ route, navigation }) {
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation refs
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
-  // Header animation
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [0, 1],
@@ -58,14 +56,12 @@ export default function RentalDetailsScreen({ route, navigation }) {
     extrapolate: 'clamp',
   });
 
-  // Image scale animation
   const imageScale = scrollY.interpolate({
     inputRange: [-100, 0],
     outputRange: [1.2, 1],
     extrapolate: 'clamp',
   });
 
-  // Parse image URLs
   const imageUrls = rentalItem?.rental_item_image
     ? Array.isArray(rentalItem.rental_item_image)
       ? rentalItem.rental_item_image
@@ -78,7 +74,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
         })()
     : [];
 
-  // Fetch seller information and user status
   useEffect(() => {
     let mounted = true;
     
@@ -88,7 +83,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
         return;
       }
 
-      // Fetch seller info
       const { data: sellerData, error: sellerError } = await supabase
         .from('users')
         .select('name, profile_photo')
@@ -100,7 +94,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
         setSellerAvatar(sellerData.profile_photo);
       }
 
-      // Fetch user verification status
       if (user?.email) {
         const { data: userData, error: userError } = await supabase
           .from('users')
@@ -115,7 +108,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
       
       if (mounted) {
         setLoading(false);
-        // Trigger entrance animations
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -154,7 +146,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
       return;
     }
 
-    // Check verification status
     if (userStatus !== 'approved') {
       navigation.navigate('GetVerified');
       return;
@@ -163,7 +154,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
     setContacting(true);
     
     try {
-      // Create a notification for the owner
       const { error: notificationError } = await supabase
         .from('notifications')
         .insert({
@@ -178,7 +168,6 @@ export default function RentalDetailsScreen({ route, navigation }) {
         console.error('Notification error:', notificationError);
       }
 
-      // Navigate to messaging screen
       navigation.navigate('Messaging', {
         receiverId: rentalItem.owner_email,
         receiverName: sellerName,
@@ -603,17 +592,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
     zIndex: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   headerButton: {
     width: 40,
@@ -622,17 +604,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   headerTitleContainer: {
     flex: 1,
@@ -654,17 +629,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
 
   // Image Section
@@ -732,17 +700,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   categoryBadge: {
     alignSelf: 'flex-start',
@@ -950,20 +911,13 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: theme.background,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: 24, 
     borderTopWidth: 1,
     borderTopColor: theme.borderColor,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -974,28 +928,14 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
   },
   addToCartButtonDisabled: {
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOpacity: 0.2,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOpacity: 0.2,
   },
   addToCartButtonGradient: {
     flexDirection: 'row',
@@ -1014,17 +954,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     height: 56,
     borderRadius: 18,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
   },
   iconButtonGradient: {
     width: '100%',
@@ -1070,17 +1003,10 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
   errorButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#FDAD00',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    shadowColor: '#FDAD00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   errorButtonGradient: {
     flexDirection: 'row',

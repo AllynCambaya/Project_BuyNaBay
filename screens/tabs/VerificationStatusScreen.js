@@ -1,3 +1,4 @@
+// screens/tabs/VerificationStatusScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -6,7 +7,6 @@ import {
   Animated,
   Dimensions,
   Image,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -323,7 +323,7 @@ export default function VerificationStatusScreen({ navigation }) {
   );
 }
 
-// Dark theme colors (matching CartScreen)
+// Dark theme colors 
 const darkTheme = {
   background: '#0f0f2e',
   gradientBackground: '#1b1b41',
@@ -341,7 +341,7 @@ const darkTheme = {
   borderColor: '#2a2a4a',
 };
 
-// Light theme colors (matching CartScreen)
+// Light theme colors 
 const lightTheme = {
   background: '#f5f7fa',
   gradientBackground: '#e8ecf1',
@@ -378,14 +378,15 @@ const createStyles = (theme) =>
       top: 0,
       left: 0,
       right: 0,
-      height: Platform.OS === 'ios' ? 300 : 320,
+      
+      height: 300,
       backgroundColor: theme.gradientBackground,
       borderBottomLeftRadius: 30,
       borderBottomRightRadius: 30,
       zIndex: 0,
     },
     brandedLogoContainer: {
-      marginTop: Platform.OS === 'ios' ? 10 : 20,
+      marginTop: 10, 
       marginBottom: 40,
       flexDirection: 'row',
       alignItems: 'center',
@@ -398,7 +399,7 @@ const createStyles = (theme) =>
     },
     brandedLogoText: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
+      fontWeight: '800', 
       color: theme.accentSecondary,
       letterSpacing: -0.5,
     },
@@ -414,21 +415,14 @@ const createStyles = (theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 24,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.15,
-          shadowRadius: 16,
-        },
-        android: {
-          elevation: 8,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
     },
     statusTitle: {
       fontSize: Math.min(width * 0.07, 28),
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
+      fontWeight: '800', 
       color: theme.text,
       textAlign: 'center',
       marginBottom: 16,
@@ -440,17 +434,10 @@ const createStyles = (theme) =>
       paddingHorizontal: 20,
       borderRadius: 25,
       marginBottom: 20,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     statusDot: {
       width: 10,
@@ -460,7 +447,7 @@ const createStyles = (theme) =>
     },
     statusText: {
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontWeight: '700', 
     },
     statusDescription: {
       fontSize: 15,
@@ -476,17 +463,10 @@ const createStyles = (theme) =>
       marginBottom: 24,
       borderWidth: 1,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
     },
     infoCardHeader: {
       flexDirection: 'row',
@@ -495,7 +475,7 @@ const createStyles = (theme) =>
     },
     infoCardTitle: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontWeight: '700', 
       color: theme.text,
       marginLeft: 10,
     },
@@ -521,7 +501,7 @@ const createStyles = (theme) =>
     },
     timelineTitle: {
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '700' : '600',
+      fontWeight: '600', 
       color: theme.text,
       marginBottom: 4,
     },
@@ -548,20 +528,13 @@ const createStyles = (theme) =>
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.accent,
-      paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+      paddingVertical: 16, 
       borderRadius: 16,
       gap: 8,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 6,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
     },
     browseButton: {
       flex: 1,
@@ -569,25 +542,18 @@ const createStyles = (theme) =>
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.successColor,
-      paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+      paddingVertical: 16, 
       borderRadius: 16,
       gap: 8,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.successColor,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 6,
-        },
-      }),
+      shadowColor: theme.successColor,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
     },
     buttonText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontWeight: '700', 
     },
     helpSection: {
       flexDirection: 'row',

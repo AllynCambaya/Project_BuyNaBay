@@ -1,3 +1,4 @@
+// screens/tabs/RentalScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +8,6 @@ import {
   Dimensions,
   FlatList,
   Image,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -45,7 +45,6 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
 
-  // Enhanced animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -54,7 +53,6 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
 
   const styles = createStyles(theme);
 
-  // Shimmer effect for loading
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -80,7 +78,6 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
     });
   }, [items, searchQuery, selectedCategory]);
 
-  // Initial animations
   useEffect(() => {
     if (isVisible) {
       Animated.parallel([
@@ -368,7 +365,6 @@ export default function RentalScreen({ navigation, theme, searchQuery, isVisible
               </View>
             </View>
 
-            {/* Messaging Button - matches ProductCard */}
             <TouchableOpacity
               style={styles.messageButton}
               onPress={(e) => {
@@ -553,12 +549,12 @@ const createStyles = (theme) =>
       paddingBottom: 24,
     },
     
-    // Enhanced Header Styles - SOLID BACKGROUND (matches ProductScreen)
+    // Header Styles
     headerContainer: {
       paddingHorizontal: Math.max(width * 0.04, 16),
       paddingTop: 8,
       paddingBottom: 16,
-      backgroundColor: theme.background, // SOLID - no opacity
+      backgroundColor: theme.background,
     },
     headerTop: {
       flexDirection: 'row',
@@ -620,12 +616,14 @@ const createStyles = (theme) =>
     // Category Section
     categorySection: {
       marginBottom: 12,
+      paddingHorizontal: 0, // Removed inner padding, relies on outer header padding
     },
     categorySectionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 12,
       gap: 8,
+      paddingLeft: 0, // Aligned with outer header padding
     },
     categorySectionTitle: {
       fontSize: 13,
@@ -667,7 +665,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
-      elevation: 3,
     },
     categoryChipText: {
       fontSize: 14,
@@ -689,6 +686,7 @@ const createStyles = (theme) =>
       borderRadius: 12,
       borderWidth: 1,
       borderColor: `${theme.accent}40`,
+      marginHorizontal: Math.max(width * 0.04, 16), // Use outer horizontal padding
     },
     activeFilterChipInline: {
       flexDirection: 'row',
@@ -715,7 +713,7 @@ const createStyles = (theme) =>
       color: theme.accent,
     },
     
-    // Enhanced Card Styles (matches ProductCard hierarchy)
+    // Enhanced Card Styles
     card: {
       backgroundColor: theme.cardBackground,
       borderRadius: 16,
@@ -724,17 +722,10 @@ const createStyles = (theme) =>
       marginHorizontal: Math.max(width * 0.04, 16),
       borderWidth: 1,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.12,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
     },
     cardImageContainer: {
       position: 'relative',
@@ -771,7 +762,7 @@ const createStyles = (theme) =>
       color: '#fff',
       fontSize: 11,
     },
-    // Messaging Button (matches ProductCard position and style)
+    // Messaging Button (Unified iOS shadow, Elevation removed)
     messageButton: {
       position: 'absolute',
       top: 12,
@@ -782,17 +773,10 @@ const createStyles = (theme) =>
       backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.4,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.4,
+      shadowRadius: 6,
     },
     cardContent: {
       padding: 16,
@@ -963,7 +947,6 @@ const createStyles = (theme) =>
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.35,
       shadowRadius: 12,
-      elevation: 8,
     },
     emptyActionBtnContent: {
       backgroundColor: theme.accent,
@@ -1001,6 +984,7 @@ const createStyles = (theme) =>
       overflow: 'hidden',
       borderWidth: 2,
       borderColor: `${theme.accent}25`,
+      position: 'relative',
     },
     shimmerOverlay: {
       position: 'absolute',

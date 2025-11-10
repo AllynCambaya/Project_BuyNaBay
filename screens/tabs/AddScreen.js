@@ -1,10 +1,10 @@
+// screens/tabs/AddScreen.js
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useRef } from 'react';
 import {
   Animated,
   Dimensions,
-  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -23,7 +23,6 @@ export default function AddScreen() {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const styles = createStyles(theme);
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleProduct = useRef(new Animated.Value(1)).current;
@@ -71,13 +70,11 @@ export default function AddScreen() {
       />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          {/* Decorative Background Elements */}
           <View style={styles.backgroundDecor}>
             <View style={[styles.decorCircle, styles.decorCircle1]} />
             <View style={[styles.decorCircle, styles.decorCircle2]} />
           </View>
 
-          {/* Header Section */}
           <Animated.View
             style={[
               styles.header,
@@ -96,7 +93,6 @@ export default function AddScreen() {
             </Text>
           </Animated.View>
 
-          {/* Options Container */}
           <Animated.View
             style={[
               styles.optionsContainer,
@@ -106,7 +102,6 @@ export default function AddScreen() {
               },
             ]}
           >
-            {/* Add Product Card */}
             <Animated.View style={{ transform: [{ scale: scaleProduct }] }}>
               <TouchableOpacity
                 style={styles.optionCard}
@@ -130,7 +125,6 @@ export default function AddScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Add Rental Card */}
             <Animated.View style={{ transform: [{ scale: scaleRental }] }}>
               <TouchableOpacity
                 style={styles.optionCard}
@@ -154,7 +148,6 @@ export default function AddScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Add Lost Item Card */}
             <Animated.View style={{ transform: [{ scale: scaleLostItem }] }}>
               <TouchableOpacity
                 style={styles.optionCard}
@@ -179,7 +172,6 @@ export default function AddScreen() {
             </Animated.View>
           </Animated.View>
 
-          {/* Help Text */}
           <Animated.View
             style={[
               styles.helpContainer,
@@ -199,7 +191,6 @@ export default function AddScreen() {
   );
 }
 
-// Theme definitions aligned with BuyNaBay brand
 const darkTheme = {
   background: '#1B1B41',
   cardBackground: '#252553',
@@ -272,7 +263,7 @@ const createStyles = (theme) =>
     },
     headerTitle: {
       fontSize: 28,
-      fontWeight: Platform.OS === 'android' ? '900' : '800',
+      fontWeight: '800',
       color: theme.text,
       fontFamily: 'Poppins-Bold',
       textAlign: 'center',
@@ -299,17 +290,10 @@ const createStyles = (theme) =>
       alignItems: 'center',
       borderWidth: 1,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
     },
     iconWrapper: {
       width: 64,
@@ -324,7 +308,7 @@ const createStyles = (theme) =>
     },
     optionTitle: {
       fontSize: 18,
-      fontWeight: Platform.OS === 'android' ? '800' : '700',
+      fontWeight: '700',
       color: theme.text,
       fontFamily: 'Poppins-Bold',
       marginBottom: 4,

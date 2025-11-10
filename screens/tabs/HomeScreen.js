@@ -1,10 +1,10 @@
+// screens/tabs/HomeScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
   Image,
-  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -36,14 +36,12 @@ export default function HomeScreen({ navigation }) {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
 
-  // Animation refs
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
   const searchScaleAnim = useRef(new Animated.Value(1)).current;
   const segmentSlideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const notificationPulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (currentUser?.email) {
@@ -58,7 +56,6 @@ export default function HomeScreen({ navigation }) {
     fetchUserProfile();
   }, [currentUser]);
 
-  // Initial entrance animations
   useEffect(() => {
     Animated.parallel([
       Animated.timing(headerSlideAnim, {
@@ -79,7 +76,6 @@ export default function HomeScreen({ navigation }) {
       }),
     ]).start();
 
-    // Subtle notification pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(notificationPulseAnim, {
@@ -96,7 +92,6 @@ export default function HomeScreen({ navigation }) {
     ).start();
   }, []);
 
-  // Search focus animation
   useEffect(() => {
     Animated.spring(searchScaleAnim, {
       toValue: searchFocused ? 1.02 : 1,
@@ -139,7 +134,6 @@ export default function HomeScreen({ navigation }) {
     return isActive ? 'search' : 'search-outline';
   };
 
-  // Get adaptive notification button color
   const getNotificationButtonColor = () => {
     return isDarkMode ? theme.notificationColor : '#4CAF50';
   };
@@ -154,12 +148,10 @@ export default function HomeScreen({ navigation }) {
         },
       ]}
     >
-      {/* Gradient Background */}
       <View style={styles.backgroundGradient}>
         <View style={styles.gradientOverlay} />
       </View>
 
-      {/* Top Navigation Bar */}
       <View style={styles.topNavBar}>
         <View style={styles.brandedLogoContainer}>
           <View style={styles.logoWrapper}>
@@ -180,7 +172,6 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         <View style={styles.headerActionsContainer}>
-          {/* Enhanced Notification Button with Visibility */}
           <TouchableOpacity
             onPress={() => navigation.navigate('Notifications')}
             style={[styles.actionButton, styles.notificationButton, { backgroundColor: getNotificationButtonColor() }]}
@@ -220,7 +211,6 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Search Bar */}
       <Animated.View
         style={[
           styles.searchContainer,
@@ -254,7 +244,6 @@ export default function HomeScreen({ navigation }) {
         </View>
       </Animated.View>
 
-      {/* Segmented Control */}
       <Animated.View
         style={[
           styles.segmentedControlContainer,
@@ -382,17 +371,10 @@ const createStyles = (theme, insets) =>
       backgroundColor: 'rgba(253, 173, 0, 0.15)',
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.15,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
     },
     brandedLogoImage: {
       width: 26,
@@ -421,17 +403,10 @@ const createStyles = (theme, insets) =>
       borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
     },
     notificationButton: {
       position: 'relative',
@@ -446,17 +421,10 @@ const createStyles = (theme, insets) =>
       backgroundColor: '#FF3B30',
       borderWidth: 2,
       borderColor: '#fff',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#FF3B30',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.5,
-          shadowRadius: 3,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: '#FF3B30',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.5,
+      shadowRadius: 3,
     },
     profileImageWrapper: {
       width: 40,
@@ -467,17 +435,10 @@ const createStyles = (theme, insets) =>
       padding: 2,
       backgroundColor: theme.cardBackground,
       position: 'relative',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
     },
     profileImage: {
       width: '100%',
@@ -504,20 +465,13 @@ const createStyles = (theme, insets) =>
       backgroundColor: theme.inputBackground,
       borderRadius: 14,
       paddingHorizontal: 14,
-      paddingVertical: Platform.OS === 'ios' ? 10 : 9,
+      paddingVertical: 10,
       borderWidth: 1.5,
       borderColor: theme.borderColor,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     searchIcon: {
       marginRight: 10,
@@ -535,17 +489,10 @@ const createStyles = (theme, insets) =>
       backgroundColor: theme.cardBackground,
       borderRadius: 12,
       padding: 4,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.shadowColor,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 2,
-        },
-      }),
+      shadowColor: theme.shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
     },
     segmentButton: {
       flex: 1,
@@ -556,17 +503,10 @@ const createStyles = (theme, insets) =>
     },
     segmentActive: {
       backgroundColor: theme.accent,
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
     },
     segmentContent: {
       flexDirection: 'row',
