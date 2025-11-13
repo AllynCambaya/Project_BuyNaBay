@@ -6,7 +6,14 @@
     "orientation": "portrait",
     "icon": "./assets/images/BuyNaBay4.png",
     "scheme": "buynabay",
-    "userInterfaceStyle": "automatic",
+     "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
+        "UIStatusBarStyle": "UIStatusBarStyleDefault",
+        "UIViewControllerBasedStatusBarAppearance": true
+      },
     "assetBundlePatterns": [
       "assets/fonts/*",
       "assets/images/*"
@@ -25,7 +32,11 @@
         "foregroundImage": "./assets/images/BuyNaBay4.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
+       "edgeToEdgeEnabled": true,
+      "statusBar": {
+        "translucent": true,
+        "backgroundColor": "transparent"
+      },
       "package": "com.joevel_berana.BuyNaBay",
       "permissions": [
         "android.permission.CAMERA",
@@ -55,7 +66,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
+          "icon": "./assets/images/notification-icon.png",
           "color": "#FDAD00",
           "mode": "production"
         }
@@ -70,4 +81,5 @@
       }
     }
   }
+}
 }

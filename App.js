@@ -9,8 +9,8 @@ import { StatusBar } from 'expo-status-bar';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler'; // ✅ ADD THIS
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context'; // ✅ Changed to Provider
 import { auth } from './firebase/firebaseConfig';
 import LoginScreen from './screens/authentication/LoginScreen';
 import RegisterScreen from './screens/authentication/RegisterScreen';
@@ -56,38 +56,39 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-useEffect(() => {
-  notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-    console.log('🔔 Notification received:', notification);
-  });
+  useEffect(() => {
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log('🔔 Notification received:', notification);
+    });
 
-  responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('👆 Notification tapped:', response);
-    
-    const data = response.notification.request.content.data;
-    
-    if (data.type === 'message' && data.screen) {
-      navigationRef.current?.navigate(data.screen, data.params);
-    } else if (data.type === 'order' && data.screen) {
-      navigationRef.current?.navigate(data.screen);
-    }
-  });
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('👆 Notification tapped:', response);
+      
+      const data = response.notification.request.content.data;
+      
+      if (data.type === 'message' && data.screen) {
+        navigationRef.current?.navigate(data.screen, data.params);
+      } else if (data.type === 'order' && data.screen) {
+        navigationRef.current?.navigate(data.screen);
+      }
+    });
 
-  return () => {
-    if (notificationListener.current) {
-      Notifications.removeNotificationSubscription(notificationListener.current);
-    }
-    if (responseListener.current) {
-      Notifications.removeNotificationSubscription(responseListener.current);
-    }
-  };
-}, []);
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, []);
 
+  // ✅ Fixed: Properly sync navigation bar with theme
   useEffect(() => {
     if (Platform.OS === 'android') {
-      // NavigationBar.setBackgroundColorAsync(
-      //   colorScheme === 'dark' ? '#0F0F2E' : '#F5F7FA'
-      // );
+      NavigationBar.setBackgroundColorAsync(
+        colorScheme === 'dark' ? '#0F0F2E' : '#F5F7FA'
+      );
       NavigationBar.setButtonStyleAsync(
         colorScheme === 'dark' ? 'light' : 'dark'
       );
@@ -109,34 +110,45 @@ useEffect(() => {
   }
 
   return (
-    // ✅ WRAP EVERYTHING IN GestureHandlerRootView
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={styles.container}>
-        <StatusBar
-          style={colorScheme === 'dark' ? 'light' : 'dark'}
-          backgroundColor={colorScheme === 'dark' ? '#0F0F2E' : '#F5F7FA'}
-        />
-        <NavigationContainer ref={navigationRef} onReady={onLayoutRootView}>
-          <Stack.Navigator 
-            initialRouteName={user ? "MainTabs" : "Login"}
-            screenOptions={{ headerShown: false }}
-          >
-            {user ? (
-              <>
-                <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-                <Stack.Screen name="Notifications" component={NotificationsScreen} />
-                <Stack.Screen name="MessagingScreen" component={MessagingScreen} />
-              </>
-            ) : (
-              <>
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Register" component={RegisterScreen} />
-                <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-              </>
-            )}
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaView>
+      {/* ✅ Changed to SafeAreaProvider to avoid consuming insets at root */}
+      <SafeAreaProvider>
+        {/* ✅ Fixed: Auto theme detection without backgroundColor override */}
+        <StatusBar style="auto" />
+        
+        <View 
+          style={[
+            styles.container,
+            { backgroundColor: colorScheme === 'dark' ? '#0F0F2E' : '#F5F7FA' }
+          ]}
+        >
+          <NavigationContainer ref={navigationRef} onReady={onLayoutRootView}>
+            <Stack.Navigator 
+              initialRouteName={user ? "MainTabs" : "Login"}
+              screenOptions={{ 
+                headerShown: false,
+                contentStyle: { 
+                  backgroundColor: colorScheme === 'dark' ? '#0F0F2E' : '#F5F7FA' 
+                }
+              }}
+            >
+              {user ? (
+                <>
+                  <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+                  <Stack.Screen name="Notifications" component={NotificationsScreen} />
+                  <Stack.Screen name="MessagingScreen" component={MessagingScreen} />
+                </>
+              ) : (
+                <>
+                  <Stack.Screen name="Login" component={LoginScreen} />
+                  <Stack.Screen name="Register" component={RegisterScreen} />
+                  <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+                </>
+              )}
+            </Stack.Navigator>
+          </NavigationContainer>
+        </View>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
@@ -144,7 +156,6 @@ useEffect(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   loadingContainer: {
     flex: 1,

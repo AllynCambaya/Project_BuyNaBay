@@ -5,12 +5,13 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, useColorScheme } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily, fontSizes } from '../../theme/typography';
 
+import AddLostItemScreen from './AddLostItemScreen';
 import AddProductScreen from './AddProductScreen';
 import AddRentalScreen from './AddRentalScreen';
 import AddScreen from './AddScreen';
@@ -20,6 +21,8 @@ import CheckoutScreen from './CheckoutScreen';
 import GetVerifiedScreen from './GetVerifiedScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
+import LostAndFoundDetailsScreen from './LostAndFoundDetailsScreen';
+import LostAndFoundScreen from './LostAndFoundScreen';
 import MessagingScreen from './MessagingScreen';
 import NotVerifiedScreen from './NotVerifiedScreen';
 import ProductScreen from './ProductScreen';
@@ -28,12 +31,10 @@ import RentalScreen from './RentalScreen';
 import ReportScreen from './ReportScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
 
-import AddLostItemScreen from './AddLostItemScreen';
-import LostAndFoundDetailsScreen from './LostAndFoundDetailsScreen';
-import LostAndFoundScreen from './LostAndFoundScreen';
-
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+const TAB_BAR_HEIGHT = 75;
 
 function AnimatedTabIcon({ name, color, size, focused, theme }) {
   const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
@@ -97,7 +98,6 @@ function AnimatedTabIcon({ name, color, size, focused, theme }) {
   );
 }
 
-// Breathing Add Button with continuous pulse animation
 function BreathingAddButton({ size, theme }) {
   const breatheAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -118,7 +118,6 @@ function BreathingAddButton({ size, theme }) {
       ])
     ).start();
 
-    // Subtle glow pulse
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
@@ -144,7 +143,6 @@ function BreathingAddButton({ size, theme }) {
 
   return (
     <View style={buttonStyles.addButtonWrapper}>
-      {/* Outer glow ring */}
       <Animated.View
         style={[
           buttonStyles.glowRing,
@@ -156,7 +154,6 @@ function BreathingAddButton({ size, theme }) {
         ]}
       />
       
-      {/* Main button */}
       <Animated.View
         style={[
           buttonStyles.addButtonOuter,
@@ -176,9 +173,7 @@ function BreathingAddButton({ size, theme }) {
   );
 }
 
-// Custom Tab Bar Background matching CartScreen aesthetic
 function CustomTabBarBackground({ theme, isDarkMode, insets }) {
-  // Use BlurView on all platforms for unified look and transparent effect
   const backgroundColor = isDarkMode
     ? 'rgba(27, 27, 65, 0.90)'
     : 'rgba(255, 255, 255, 0.90)';
@@ -197,7 +192,6 @@ function CustomTabBarBackground({ theme, isDarkMode, insets }) {
           },
         ]}
       />
-      {/* Subtle top border matching CartScreen */}
       <View
         style={[
           backgroundStyles.topBorder,
@@ -212,8 +206,30 @@ function CustomTabBarBackground({ theme, isDarkMode, insets }) {
   );
 }
 
+function ScreenWrapper({ children, theme, insets }) {
+  return (
+    <SafeAreaView 
+      style={[
+        styles.screenWrapper,
+        { backgroundColor: theme.background }
+      ]}
+      edges={['top']} 
+    >
+      <View 
+        style={[
+          styles.screenContent,
+          { 
+            paddingBottom: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 12)
+          }
+        ]}
+      >
+        {children}
+      </View>
+    </SafeAreaView>
+  );
+}
+
 function Tabs({ showAdmin, userStatus, theme, insets }) {
-  const tabBarHeight = 75;
   const tabBarLabelStyle = {
     fontSize: fontSizes.xs,
     fontFamily: fontFamily.semiBold,
@@ -233,6 +249,15 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
       if (parent && parent.navigate) parent.navigate('GetVerified');
       else navigation.navigate('GetVerified'); 
     }
+  };
+
+
+  const wrapScreen = (Component) => {
+    return (props) => (
+      <ScreenWrapper theme={theme} insets={insets}>
+        <Component {...props} />
+      </ScreenWrapper>
+    );
   };
 
   return (
@@ -273,7 +298,7 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
           position: 'absolute',
           backgroundColor: 'transparent',
           borderTopWidth: 0,
-          height: tabBarHeight,
+          height: TAB_BAR_HEIGHT,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 12, 
           paddingTop: 8,
           paddingHorizontal: 8,
@@ -314,18 +339,14 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
     >
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
-        options={{
-          tabBarLabel: 'Home',
-        }}
+        component={wrapScreen(HomeScreen)}
+        options={{ tabBarLabel: 'Home' }}
       />
 
       <Tab.Screen
         name="Cart"
-        component={CartScreen}
-        options={{
-          tabBarLabel: 'Cart',
-        }}
+        component={wrapScreen(CartScreen)}
+        options={{ tabBarLabel: 'Cart' }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Cart'),
         })}
@@ -333,10 +354,8 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
 
       <Tab.Screen
         name="Add"
-        component={AddScreen}
-        options={{
-          tabBarLabel: '',
-        }}
+        component={wrapScreen(AddScreen)}
+        options={{ tabBarLabel: '' }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Add'),
         })}
@@ -344,10 +363,8 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
 
       <Tab.Screen
         name="Community"
-        component={require('./CommunityScreen').default}
-        options={{
-          tabBarLabel: 'Community',
-        }}
+        component={wrapScreen(require('./CommunityScreen').default)}
+        options={{ tabBarLabel: 'Community' }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Community'),
         })}
@@ -355,10 +372,8 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
 
       <Tab.Screen
         name="Inbox"
-        component={InboxScreen}
-        options={{
-          tabBarLabel: 'Inbox',
-        }}
+        component={wrapScreen(InboxScreen)}
+        options={{ tabBarLabel: 'Inbox' }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Inbox'),
         })}
@@ -367,10 +382,8 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
       {showAdmin && (
         <Tab.Screen
           name="Admin"
-          component={AdminPanel}
-          options={{
-            tabBarLabel: 'Admin',
-          }}
+          component={wrapScreen(AdminPanel)}
+          options={{ tabBarLabel: 'Admin' }}
         />
       )}
     </Tab.Navigator>
@@ -460,19 +473,11 @@ export default function MainTabNavigator({ route }) {
             },
           };
         },
-        contentStyle: {
-          paddingBottom: 0,
-        },
       }}
     >
       <Stack.Screen
         name="Tabs"
         children={() => <Tabs showAdmin={showAdmin} userStatus={userStatus} theme={theme} insets={insets} />}
-        options={{
-          contentStyle: {
-            paddingBottom: 0,
-          },
-        }}
       />
       <Stack.Screen
         name="Notifications"
@@ -510,10 +515,7 @@ export default function MainTabNavigator({ route }) {
       <Stack.Screen name="Messaging" component={MessagingScreen} />
       <Stack.Screen name="LostAndFound" component={LostAndFoundScreen} />
       <Stack.Screen name="AddLostItem" component={AddLostItemScreen} />
-      <Stack.Screen
-        name="LostAndFoundDetails"
-        component={LostAndFoundDetailsScreen}
-      />
+      <Stack.Screen name="LostAndFoundDetails" component={LostAndFoundDetailsScreen} />
       <Stack.Screen
         name="ReportScreen"
         component={ReportScreen}
@@ -543,14 +545,8 @@ export default function MainTabNavigator({ route }) {
       />
       <Stack.Screen name="Rental" component={RentalScreen} />
       <Stack.Screen name="AddRentalScreen" component={AddRentalScreen} />
-      <Stack.Screen
-        name="ProductDetails"
-        component={require('./ProductDetailsScreen').default}
-      />
-      <Stack.Screen
-        name="RentalDetails"
-        component={require('./RentalDetailsScreen').default}
-      />
+      <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
+      <Stack.Screen name="RentalDetails" component={require('./RentalDetailsScreen').default} />
       <Stack.Screen
         name="GetVerified"
         component={GetVerifiedScreen}
@@ -588,10 +584,7 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen
-        name="VerificationStatus"
-        component={VerificationStatusScreen}
-      />
+      <Stack.Screen name="VerificationStatus" component={VerificationStatusScreen} />
       <Stack.Screen name="UserProfile" component={ProfileScreen} />
       <Stack.Screen name="AddProductScreen" component={AddProductScreen} />
       <Stack.Screen name="ProductScreen" component={ProductScreen} />
@@ -628,6 +621,15 @@ export default function MainTabNavigator({ route }) {
   );
 }
 
+const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+  },
+  screenContent: {
+    flex: 1,
+  },
+});
+
 const createStyles = (theme) =>
   StyleSheet.create({
     tabBarContainer: {
@@ -653,7 +655,6 @@ const createStyles = (theme) =>
       height: 1,
       opacity: 0.6,
     },
-
     addButtonWrapper: {
       marginTop: -8,
       position: 'relative',
