@@ -21,13 +21,13 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const REACTIONS = [
   { key: 'like', emoji: '👍', label: 'Like', color: '#3b82f6' },
@@ -113,9 +113,15 @@ const getRelativeTime = (dateString) => {
 
 export default function CommunityScreen({ navigation }) {
   const user = auth.currentUser;
+  const systemColorScheme = useColorScheme();
+  const isDark = systemColorScheme === 'dark';
+  const theme = isDark ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
+
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userProfileImage, setUserProfileImage] = useState(null);
 
   const [createVisible, setCreateVisible] = useState(false);
   const [postText, setPostText] = useState('');
@@ -140,15 +146,9 @@ export default function CommunityScreen({ navigation }) {
 
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewingImageUri, setViewingImageUri] = useState(null);
-  const [imageViewerIndex, setImageViewerIndex] = useState(0);
 
   const [sortBy, setSortBy] = useState('latest');
   const [sortPickerVisible, setSortPickerVisible] = useState(false);
-
-  const systemColorScheme = useColorScheme();
-  const isDark = systemColorScheme === 'dark';
-  const [userProfileImage, setUserProfileImage] = useState(null);
-  const theme = isDark ? darkTheme : lightTheme;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -159,6 +159,8 @@ export default function CommunityScreen({ navigation }) {
   const commentsChannelRef = useRef(null);
   const reactionsChannelRef = useRef(null);
   const dirtyTimerRef = useRef(null);
+
+  const styles = createStyles(theme, isDark, insets);
 
   useEffect(() => {
     Animated.parallel([
@@ -832,15 +834,6 @@ export default function CommunityScreen({ navigation }) {
     ]);
   };
 
-  const handleStartReply = (comment) => {
-    const currentId = comment.id || comment._tempId;
-    const displayName = comment.users?.name || 'User';
-    const mention = `@${displayName} `;
-
-    setReplyTextMap((m) => ({ ...m, [currentId]: mention }));
-    setReplyingTo(currentId);
-  };
-
   const toggleReaction = async (postId, reactionType) => {
     if (!user?.uid) {
       Alert.alert('Login Required', 'Please log in to react to posts.');
@@ -913,6 +906,65 @@ export default function CommunityScreen({ navigation }) {
     }
   };
 
+  const handlePostOptions = (post) => {
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setPosts(currentPosts => currentPosts.filter(p => p.id !== post.id));
+            const { error } = await supabase.from('community_posts').delete().eq('id', post.id);
+            if (error) throw error;
+          } catch (err) {
+            console.error('Delete post error', err);
+            Alert.alert('Error', 'Could not delete post.');
+            fetchPosts();
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleStartReply = (comment) => {
+    const currentId = comment.id || comment._tempId;
+    const displayName = comment.users?.name || 'User';
+    const mention = `@${displayName} `;
+
+    setReplyTextMap((m) => ({ ...m, [currentId]: mention }));
+    setReplyingTo(currentId);
+  };
+
+  const openImageViewer = (uri) => {
+    setViewingImageUri(uri);
+    setImageViewerVisible(true);
+  };
+
+  const openReactionPicker = (post) => {
+    setReactionPostTarget(post);
+    setReactionPickerVisible(true);
+    Animated.spring(reactionScale, {
+      toValue: 1,
+      tension: 50,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleReact = async (reactionKey) => {
+    if (!reactionPostTarget) return;
+    await toggleReaction(reactionPostTarget.id, reactionKey);
+    Animated.timing(reactionScale, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setReactionPickerVisible(false);
+      setReactionPostTarget(null);
+    });
+  };
+
   const renderReactionSummary = (post) => {
     if (!post || post._pending) return null;
     const validCounts = (post.reaction_counts || []).filter(rc => rc && rc.count > 0);
@@ -945,7 +997,7 @@ export default function CommunityScreen({ navigation }) {
     );
   };
 
-  const renderPost = ({ item, index }) => {
+  const renderPost = ({ item }) => {
     const author = item.is_anonymous ? null : item.users;
     const displayName = item.is_anonymous ? 'Anonymous' : (author?.name || author?.email?.split('@')[0] || 'User');
     const avatar = item.is_anonymous ? null : author?.profile_photo;
@@ -1020,7 +1072,7 @@ export default function CommunityScreen({ navigation }) {
                 ) : (
                   <TouchableOpacity
                     key={idx}
-                    onPress={() => openImageViewer(uri, idx)}
+                    onPress={() => openImageViewer(uri)}
                     activeOpacity={0.9}
                     style={styles.postImageWrapper}
                   >
@@ -1085,15 +1137,6 @@ export default function CommunityScreen({ navigation }) {
                     </Text>
                   </View>
                 </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-                  <View style={styles.actionBtnContent}>
-                    <Ionicons name="arrow-redo-outline" size={18} color={theme.textSecondary} />
-                    <Text style={[styles.actionBtnText, { fontFamily: fontFamily.semiBold }]}>
-                      Share
-                    </Text>
-                  </View>
-                </TouchableOpacity>
               </View>
             </>
           )}
@@ -1102,55 +1145,102 @@ export default function CommunityScreen({ navigation }) {
     );
   };
 
-  const handlePostOptions = (post) => {
-    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            setPosts(currentPosts => currentPosts.filter(p => p.id !== post.id));
-            const { error } = await supabase.from('community_posts').delete().eq('id', post.id);
-            if (error) throw error;
-          } catch (err) {
-            console.error('Delete post error', err);
-            Alert.alert('Error', 'Could not delete post.');
-            fetchPosts();
-          }
-        },
-      },
-    ]);
-  };
+  const RenderReply = ({ reply }) => {
+    const author = reply.users || {};
+    const displayName = author?.name || 'User';
+    const avatar = author?.profile_photo;
+    const isPending = reply._pending;
+    const currentId = reply.id || reply._tempId;
 
-  const openImageViewer = (uri, index = 0) => {
-    setViewingImageUri(uri);
-    setImageViewerIndex(index);
-    setImageViewerVisible(true);
-  };
+    return (
+      <View style={[styles.replyItem, { opacity: isPending ? 0.7 : 1 }]}>
+        <View style={styles.commentLayout}>
+          <View style={styles.commentAvatarContainer}>
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.commentAvatar} />
+            ) : (
+              <LinearGradient
+                colors={[theme.accent, '#f39c12']}
+                style={[styles.commentAvatar, styles.avatarPlaceholder]}
+              >
+                <Ionicons name="person" size={14} color="#fff" />
+              </LinearGradient>
+            )}
+          </View>
+          <View style={styles.commentMain}>
+            <View style={styles.commentBubble}>
+              <Text style={[styles.commentAuthor, { fontFamily: fontFamily.bold }]}>{displayName}</Text>
+              {reply.content && (
+                <Text style={[styles.commentText, { fontFamily: fontFamily.regular }]}>
+                  {reply.content}
+                </Text>
+              )}
+            </View>
+            {!isPending && (
+              <View style={styles.commentFooter}>
+                <Text style={[styles.commentTime, { fontFamily: fontFamily.medium }]}>
+                  {getRelativeTime(reply.created_at)}
+                </Text>
+                <TouchableOpacity onPress={() => handleStartReply(reply)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[styles.commentAction, { fontFamily: fontFamily.bold }]}>Reply</Text>
+                </TouchableOpacity>
+                {reply.user_id === user?.uid && (
+                  <TouchableOpacity onPress={() => handleDeleteComment(reply)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={[styles.commentAction, { fontFamily: fontFamily.bold, color: theme.error }]}>Delete</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            {isPending && (
+              <Text style={[styles.commentTime, { fontFamily: fontFamily.medium, marginTop: 4 }]}>
+                Sending...
+              </Text>
+            )}
 
-  const openReactionPicker = (post) => {
-    setReactionPostTarget(post);
-    setReactionPickerVisible(true);
-    Animated.spring(reactionScale, {
-      toValue: 1,
-      tension: 50,
-      friction: 7,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleReact = async (reactionKey) => {
-    if (!reactionPostTarget) return;
-    await toggleReaction(reactionPostTarget.id, reactionKey);
-    Animated.timing(reactionScale, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setReactionPickerVisible(false);
-      setReactionPostTarget(null);
-    });
+            {replyingTo === currentId && (
+              <View style={styles.replyInputContainer}>
+                <TextInput
+                  placeholder={`Reply to ${displayName}...`}
+                  placeholderTextColor={theme.placeholder}
+                  value={replyTextMap[currentId] || ''}
+                  onChangeText={(t) =>
+                    setReplyTextMap((m) => ({ ...m, [currentId]: t }))
+                  }
+                  style={[
+                    styles.replyInput,
+                    { fontFamily: fontFamily.regular },
+                  ]}
+                  multiline
+                  autoFocus
+                />
+                <View style={styles.replyActions}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setReplyingTo(null);
+                      setReplyTextMap((m) => ({ ...m, [currentId]: '' }));
+                    }}
+                    style={styles.replyActionBtn}
+                  >
+                    <Text style={[styles.replyActionText, { fontFamily: fontFamily.semiBold }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => submitReply(currentId)}
+                    disabled={replyingMap[currentId]}
+                    style={[styles.replyActionBtn, styles.replySendBtn]}
+                  >
+                    {replyingMap[currentId] ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={[styles.replyActionText, { fontFamily: fontFamily.bold, color: '#fff' }]}>Reply</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    );
   };
 
   const renderCommentItem = ({ item: comment }) => {
@@ -1256,130 +1346,8 @@ export default function CommunityScreen({ navigation }) {
                   <RenderReply
                     key={reply.id || reply._tempId}
                     reply={reply}
-                    theme={theme}
-                    replyingTo={replyingTo}
-                    setReplyingTo={setReplyingTo}
-                    replyTextMap={replyTextMap}
-                    setReplyTextMap={setReplyTextMap}
-                    submitReply={submitReply}
-                    replyingMap={replyingMap}
-                    handleDeleteComment={handleDeleteComment}
-                    handleStartReply={handleStartReply}
-                    openImageViewer={openImageViewer}
-                    user={user}
                   />
                 ))}
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  const RenderReply = ({
-    reply,
-    theme,
-    replyingTo,
-    setReplyingTo,
-    replyTextMap,
-    setReplyTextMap,
-    submitReply,
-    replyingMap,
-    handleDeleteComment,
-    handleStartReply,
-    openImageViewer,
-    user,
-  }) => {
-    const author = reply.users || {};
-    const displayName = author?.name || 'User';
-    const avatar = author?.profile_photo;
-    const isPending = reply._pending;
-    const currentId = reply.id || reply._tempId;
-
-    return (
-      <View style={[styles.replyItem, { opacity: isPending ? 0.7 : 1 }]}>
-        <View style={styles.commentLayout}>
-          <View style={styles.commentAvatarContainer}>
-            {avatar ? (
-              <Image source={{ uri: avatar }} style={styles.commentAvatar} />
-            ) : (
-              <LinearGradient
-                colors={[theme.accent, '#f39c12']}
-                style={[styles.commentAvatar, styles.avatarPlaceholder]}
-              >
-                <Ionicons name="person" size={14} color="#fff" />
-              </LinearGradient>
-            )}
-          </View>
-          <View style={styles.commentMain}>
-            <View style={styles.commentBubble}>
-              <Text style={[styles.commentAuthor, { fontFamily: fontFamily.bold }]}>{displayName}</Text>
-              {reply.content && (
-                <Text style={[styles.commentText, { fontFamily: fontFamily.regular }]}>
-                  {reply.content}
-                </Text>
-              )}
-            </View>
-            {!isPending && (
-              <View style={styles.commentFooter}>
-                <Text style={[styles.commentTime, { fontFamily: fontFamily.medium }]}>
-                  {getRelativeTime(reply.created_at)}
-                </Text>
-                <TouchableOpacity onPress={() => handleStartReply(reply)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={[styles.commentAction, { fontFamily: fontFamily.bold }]}>Reply</Text>
-                </TouchableOpacity>
-                {reply.user_id === user?.uid && (
-                  <TouchableOpacity onPress={() => handleDeleteComment(reply)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={[styles.commentAction, { fontFamily: fontFamily.bold, color: theme.error }]}>Delete</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-            {isPending && (
-              <Text style={[styles.commentTime, { fontFamily: fontFamily.medium, marginTop: 4 }]}>
-                Sending...
-              </Text>
-            )}
-
-            {replyingTo === currentId && (
-              <View style={styles.replyInputContainer}>
-                <TextInput
-                  placeholder={`Reply to ${displayName}...`}
-                  placeholderTextColor={theme.placeholder}
-                  value={replyTextMap[currentId] || ''}
-                  onChangeText={(t) =>
-                    setReplyTextMap((m) => ({ ...m, [currentId]: t }))
-                  }
-                  style={[
-                    styles.replyInput,
-                    { fontFamily: fontFamily.regular },
-                  ]}
-                  multiline
-                  autoFocus
-                />
-                <View style={styles.replyActions}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setReplyingTo(null);
-                      setReplyTextMap((m) => ({ ...m, [currentId]: '' }));
-                    }}
-                    style={styles.replyActionBtn}
-                  >
-                    <Text style={[styles.replyActionText, { fontFamily: fontFamily.semiBold }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => submitReply(currentId)}
-                    disabled={replyingMap[currentId]}
-                    style={[styles.replyActionBtn, styles.replySendBtn]}
-                  >
-                    {replyingMap[currentId] ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={[styles.replyActionText, { fontFamily: fontFamily.bold, color: '#fff' }]}>Reply</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
               </View>
             )}
           </View>
@@ -1453,8 +1421,6 @@ export default function CommunityScreen({ navigation }) {
     </Animated.View>
   );
 
-  const styles = createStyles(theme, isDark);
-
   if (loadingPosts) {
     return (
       <View style={styles.loadingContainer}>
@@ -1470,7 +1436,7 @@ export default function CommunityScreen({ navigation }) {
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={theme.background}
       />
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <FlatList
           data={posts}
           keyExtractor={(item) => item.id || item._tempId}
@@ -1524,7 +1490,7 @@ export default function CommunityScreen({ navigation }) {
           onRequestClose={() => !posting && setCreateVisible(false)}
           presentationStyle="pageSheet"
         >
-          <SafeAreaView style={styles.modalContainer} edges={['top']}>
+          <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <TouchableOpacity
                 onPress={() => !posting && setCreateVisible(false)}
@@ -1622,7 +1588,7 @@ export default function CommunityScreen({ navigation }) {
                 </View>
               </View>
             </ScrollView>
-          </SafeAreaView>
+          </View>
         </Modal>
 
         {/* Comments Modal */}
@@ -1632,7 +1598,7 @@ export default function CommunityScreen({ navigation }) {
           onRequestClose={() => setCommentsVisible(false)}
           presentationStyle="pageSheet"
         >
-          <SafeAreaView style={styles.modalContainer} edges={['top']}>
+          <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <TouchableOpacity 
                 onPress={() => setCommentsVisible(false)}
@@ -1751,7 +1717,7 @@ export default function CommunityScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
-          </SafeAreaView>
+          </View>
         </Modal>
 
         {/* Reaction Picker Modal */}
@@ -1872,12 +1838,12 @@ export default function CommunityScreen({ navigation }) {
             />
           </View>
         </Modal>
-      </SafeAreaView>
+      </View>
     </>
   );
 }
 
-const createStyles = (theme, isDark) => StyleSheet.create({
+const createStyles = (theme, isDark, insets) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
@@ -1893,12 +1859,12 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 15,
     color: theme.textSecondary,
   },
-
-  // Header
   headerContainer: {
     position: 'relative',
+    paddingTop: insets.top + 10,
     marginBottom: 16,
     paddingBottom: 16,
+    backgroundColor: theme.background,
   },
   backgroundGradient: {
     position: 'absolute',
@@ -1924,7 +1890,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
   },
   brandedLogoContainer: {
     flexDirection: 'row',
@@ -2010,16 +1975,12 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     borderWidth: 2.5,
     borderColor: theme.gradientBackground,
   },
-
-  // Feed
   feedList: {
     flex: 1,
   },
   feedContent: {
     paddingBottom: 100,
   },
-
-  // Post Card
   postCard: {
     marginTop: 12,
     paddingHorizontal: 16,
@@ -2034,6 +1995,7 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
+    elevation: 2,
   },
   postHeader: {
     flexDirection: 'row',
@@ -2053,8 +2015,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   avatarPlaceholder: {
     justifyContent: 'center',
@@ -2123,8 +2083,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     color: '#fff',
     fontSize: 11,
   },
-
-  // Engagement Bar
   engagementBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2165,15 +2123,13 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 13,
     color: theme.textSecondary,
   },
-
-  // Post Actions
   postActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: theme.borderColor,
     paddingTop: 8,
     marginTop: 8,
-    gap: 4,
+    gap: 8,
   },
   actionBtn: {
     flex: 1,
@@ -2193,8 +2149,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 13,
     color: theme.textSecondary,
   },
-
-  // FAB
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -2206,6 +2160,7 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
+    elevation: 8,
   },
   fabGradient: {
     width: '100%',
@@ -2214,8 +2169,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // Modal
   modalContainer: {
     flex: 1,
     backgroundColor: theme.background,
@@ -2250,8 +2203,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     color: '#fff',
     fontSize: 14,
   },
-
-  // Create Post
   createPostContent: {
     flex: 1,
     padding: 20,
@@ -2329,12 +2280,11 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
+    elevation: 3,
   },
   switchThumbActive: {
     transform: [{ translateX: 20 }],
   },
-
-  // Comments
   commentsList: {
     flex: 1,
   },
@@ -2477,8 +2427,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
   replyItem: {
     marginBottom: 12,
   },
-
-  // Comment Input
   commentInputContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -2532,8 +2480,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // Reaction Picker
   reactionOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
@@ -2551,6 +2497,7 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
+    elevation: 10,
   },
   reactionPickerTitle: {
     fontSize: 17,
@@ -2571,10 +2518,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     borderRadius: 14,
     minWidth: 80,
     backgroundColor: isDark ? 'rgba(42, 40, 86, 0.4)' : 'rgba(245, 245, 245, 1)',
-    shadowColor: theme.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
   },
   reactionOptionEmoji: {
     fontSize: 36,
@@ -2583,8 +2526,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
   },
-
-  // Sort Picker
   sortOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
@@ -2601,6 +2542,7 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
+    elevation: 10,
   },
   sortPickerHandle: {
     width: 40,
@@ -2641,8 +2583,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
   },
-
-  // Image Viewer
   imageViewerContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
@@ -2671,8 +2611,6 @@ const createStyles = (theme, isDark) => StyleSheet.create({
     width: '100%',
     height: '80%',
   },
-
-  // Empty States
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',

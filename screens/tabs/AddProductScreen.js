@@ -1,4 +1,4 @@
-// screens/tabs/AddLostItemScreen.js
+// screens/tabs/AddProductScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +21,8 @@ import {
   useColorScheme
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../../firebase/firebaseConfig';
+import { supabase } from '../../supabase/supabaseClient';
 
 const { width } = Dimensions.get('window');
 
@@ -124,7 +126,52 @@ export default function AddProductScreen({ navigation }) {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const uploadImages = async (uris, productId) => {
+    try {
+      const urls = [];
+      for (let i = 0; i < uris.length; i++) {
+        const uri = uris[i];
+        const response = await fetch(uri);
+        const arrayBuffer = await response.arrayBuffer();
+
+        const fileExt = uri.split('.').pop().split('?')[0];
+        const fileName = `${productId}_${i}_${Date.now()}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+
+        console.log(`📤 Uploading image ${i + 1}/${uris.length}: ${filePath}`);
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, arrayBuffer, {
+            contentType: `image/${fileExt}`,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw uploadError;
+        }
+
+        const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+        urls.push(data.publicUrl);
+        
+        setUploadProgress(((i + 1) / uris.length) * 100);
+      }
+      return urls;
+    } catch (error) {
+      console.error("⚠️ Image Upload Error:", error);
+      throw error;
+    }
+  };
+
   const handleAddProduct = async () => {
+    const user = auth.currentUser;
+
+    if (!user) {
+      Alert.alert("Not Logged In", "You must be logged in to add a product.");
+      return;
+    }
+
     if (!productName || !description || !quantity || !price || !category || !condition) {
       Alert.alert("Missing Info", "Please fill out all required fields.");
       return;
@@ -132,22 +179,71 @@ export default function AddProductScreen({ navigation }) {
 
     Keyboard.dismiss();
     setUploading(true);
-    
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    setUploadProgress(0);
 
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      setUploading(false);
-      setUploadProgress(0);
-      Alert.alert("Success", "Product published successfully! 🎉", [
+    try {
+      const email = user?.email ?? "test@example.com";
+
+      console.log("📝 Inserting product data...");
+      console.log({
+        product_name: productName,
+        description,
+        quantity: parseInt(quantity, 10),
+        price: parseFloat(price),
+        category,
+        condition,
+        email: email,
+      });
+
+      const { data: productData, error: insertError } = await supabase
+        .from('products')
+        .insert([
+          {
+            product_name: productName,
+            description,
+            quantity: parseInt(quantity, 10),
+            price: parseFloat(price),
+            category,
+            condition,
+            email: email,
+          }
+        ])
+        .select();
+
+      if (insertError) {
+        console.error("❌ Insert Error:", insertError);
+        throw insertError;
+      }
+
+      if (!productData || productData.length === 0) {
+        throw new Error("Product was not created");
+      }
+
+      const productId = productData[0].id;
+      console.log("✅ Product created with ID:", productId);
+
+      let imageUrls = [];
+      if (images.length > 0) {
+        console.log(`📸 Uploading ${images.length} images...`);
+        imageUrls = await uploadImages(images, productId);
+        console.log("✅ Images uploaded:", imageUrls);
+
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ product_image_url: JSON.stringify(imageUrls) })
+          .eq('id', productId);
+
+        if (updateError) {
+          console.error("❌ Update Error:", updateError);
+          throw updateError;
+        }
+
+        console.log("✅ Product images updated");
+      }
+
+      setUploadProgress(100);
+
+      Alert.alert("Success", "Product added successfully! 🎉", [
         { text: "OK", onPress: () => navigation.goBack() }
       ]);
       
@@ -158,7 +254,14 @@ export default function AddProductScreen({ navigation }) {
       setCategory('Electronics');
       setCondition('Brand New');
       setImages([]);
-    }, 2500);
+
+    } catch (error) {
+      console.error("⚠️ Insert Exception:", error);
+      Alert.alert("Error", error.message || "Failed to add product. Please try again.");
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const increaseQuantity = () => setQuantity(String(parseInt(quantity || '0', 10) + 1));
@@ -577,7 +680,7 @@ const createStyles = (theme) => StyleSheet.create({
   sectionBadgeText: { fontSize: 11, color: theme.textSecondary, fontFamily: fontFamily.semiBold },
   card: { backgroundColor: theme.cardBackground, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: theme.borderColor, shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12 },
   imagePicker: { width: '100%', borderRadius: 20, overflow: 'hidden' },
-  imagePlaceholder: { width: '100%', minHeight: 200, borderRadius: 20, borderWidth: 2, borderColor: theme.borderColor, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: theme.cardBackgroundAlt, paddingVertical: 40, paddingHorizontal: 24 },
+  imagePlaceholder: { width: '100%', minHeight: 200, borderRadius: 20, borderWidth: 2, borderColor: theme.borderColor, borderStyle:'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: theme.cardBackgroundAlt, paddingVertical: 40, paddingHorizontal: 24 },
   cameraIconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: theme.inputBackground, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 3, borderColor: theme.borderColor },
   imagePlaceholderText: { fontSize: 17, fontWeight: '600', color: theme.text, marginTop: 8, fontFamily: fontFamily.semiBold },
   imagePlaceholderSubtext: { fontSize: 13, color: theme.textSecondary, marginTop: 6, textAlign: 'center', lineHeight: 18, fontFamily: fontFamily.regular },

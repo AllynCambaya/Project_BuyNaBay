@@ -5,14 +5,16 @@ import React, { useRef } from 'react';
 import {
   Animated,
   Dimensions,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  useColorScheme
+  useColorScheme,
+  View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import UniformHeader from './components/UniformHeader';
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,7 +23,8 @@ export default function AddScreen() {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = createStyles(theme, isDarkMode, insets);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -68,125 +71,141 @@ export default function AddScreen() {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          <View style={styles.backgroundDecor}>
-            <View style={[styles.decorCircle, styles.decorCircle1]} />
-            <View style={[styles.decorCircle, styles.decorCircle2]} />
-          </View>
+      <View style={styles.container}>
+        <UniformHeader 
+          subtitle="Create New Listing"
+          navigation={navigation}
+          showProfile={true}
+          showNotifications={false}
+        />
 
-          <Animated.View
-            style={[
-              styles.header,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="add-circle" size={56} color={theme.accent} />
-            </View>
-            <Text style={styles.headerTitle}>Create New Listing</Text>
-            <Text style={styles.headerSubtitle}>
-              Choose what you'd like to share with the BuyNaBay community
-            </Text>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.optionsContainer,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <Animated.View style={{ transform: [{ scale: scaleProduct }] }}>
-              <TouchableOpacity
-                style={styles.optionCard}
-                onPress={() => navigation.navigate('AddProductScreen')}
-                onPressIn={() => handlePressIn(scaleProduct)}
-                onPressOut={() => handlePressOut(scaleProduct)}
-                activeOpacity={1}
-              >
-                <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
-                  <Ionicons name="cube-outline" size={40} color={theme.accent} />
-                </View>
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Sell a Product</Text>
-                  <Text style={styles.optionDescription}>
-                    List items for sale and reach buyers in your area
-                  </Text>
-                </View>
-                <View style={styles.arrowContainer}>
-                  <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View style={{ transform: [{ scale: scaleRental }] }}>
-              <TouchableOpacity
-                style={styles.optionCard}
-                onPress={() => navigation.navigate('AddRentalScreen')}
-                onPressIn={() => handlePressIn(scaleRental)}
-                onPressOut={() => handlePressOut(scaleRental)}
-                activeOpacity={1}
-              >
-                <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
-                  <Ionicons name="home-outline" size={40} color={theme.accent} />
-                </View>
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>List for Rent</Text>
-                  <Text style={styles.optionDescription}>
-                    Offer items or spaces for rent to the community
-                  </Text>
-                </View>
-                <View style={styles.arrowContainer}>
-                  <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View style={{ transform: [{ scale: scaleLostItem }] }}>
-              <TouchableOpacity
-                style={styles.optionCard}
-                onPress={() => navigation.navigate('AddLostItem')}
-                onPressIn={() => handlePressIn(scaleLostItem)}
-                onPressOut={() => handlePressOut(scaleLostItem)}
-                activeOpacity={1}
-              >
-                <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
-                  <Ionicons name="help-buoy-outline" size={40} color={theme.accent} />
-                </View>
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Report Lost Item</Text>
-                  <Text style={styles.optionDescription}>
-                    Post details about a lost or found item
-                  </Text>
-                </View>
-                <View style={styles.arrowContainer}>
-                  <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.helpContainer,
-              {
-                opacity: fadeAnim,
-              },
-            ]}
-          >
-            <Ionicons name="information-circle-outline" size={20} color={theme.textSecondary} />
-            <Text style={styles.helpText}>
-              Your listings will be visible to all verified BuyNaBay users
-            </Text>
-          </Animated.View>
+        {/* Background Decoration */}
+        <View style={styles.backgroundDecor}>
+          <View style={[styles.decorCircle, styles.decorCircle1]} />
+          <View style={[styles.decorCircle, styles.decorCircle2]} />
         </View>
-      </SafeAreaView>
+
+        {/* Scrollable Content Section */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.contentWrapper}>
+            <Animated.View
+              style={[
+                styles.header,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <View style={styles.iconContainer}>
+                <Ionicons name="add-circle" size={56} color={theme.accent} />
+              </View>
+              <Text style={styles.headerTitle}>What would you like to add?</Text>
+              <Text style={styles.headerSubtitle}>
+                Choose what you'd like to share with the BuyNaBay community
+              </Text>
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                styles.optionsContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <Animated.View style={{ transform: [{ scale: scaleProduct }] }}>
+                <TouchableOpacity
+                  style={styles.optionCard}
+                  onPress={() => navigation.navigate('AddProductScreen')}
+                  onPressIn={() => handlePressIn(scaleProduct)}
+                  onPressOut={() => handlePressOut(scaleProduct)}
+                  activeOpacity={1}
+                >
+                  <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
+                    <Ionicons name="cube-outline" size={40} color={theme.accent} />
+                  </View>
+                  <View style={styles.optionContent}>
+                    <Text style={styles.optionTitle}>Sell a Product</Text>
+                    <Text style={styles.optionDescription}>
+                      List items for sale and reach buyers in your area
+                    </Text>
+                  </View>
+                  <View style={styles.arrowContainer}>
+                    <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Animated.View style={{ transform: [{ scale: scaleRental }] }}>
+                <TouchableOpacity
+                  style={styles.optionCard}
+                  onPress={() => navigation.navigate('AddRentalScreen')}
+                  onPressIn={() => handlePressIn(scaleRental)}
+                  onPressOut={() => handlePressOut(scaleRental)}
+                  activeOpacity={1}
+                >
+                  <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
+                    <Ionicons name="home-outline" size={40} color={theme.accent} />
+                  </View>
+                  <View style={styles.optionContent}>
+                    <Text style={styles.optionTitle}>List for Rent</Text>
+                    <Text style={styles.optionDescription}>
+                      Offer items or spaces for rent to the community
+                    </Text>
+                  </View>
+                  <View style={styles.arrowContainer}>
+                    <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Animated.View style={{ transform: [{ scale: scaleLostItem }] }}>
+                <TouchableOpacity
+                  style={styles.optionCard}
+                  onPress={() => navigation.navigate('AddLostItem')}
+                  onPressIn={() => handlePressIn(scaleLostItem)}
+                  onPressOut={() => handlePressOut(scaleLostItem)}
+                  activeOpacity={1}
+                >
+                  <View style={[styles.iconWrapper, { backgroundColor: theme.accentLight }]}>
+                    <Ionicons name="help-buoy-outline" size={40} color={theme.accent} />
+                  </View>
+                  <View style={styles.optionContent}>
+                    <Text style={styles.optionTitle}>Report Lost Item</Text>
+                    <Text style={styles.optionDescription}>
+                      Post details about a lost or found item
+                    </Text>
+                  </View>
+                  <View style={styles.arrowContainer}>
+                    <Ionicons name="chevron-forward" size={24} color={theme.textTertiary} />
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                styles.helpContainer,
+                {
+                  opacity: fadeAnim,
+                },
+              ]}
+            >
+              <Ionicons name="information-circle-outline" size={20} color={theme.textSecondary} />
+              <Text style={styles.helpText}>
+                Your listings will be visible to all verified BuyNaBay users
+              </Text>
+            </Animated.View>
+          </View>
+        </ScrollView>
+      </View>
     </>
   );
 }
@@ -217,17 +236,25 @@ const lightTheme = {
   decorColor: 'rgba(253, 173, 0, 0.05)',
 };
 
-const createStyles = (theme) =>
+const createStyles = (theme, isDarkMode, insets) =>
   StyleSheet.create({
-    safeArea: {
+    container: {
       flex: 1,
       backgroundColor: theme.background,
     },
-    container: {
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingBottom: 100,
+    },
+    contentWrapper: {
       flex: 1,
       justifyContent: 'center',
       paddingHorizontal: 24,
       paddingVertical: 40,
+      minHeight: height - 140,
     },
     backgroundDecor: {
       position: 'absolute',

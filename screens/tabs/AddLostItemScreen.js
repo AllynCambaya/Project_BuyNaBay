@@ -20,6 +20,8 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../../firebase/firebaseConfig';
+import { supabase } from '../../supabase/supabaseClient';
 
 const { width } = Dimensions.get('window');
 
@@ -87,7 +89,52 @@ export default function AddLostItemScreen({ navigation }) {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const uploadImages = async (uris) => {
+    try {
+      const uploadedUrls = [];
+      for (let i = 0; i < uris.length; i++) {
+        const uri = uris[i];
+        const response = await fetch(uri);
+        const arrayBuffer = await response.arrayBuffer();
+
+        const fileExt = uri.split('.').pop().split('?')[0];
+        const fileName = `lost_${Date.now()}_${i}_${Math.random().toString(36).slice(2)}.${fileExt}`;
+        const filePath = `lost-and-found/${fileName}`;
+
+        console.log(`📤 Uploading lost item image ${i + 1}/${uris.length}: ${filePath}`);
+
+        const { error: uploadError } = await supabase.storage
+          .from('lost-and-found-images')
+          .upload(filePath, arrayBuffer, {
+            contentType: `image/${fileExt}`,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw uploadError;
+        }
+
+        const { data } = supabase.storage.from('lost-and-found-images').getPublicUrl(filePath);
+        uploadedUrls.push(data?.publicUrl || null);
+        
+        setUploadProgress(((i + 1) / uris.length) * 50); // First 50% for image upload
+      }
+      return uploadedUrls;
+    } catch (error) {
+      console.error("⚠️ Image Upload Error:", error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async () => {
+    const user = auth.currentUser;
+
+    if (!user) {
+      Alert.alert("Not Logged In", "You must be logged in to report an item.");
+      return;
+    }
+
     if (!itemName.trim() || !location.trim()) {
       Alert.alert('Missing Information', 'Please provide item name and location');
       return;
@@ -95,31 +142,95 @@ export default function AddLostItemScreen({ navigation }) {
 
     Keyboard.dismiss();
     setUploading(true);
+    setUploadProgress(0);
     
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    try {
+      const email = user?.email ?? "test@example.com";
 
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      setUploading(false);
-      setUploadProgress(0);
+      console.log("📝 Fetching user data...");
+      // Fetch user data from users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('name, profile_photo')
+        .eq('email', email)
+        .single();
+
+      if (userError && userError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.warn("⚠️ User data fetch error:", userError);
+      }
+
+      setUploadProgress(10);
+
+      console.log("📝 Inserting lost item data...");
+      console.log({
+        user_id: user.uid,
+        user_email: email,
+        user_name: userData?.name || 'Anonymous',
+        item_name: itemName.trim(),
+        description: description.trim() || null,
+        location: location.trim(),
+        item_status: itemStatus,
+      });
+
+      // Upload images if any
+      let imageUrls = null;
+      if (images.length > 0) {
+        console.log(`📸 Uploading ${images.length} lost item images...`);
+        imageUrls = await uploadImages(images);
+        console.log("✅ Lost item images uploaded:", imageUrls);
+      }
+
+      setUploadProgress(60);
+
+      // Insert lost item
+      const { data: lostItemData, error: insertError } = await supabase
+        .from('lost_and_found_items')
+        .insert([
+          {
+            user_id: user.uid,
+            user_email: email,
+            user_name: userData?.name || 'Anonymous',
+            user_avatar: userData?.profile_photo || null,
+            item_name: itemName.trim(),
+            description: description.trim() || null,
+            location: location.trim(),
+            item_status: itemStatus,
+            lost_and_found_url: imageUrls,
+          },
+        ])
+        .select();
+
+      if (insertError) {
+        console.error("❌ Insert Error:", insertError);
+        throw insertError;
+      }
+
+      if (!lostItemData || lostItemData.length === 0) {
+        throw new Error("Lost item report was not created");
+      }
+
+      console.log("✅ Lost item report created with ID:", lostItemData[0].id);
+
+      setUploadProgress(100);
+
       Alert.alert('Success', 'Your report has been submitted! 🎉', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
       
+      // Reset form
       setItemName('');
       setDescription('');
       setLocation('');
       setItemStatus('lost');
       setImages([]);
-    }, 2500);
+
+    } catch (error) {
+      console.error("⚠️ Lost Item Report Error:", error);
+      Alert.alert('Error', error.message || 'Failed to submit report. Please try again.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const styles = createStyles(theme);

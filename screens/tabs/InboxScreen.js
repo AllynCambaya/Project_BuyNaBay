@@ -17,7 +17,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -41,6 +41,7 @@ export default function InboxScreen({ navigation }) {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
 
   // Animation refs
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
@@ -243,7 +244,7 @@ export default function InboxScreen({ navigation }) {
     return msgDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, insets);
 
   // Calculate total unread
   const totalUnread = Object.values(unreadMessages).reduce((sum, count) => sum + count, 0);
@@ -575,7 +576,7 @@ export default function InboxScreen({ navigation }) {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <FlatList
           data={filteredConversations}
           keyExtractor={(item) => item}
@@ -596,12 +597,12 @@ export default function InboxScreen({ navigation }) {
             />
           }
         />
-      </SafeAreaView>
+      </View>
     </>
   );
 }
 
-const createStyles = (theme, isDarkMode) =>
+const createStyles = (theme, isDarkMode, insets) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -623,6 +624,7 @@ const createStyles = (theme, isDarkMode) =>
       color: theme.textSecondary,
     },
     headerContainer: {
+      paddingTop: insets.top + 10,
       position: 'relative',
       marginBottom: 20,
       paddingBottom: 16,
@@ -651,7 +653,6 @@ const createStyles = (theme, isDarkMode) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: 20,
-      paddingTop: 12,
       marginBottom: 16,
     },
     brandedLogoContainer: {

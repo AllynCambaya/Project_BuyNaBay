@@ -6,80 +6,86 @@
     "orientation": "portrait",
     "icon": "./assets/images/BuyNaBay4.png",
     "scheme": "buynabay",
-     "userInterfaceStyle": "automatic",
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
-        "UIStatusBarStyle": "UIStatusBarStyleDefault",
-        "UIViewControllerBasedStatusBarAppearance": true
-      },
-    "assetBundlePatterns": [
-      "assets/fonts/*",
-      "assets/images/*"
-    ],
-    "newArchEnabled": true,
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
-        ]
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/BuyNaBay4.png",
-        "backgroundColor": "#ffffff"
+        ],
+        "UIStatusBarStyle": "UIStatusBarStyleDefault",
+        "UIViewControllerBasedStatusBarAppearance": true
       },
-       "edgeToEdgeEnabled": true,
-      "statusBar": {
-        "translucent": true,
-        "backgroundColor": "transparent"
-      },
-      "package": "com.joevel_berana.BuyNaBay",
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.NOTIFICATIONS",
-        "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+      "assetBundlePatterns": [
+        "assets/fonts/*",
+        "assets/images/*"
       ],
-      "useNextNotificationsApi": true
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/BuyNaBay4.png"
+      "newArchEnabled": true,
+      "ios": {
+        "supportsTablet": true,
+        "infoPlist": {
+          "UIBackgroundModes": [
+            "remote-notification"
+          ]
+        }
+      },
+      "android": {
+        "adaptiveIcon": {
+          "foregroundImage": "./assets/images/BuyNaBay4.png",
+          "backgroundColor": "#ffffff"
+        },
+        "edgeToEdgeEnabled": true,
+        "statusBar": {
+          "translucent": true,
+          "backgroundColor": "transparent"
+        },
+        "package": "com.joevel_berana.BuyNaBay",
+        "permissions": [
+          "android.permission.CAMERA",
+          "android.permission.READ_EXTERNAL_STORAGE",
+          "android.permission.WRITE_EXTERNAL_STORAGE",
+          "android.permission.NOTIFICATIONS",
+          "android.permission.VIBRATE",
+          "android.permission.RECEIVE_BOOT_COMPLETED"
+        ],
+        "useNextNotificationsApi": true
+      },
+      "web": {
+        "bundler": "metro",
+        "output": "static",
+        "favicon": "./assets/images/BuyNaBay4.png"
+      },
+      "plugins": [
+        [
+          "expo-splash-screen",
+          {
+            "image": "./assets/images/BuyNaBay4.png",
+            "imageWidth": 200,
+            "resizeMode": "contain",
+            "backgroundColor": "#ffffff"
+          }
+        ],
+        [
+          "expo-notifications",
+          {
+            "icon": "./assets/images/notification-icon.png",
+            "color": "#FDAD00",
+            "mode": "production"
+          }
+        ]
+      ],
+      "experiments": {
+        "typedRoutes": false
+      },
+      "extra": {
+        "eas": {
+          "projectId": "dba9d734-f9d7-4765-a759-216548d538bd"
+        }
+      }
     },
     "plugins": [
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/BuyNaBay4.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#FDAD00",
-          "mode": "production"
-        }
-      ]
-    ],
-    "experiments": {
-      "typedRoutes": false
-    },
-    "extra": {
-      "eas": {
-        "projectId": "dba9d734-f9d7-4765-a759-216548d538bd"
-      }
-    }
+      "expo-router",
+      "expo-web-browser"
+    ]
   }
-}
 }

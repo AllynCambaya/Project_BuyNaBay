@@ -18,7 +18,7 @@ import {
   View,
   useColorScheme
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -100,6 +100,7 @@ export default function CartScreen({ navigation }) {
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
 
   const slideAnim = useRef(new Animated.Value(50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -280,7 +281,7 @@ export default function CartScreen({ navigation }) {
       .toFixed(2);
   };
 
-  const styles = createStyles(theme, isDarkMode);
+  const styles = createStyles(theme, isDarkMode, insets);
 
   const renderHeader = () => (
     <Animated.View 
@@ -544,7 +545,7 @@ export default function CartScreen({ navigation }) {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <FlatList
           data={cartItems}
           keyExtractor={(item) => item.id.toString()}
@@ -624,12 +625,12 @@ export default function CartScreen({ navigation }) {
             </TouchableOpacity>
           </Animated.View>
         )}
-      </SafeAreaView>
+      </View>
     </>
   );
 }
 
-const createStyles = (theme, isDarkMode) => StyleSheet.create({
+const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
@@ -649,6 +650,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     color: theme.textSecondary,
   },
   headerContainer: {
+    paddingTop: insets.top + 10,
     position: 'relative',
     marginBottom: 20,
     paddingBottom: 16,
@@ -677,7 +679,6 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
     marginBottom: 16,
   },
   brandedLogoContainer: {

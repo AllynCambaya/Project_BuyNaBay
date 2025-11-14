@@ -1,4 +1,4 @@
-// screens/tabs/AddLostItemScreen.js
+// screens/tabs/AddRentalScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +21,8 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../../firebase/firebaseConfig';
+import { supabase } from '../../supabase/supabaseClient';
 
 const { width } = Dimensions.get('window');
 
@@ -95,32 +97,125 @@ export default function AddRentalScreen({ navigation }) {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const uploadImages = async (uris) => {
+    try {
+      const urls = [];
+      for (let i = 0; i < uris.length; i++) {
+        const uri = uris[i];
+        const response = await fetch(uri);
+        const arrayBuffer = await response.arrayBuffer();
+
+        const fileExt = uri.split('.').pop().split('?')[0];
+        const fileName = `rental_${Date.now()}_${i}_${Math.random().toString(36).slice(2)}.${fileExt}`;
+        const filePath = `rental-items/${fileName}`;
+
+        console.log(`📤 Uploading rental image ${i + 1}/${uris.length}: ${filePath}`);
+
+        const { error: uploadError } = await supabase.storage
+          .from('rental-images')
+          .upload(filePath, arrayBuffer, {
+            contentType: `image/${fileExt}`,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw uploadError;
+        }
+
+        const { data } = supabase.storage.from('rental-images').getPublicUrl(filePath);
+        urls.push(data.publicUrl);
+        
+        setUploadProgress(((i + 1) / uris.length) * 50); // First 50% for image upload
+      }
+      return urls;
+    } catch (error) {
+      console.error("⚠️ Image Upload Error:", error);
+      throw error;
+    }
+  };
+
   const submit = async () => {
+    const user = auth.currentUser;
+
+    if (!user) {
+      Alert.alert("Not Logged In", "You must be logged in to list a rental item.");
+      return;
+    }
+
     if (!itemName.trim() || !price.trim()) {
-      return Alert.alert('Missing Information', 'Please enter item name and rental price');
+      Alert.alert('Missing Information', 'Please enter item name and rental price');
+      return;
     }
     
     Keyboard.dismiss();
     setUploading(true);
+    setUploadProgress(0);
     
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    try {
+      const email = user?.email ?? "test@example.com";
 
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      setUploading(false);
-      setUploadProgress(0);
+      console.log("📝 Inserting rental item data...");
+      console.log({
+        owner_email: email,
+        item_name: itemName.trim(),
+        price: parseFloat(price),
+        rental_duration: rentalDuration,
+        description: description.trim() || null,
+        category,
+        condition,
+        quantity: parseInt(quantity, 10),
+      });
+
+      // Upload images first if any
+      let imageUrl = null;
+      if (images.length > 0) {
+        console.log(`📸 Uploading ${images.length} rental images...`);
+        const imageUrls = await uploadImages(images);
+        // For rental_items, rental_item_image is a single text field, so we'll use the first image
+        imageUrl = imageUrls[0];
+        console.log("✅ Rental images uploaded:", imageUrls);
+      }
+
+      setUploadProgress(60);
+
+      // Insert rental item
+      const { data: rentalData, error: insertError } = await supabase
+        .from('rental_items')
+        .insert([
+          {
+            owner_email: email,
+            rental_item_image: imageUrl,
+            item_name: itemName.trim(),
+            price: parseFloat(price),
+            rental_duration: rentalDuration,
+            description: description.trim() || null,
+            category,
+            condition,
+            quantity: parseInt(quantity, 10),
+            is_visible: true,
+          }
+        ])
+        .select();
+
+      if (insertError) {
+        console.error("❌ Insert Error:", insertError);
+        throw insertError;
+      }
+
+      if (!rentalData || rentalData.length === 0) {
+        throw new Error("Rental item was not created");
+      }
+
+      console.log("✅ Rental item created with ID:", rentalData[0].id);
+
+      setUploadProgress(100);
+
       Alert.alert('Success', 'Your rental item has been published! 🎉', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
       
+      // Reset form
       setItemName('');
       setDescription('');
       setQuantity('1');
@@ -129,7 +224,14 @@ export default function AddRentalScreen({ navigation }) {
       setCategory(CATEGORY_OPTIONS[0]);
       setCondition(CONDITION_OPTIONS[0]);
       setImages([]);
-    }, 2500);
+
+    } catch (error) {
+      console.error("⚠️ Rental Item Publish Error:", error);
+      Alert.alert('Error', error.message || 'Failed to publish rental item. Please try again.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const formatPrice = (value) => {

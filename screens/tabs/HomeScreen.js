@@ -29,7 +29,7 @@ export default function HomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeView, setActiveView] = useState('products');
   const [userProfileImage, setUserProfileImage] = useState(null);
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
   
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -37,10 +37,10 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   const headerSlideAnim = useRef(new Animated.Value(-50)).current;
-  const searchScaleAnim = useRef(new Animated.Value(1)).current;
   const segmentSlideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const notificationPulseAnim = useRef(new Animated.Value(1)).current;
+  const searchSlideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -92,15 +92,6 @@ export default function HomeScreen({ navigation }) {
     ).start();
   }, []);
 
-  useEffect(() => {
-    Animated.spring(searchScaleAnim, {
-      toValue: searchFocused ? 1.02 : 1,
-      tension: 100,
-      friction: 7,
-      useNativeDriver: true,
-    }).start();
-  }, [searchFocused]);
-
   const handleSegmentChange = (view) => {
     Animated.sequence([
       Animated.timing(segmentSlideAnim, {
@@ -118,10 +109,23 @@ export default function HomeScreen({ navigation }) {
     setActiveView(view);
   };
 
-  const handleSearchFocus = () => setSearchFocused(true);
-  const handleSearchBlur = () => setSearchFocused(false);
+  const toggleSearch = () => {
+    const newValue = !searchVisible;
+    setSearchVisible(newValue);
 
-  const styles = createStyles(theme, insets);
+    Animated.spring(searchSlideAnim, {
+      toValue: newValue ? 1 : 0,
+      useNativeDriver: false,
+      tension: 60,
+      friction: 8,
+    }).start();
+
+    if (!newValue) {
+      setSearchQuery('');
+    }
+  };
+
+  const styles = createStyles(theme, insets, isDarkMode);
 
   const getSegmentLabel = (tab) => {
     if (tab === 'lostandfound') return 'Lost & Found';
@@ -173,6 +177,14 @@ export default function HomeScreen({ navigation }) {
 
         <View style={styles.headerActionsContainer}>
           <TouchableOpacity
+            style={styles.actionButton}
+            onPress={toggleSearch}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={searchVisible ? 'close' : 'search-outline'} size={20} color="#fff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={() => navigation.navigate('Notifications')}
             style={[styles.actionButton, styles.notificationButton, { backgroundColor: getNotificationButtonColor() }]}
             activeOpacity={0.7}
@@ -211,38 +223,47 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
-      <Animated.View
-        style={[
-          styles.searchContainer,
-          {
-            transform: [{ scale: searchScaleAnim }],
-          },
-        ]}
-      >
-        <View style={styles.searchInputWrapper}>
-          <Icon name="search" size={16} color={theme.inputIcon} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { fontFamily: fontFamily.medium }]}
-            placeholder={`Search ${getSegmentLabel(activeView).toLowerCase()}...`}
-            placeholderTextColor={theme.placeholder}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onFocus={handleSearchFocus}
-            onBlur={handleSearchBlur}
-            returnKeyType="search"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              style={styles.clearButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="close-circle" size={18} color={theme.inputIcon} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </Animated.View>
+      {searchVisible && (
+        <Animated.View
+          style={[
+            styles.searchContainer,
+            {
+              opacity: searchSlideAnim,
+              transform: [
+                {
+                  translateY: searchSlideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.searchInputWrapper}>
+            <Icon name="search" size={16} color={theme.inputIcon} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { fontFamily: fontFamily.medium }]}
+              placeholder={`Search ${getSegmentLabel(activeView).toLowerCase()}...`}
+              placeholderTextColor={theme.placeholder}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={styles.clearButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle" size={18} color={theme.inputIcon} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
+      )}
 
       <Animated.View
         style={[
@@ -348,16 +369,14 @@ const createStyles = (theme, insets) =>
       opacity: 0.08,
     },
     headerContainer: {
+      paddingTop: insets.top + 10,
       paddingHorizontal: 20,
-      paddingTop: insets.top + 12,
       paddingBottom: 16,
       zIndex: 1,
     },
     topNavBar: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 12,
     },
     brandedLogoContainer: {
       flexDirection: 'row',
@@ -395,12 +414,13 @@ const createStyles = (theme, insets) =>
     headerActionsContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 15
     },
     actionButton: {
       width: 40,
       height: 40,
       borderRadius: 20,
+      backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
       shadowColor: '#000',
@@ -472,6 +492,7 @@ const createStyles = (theme, insets) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 4,
+      marginTop: 10,
     },
     searchIcon: {
       marginRight: 10,
@@ -493,6 +514,7 @@ const createStyles = (theme, insets) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.08,
       shadowRadius: 6,
+      marginTop: 15,
     },
     segmentButton: {
       flex: 1,

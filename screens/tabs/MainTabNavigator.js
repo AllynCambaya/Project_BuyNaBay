@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, useColorScheme } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -34,7 +34,7 @@ import VerificationStatusScreen from './VerificationStatusScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-const TAB_BAR_HEIGHT = 75;
+const TAB_BAR_HEIGHT = 85
 
 function AnimatedTabIcon({ name, color, size, focused, theme }) {
   const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
@@ -206,26 +206,21 @@ function CustomTabBarBackground({ theme, isDarkMode, insets }) {
   );
 }
 
+// MODIFIED: ScreenWrapper no longer applies top safe area
+// Each screen is now responsible for its own header and top padding
 function ScreenWrapper({ children, theme, insets }) {
   return (
-    <SafeAreaView 
+    <View 
       style={[
         styles.screenWrapper,
-        { backgroundColor: theme.background }
+        { 
+          backgroundColor: theme.background,
+          paddingBottom: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 12)
+        }
       ]}
-      edges={['top']} 
     >
-      <View 
-        style={[
-          styles.screenContent,
-          { 
-            paddingBottom: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 12)
-          }
-        ]}
-      >
-        {children}
-      </View>
-    </SafeAreaView>
+      {children}
+    </View>
   );
 }
 
@@ -250,7 +245,6 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
       else navigation.navigate('GetVerified'); 
     }
   };
-
 
   const wrapScreen = (Component) => {
     return (props) => (
@@ -623,9 +617,6 @@ export default function MainTabNavigator({ route }) {
 
 const styles = StyleSheet.create({
   screenWrapper: {
-    flex: 1,
-  },
-  screenContent: {
     flex: 1,
   },
 });

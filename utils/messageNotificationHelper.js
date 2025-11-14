@@ -1,3 +1,4 @@
+// utils/MessageNotificationHelper.js
 import { supabase } from '../supabase/supabaseClient';
 import { sendPushNotification } from './PushNotificationSender';
 
@@ -65,7 +66,7 @@ export const sendMessageNotification = async ({
 
     console.log('✅ [NotificationHelper] Database notification created:', notification.id);
 
-    // 🆕 Send push notification
+    // Send push notification
     await sendPushNotification(
       receiverEmail,
       pushTitle,
@@ -74,7 +75,7 @@ export const sendMessageNotification = async ({
         type: 'message',
         senderId: senderEmail,
         senderName: senderName,
-        screen: 'Messaging',
+        screen: 'MessagingScreen',
         params: {
           receiverId: senderEmail,
           receiverName: senderName,
@@ -126,7 +127,7 @@ export const sendProductSoldNotification = async ({
       return false;
     }
 
-    // 🆕 Send push notification
+    // Send push notification
     await sendPushNotification(
       sellerEmail,
       'Product Sold! 🎉',

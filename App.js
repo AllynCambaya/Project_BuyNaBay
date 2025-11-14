@@ -10,7 +10,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context'; // ✅ Changed to Provider
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { auth } from './firebase/firebaseConfig';
 import LoginScreen from './screens/authentication/LoginScreen';
 import RegisterScreen from './screens/authentication/RegisterScreen';
@@ -83,7 +83,6 @@ export default function App() {
     };
   }, []);
 
-  // ✅ Fixed: Properly sync navigation bar with theme
   useEffect(() => {
     if (Platform.OS === 'android') {
       NavigationBar.setBackgroundColorAsync(
@@ -111,9 +110,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* ✅ Changed to SafeAreaProvider to avoid consuming insets at root */}
       <SafeAreaProvider>
-        {/* ✅ Fixed: Auto theme detection without backgroundColor override */}
         <StatusBar style="auto" />
         
         <View 

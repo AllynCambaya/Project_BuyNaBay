@@ -16,7 +16,6 @@ import {
   View,
   useColorScheme
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -41,9 +40,10 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState('lost'); // 'lost' or 'found'
+  const [filter, setFilter] = useState('lost');
   const isFocused = useIsFocused();
   const currentUser = auth.currentUser;
+  const [userStatus, setUserStatus] = useState('not_requested');
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -132,6 +132,27 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
     }
   }, [isFocused, isVisible, fetchItems]);
 
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        if (!currentUser?.email) {
+          setUserStatus('not_requested');
+          return;
+        }
+        const { data, error } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', currentUser.email)
+          .single();
+        if (error || !data) setUserStatus('not_requested');
+        else setUserStatus(data.status || 'not_requested');
+      } catch (e) {
+        setUserStatus('not_requested');
+      }
+    };
+    fetchStatus();
+  }, [currentUser]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchItems();
@@ -191,35 +212,47 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
           </View>
         </View>
 
-        {/* Status Filter */}
         <View style={styles.statusFilterContainer}>
           {['lost', 'found'].map(status => (
-            <TouchableOpacity
+            <Animated.View
               key={status}
-              style={[
-                styles.statusChip,
-                filter === status && styles.statusChipActive
-              ]}
-              onPress={() => setFilter(status)}
-              activeOpacity={0.7}
+              style={{
+                flex: 1,
+                opacity: headerAnim,
+                transform: [{
+                  translateY: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                }],
+              }}
             >
-              <Icon 
-                name={status === 'lost' ? 'frown-o' : 'smile-o'} 
-                size={14} 
-                color={filter === status ? '#fff' : activeTheme.textSecondary}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[
-                styles.statusChipText,
-                filter === status && styles.statusChipTextActive,
-                { fontFamily: filter === status ? fontFamily.bold : fontFamily.semiBold }
-              ]}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Text>
-              {filter === status && (
-                <Icon name="check" size={11} color="#fff" style={{ marginLeft: 6 }} />
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.statusChip,
+                  filter === status && styles.statusChipActive
+                ]}
+                onPress={() => setFilter(status)}
+                activeOpacity={0.7}
+              >
+                <Icon 
+                  name={status === 'lost' ? 'frown-o' : 'smile-o'} 
+                  size={14} 
+                  color={filter === status ? '#fff' : activeTheme.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[
+                  styles.statusChipText,
+                  filter === status && styles.statusChipTextActive,
+                  { fontFamily: filter === status ? fontFamily.bold : fontFamily.semiBold }
+                ]}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </Text>
+                {filter === status && (
+                  <Icon name="check" size={11} color="#fff" style={{ marginLeft: 6 }} />
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           ))}
         </View>
       </Animated.View>
@@ -263,7 +296,6 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
               </View>
             )}
             
-            {/* Status Badge */}
             <View style={styles.imageBadgeContainer}>
               <View style={[
                 styles.statusBadge,
@@ -280,20 +312,25 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
               </View>
             </View>
 
-            {/* Message Button */}
-            <TouchableOpacity
-              style={styles.messageButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                navigation.navigate('Messaging', {
-                  receiverId: item.user_email,
-                  receiverName: item.user_name || 'User',
-                });
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
-            </TouchableOpacity>
+            {item.user_email !== currentUser?.email && (
+              <TouchableOpacity
+                style={styles.messageButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (userStatus === 'approved') {
+                    navigation.navigate('Messaging', {
+                      receiverId: item.user_email,
+                      receiverName: item.user_name || 'User',
+                    });
+                  } else {
+                    navigation.navigate('GetVerified');
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.cardContent}>
@@ -301,7 +338,6 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
               {item.item_name}
             </Text>
 
-            {/* User Info */}
             <View style={styles.userRow}>
               <Image 
                 source={{ uri: item.user_avatar || 'https://ui-avatars.com/api/?name=' + (item.user_name || 'User') }} 
@@ -312,7 +348,6 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
               </Text>
             </View>
 
-            {/* Location & Time */}
             <View style={styles.metaContainer}>
               <View style={styles.metaRow}>
                 <Ionicons name="location-outline" size={14} color={activeTheme.textSecondary} />
@@ -328,14 +363,12 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
               </View>
             </View>
 
-            {/* Description */}
             {item.description && (
               <Text style={[styles.description, { fontFamily: fontFamily.regular }]} numberOfLines={2}>
                 {item.description}
               </Text>
             )}
 
-            {/* Footer with Category */}
             <View style={styles.cardFooter}>
               <View style={styles.timeTag}>
                 <Icon name="clock-o" size={10} color={activeTheme.textSecondary} />
@@ -402,7 +435,7 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
     });
 
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <View style={styles.loadingContent}>
             <View style={styles.loadingIconContainer}>
@@ -422,12 +455,12 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
             </Text>
           </View>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <FlatList
         data={filteredItems}
         renderItem={renderItem}
@@ -445,7 +478,7 @@ export default function LostAndFoundScreen({ navigation, theme, searchQuery, isV
           />
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -469,7 +502,7 @@ function createStyles(theme) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 16,
+      marginBottom: 20,
     },
     titleContainer: {
       flexDirection: 'row',
@@ -525,10 +558,8 @@ function createStyles(theme) {
     statusFilterContainer: {
       flexDirection: 'row',
       gap: 10,
-      marginBottom: 16,
     },
     statusChip: {
-      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -553,50 +584,6 @@ function createStyles(theme) {
     },
     statusChipTextActive: {
       color: '#fff',
-    },
-    
-    activeFilterContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      backgroundColor: theme.cardBackground,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: `${theme.accent}40`,
-    },
-    activeFiltersRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      flex: 1,
-    },
-    activeFilterChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.cardBackgroundAlt || theme.background,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 16,
-      gap: 6,
-      borderWidth: 1,
-      borderColor: theme.borderColor,
-    },
-    activeFilterText: {
-      fontSize: 12,
-      color: theme.text,
-    },
-    clearAllBtn: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      backgroundColor: `${theme.accent}20`,
-      borderRadius: 8,
-    },
-    clearAllText: {
-      fontSize: 12,
-      color: theme.accent,
     },
     
     card: {
@@ -841,6 +828,7 @@ function createStyles(theme) {
       overflow: 'hidden',
       borderWidth: 2,
       borderColor: `${theme.accent}25`,
+      position: 'relative',
     },
     shimmerOverlay: {
       position: 'absolute',

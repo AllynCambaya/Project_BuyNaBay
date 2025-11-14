@@ -19,7 +19,7 @@ import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { fontFamily } from '../../theme/typography';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const SALE_CATEGORIES = [
   'All',

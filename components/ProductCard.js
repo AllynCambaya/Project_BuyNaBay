@@ -123,7 +123,9 @@ export default function ProductCard({
     }).start();
   };
 
-  const handleMessagePress = () => {
+  const handleMessagePress = (e) => {
+    if (e) e.stopPropagation();
+    
     Animated.sequence([
       Animated.spring(messageScaleAnim, {
         toValue: 1.2,
@@ -209,15 +211,17 @@ export default function ProductCard({
             </View>
 
             {/* Messaging Button */}
-            <Animated.View style={[styles.gridMessageButton, { transform: [{ scale: messageScaleAnim }] }]}>
-              <TouchableOpacity onPress={handleMessagePress} activeOpacity={0.8}>
-                <Ionicons
-                  name="chatbubble-ellipses"
-                  size={18}
-                  color="#fff"
-                />
-              </TouchableOpacity>
-            </Animated.View>
+            {product.email !== currentUser?.email && (
+              <Animated.View style={[styles.gridMessageButton, { transform: [{ scale: messageScaleAnim }] }]}>
+                <TouchableOpacity onPress={handleMessagePress} activeOpacity={0.8}>
+                  <Ionicons
+                    name="chatbubble-ellipses"
+                    size={18}
+                    color="#fff"
+                  />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
 
             {/* Image Counter */}
             {imageUrls.length > 1 && (
@@ -343,15 +347,17 @@ export default function ProductCard({
               </View>
 
               {/* Messaging Button */}
-              <Animated.View style={[styles.messageButton, { transform: [{ scale: messageScaleAnim }] }]}>
-                <TouchableOpacity onPress={handleMessagePress} activeOpacity={0.8}>
-                  <Ionicons
-                    name="chatbubble-ellipses"
-                    size={22}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-              </Animated.View>
+              {product.email !== currentUser?.email && (
+                <Animated.View style={[styles.messageButton, { transform: [{ scale: messageScaleAnim }] }]}>
+                  <TouchableOpacity onPress={handleMessagePress} activeOpacity={0.8}>
+                    <Ionicons
+                      name="chatbubble-ellipses"
+                      size={22}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                </Animated.View>
+              )}
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
@@ -572,17 +578,10 @@ const createStyles = (theme, viewMode) =>
       backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.4,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 4,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.4,
+      shadowRadius: 6,
     },
     gridImageCounter: {
       position: 'absolute',
@@ -819,17 +818,10 @@ const createStyles = (theme, viewMode) =>
       backgroundColor: theme.accent,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.4,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.4,
+      shadowRadius: 6,
     },
     imagePlaceholder: {
       width: '100%',
@@ -1035,25 +1027,6 @@ const createStyles = (theme, viewMode) =>
       color: theme.text,
       fontWeight: '700',
       fontFamily: 'Poppins-Bold',
-    },
-    quickCartButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: theme.accent,
-      justifyContent: 'center',
-      alignItems: 'center',
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.accent,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.4,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
     },
     actionSection: {
       flexDirection: 'row',
