@@ -1,4 +1,4 @@
-// screens/tabs/CheckoutScreen.js
+// screens/tabs/PurchasedHistoryScreen.js
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -24,7 +24,7 @@ import { fontFamily } from '../../theme/typography';
 
 const { width, height } = Dimensions.get('window');
 
-const CheckoutItem = ({ item, index, theme, onDelete, onReorder }) => {
+const CheckoutItem = ({ item, index, theme, onViewDetails, onContactSeller }) => {
   const animatedScale = useRef(new Animated.Value(1)).current;
   const actionOpacity = useRef(new Animated.Value(0)).current;
 
@@ -85,6 +85,7 @@ const CheckoutItem = ({ item, index, theme, onDelete, onReorder }) => {
       <TouchableOpacity
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        onPress={() => onViewDetails(item)}
         activeOpacity={1}
         style={[
           styles.orderCard,
@@ -173,28 +174,28 @@ const CheckoutItem = ({ item, index, theme, onDelete, onReorder }) => {
           <TouchableOpacity
             onPress={(e) => {
               e.stopPropagation();
-              onReorder(item);
+              onViewDetails(item);
             }}
-            style={[styles.actionBtn, styles.reorderBtn]}
+            style={[styles.actionBtn, styles.viewDetailsBtn]}
             activeOpacity={0.7}
           >
-            <Ionicons name="refresh" size={18} color={theme.accent} />
+            <Ionicons name="receipt-outline" size={18} color={theme.accent} />
             <Text style={[styles.actionBtnText, { fontFamily: fontFamily.semiBold, color: theme.accent }]}>
-              Reorder
+              View Receipt
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={(e) => {
               e.stopPropagation();
-              onDelete(item);
+              onContactSeller(item);
             }}
-            style={[styles.actionBtn, styles.deleteBtn]}
+            style={[styles.actionBtn, styles.contactBtn]}
             activeOpacity={0.7}
           >
-            <Ionicons name="trash-outline" size={18} color="#FF3B30" />
-            <Text style={[styles.actionBtnText, { fontFamily: fontFamily.semiBold, color: '#FF3B30' }]}>
-              Delete
+            <Ionicons name="chatbubble-outline" size={18} color={theme.secondary} />
+            <Text style={[styles.actionBtnText, { fontFamily: fontFamily.semiBold, color: theme.secondary }]}>
+              Contact Seller
             </Text>
           </TouchableOpacity>
         </View>
@@ -203,13 +204,13 @@ const CheckoutItem = ({ item, index, theme, onDelete, onReorder }) => {
   );
 };
 
-export default function CheckoutScreen({ navigation }) {
+export default function PurchasedHistoryScreen({ navigation }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
-  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [receiptModalVisible, setReceiptModalVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const user = auth.currentUser;
@@ -346,46 +347,42 @@ export default function CheckoutScreen({ navigation }) {
     return history;
   };
 
-  const handleDelete = (item) => {
-    setConfirmAction({
-      title: 'Delete Order',
-      message: 'Are you sure you want to remove this order from your history? This action cannot be undone.',
-      onConfirm: async () => {
-        const { error } = await supabase
-          .from('checkout_history')
-          .delete()
-          .eq('id', item.id);
-
-        if (!error) {
-          setHistory(prev => prev.filter(h => h.id !== item.id));
-          showToast('Order deleted successfully');
-        }
-      },
-    });
-    setConfirmModalVisible(true);
+  const handleViewDetails = (item) => {
+    setSelectedOrder(item);
+    setReceiptModalVisible(true);
   };
 
-  const handleReorder = (item) => {
-    showToast('Reorder feature coming soon!');
-  };
+  const handleContactSeller = async (item) => {
+    try {
+      // Fetch seller details
+      const { data: sellerData, error } = await supabase
+        .from('users')
+        .select('email, name')
+        .eq('name', item.seller_name)
+        .maybeSingle();
 
-  const clearAllHistory = () => {
-    setConfirmAction({
-      title: 'Clear All History',
-      message: 'Are you sure you want to delete all checkout history? This action cannot be undone.',
-      onConfirm: async () => {
-        const { error } = await supabase
-          .from('checkout_history')
-          .delete()
-          .eq('buyer_email', user.email);
+      if (error || !sellerData) {
+        showToast('Unable to find seller contact');
+        return;
+      }
 
-        if (!error) {
-          setHistory([]);
-          showToast('All history cleared');
+      // Navigate to messaging screen
+      navigation.navigate('MessagingScreen', {
+        receiverId: sellerData.email,
+        receiverName: sellerData.name,
+        productContext: {
+          id: item.id,
+          product_name: item.product_name,
+          price: item.price,
+          product_image_url: item.product_image_urls?.[0],
         }
-      },
-    });
-    setConfirmModalVisible(true);
+      });
+
+      showToast('Opening chat with seller...');
+    } catch (error) {
+      console.error('Error contacting seller:', error);
+      showToast('Failed to open chat');
+    }
   };
 
   const onRefresh = () => {
@@ -434,16 +431,6 @@ export default function CheckoutScreen({ navigation }) {
             </Text>
           </View>
         </View>
-
-        {history.length > 0 && (
-          <TouchableOpacity
-            onPress={clearAllHistory}
-            style={[styles.actionIconButton, { backgroundColor: '#FF3B3015' }]}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-          </TouchableOpacity>
-        )}
       </View>
 
       <View style={styles.welcomeContainer}>
@@ -451,10 +438,10 @@ export default function CheckoutScreen({ navigation }) {
           Your Orders
         </Text>
         <Text style={[styles.userNameText, { fontFamily: fontFamily.extraBold }]}>
-          Checkout History
+          Purchase History
         </Text>
         <Text style={[styles.descriptionText, { fontFamily: fontFamily.regular }]}>
-          Review your purchase history
+          Track and manage your purchases
         </Text>
       </View>
 
@@ -582,8 +569,8 @@ export default function CheckoutScreen({ navigation }) {
       item={item}
       index={index}
       theme={theme}
-      onDelete={handleDelete}
-      onReorder={handleReorder}
+      onViewDetails={handleViewDetails}
+      onContactSeller={handleContactSeller}
     />
   );
 
@@ -604,7 +591,7 @@ export default function CheckoutScreen({ navigation }) {
         No Orders Yet
       </Text>
       <Text style={[styles.emptyDescription, { fontFamily: fontFamily.regular }]}>
-        Your checkout history will appear here once you make a purchase
+        Your purchase history will appear here once you make an order
       </Text>
       <TouchableOpacity
         style={styles.shopButton}
@@ -654,51 +641,130 @@ export default function CheckoutScreen({ navigation }) {
         }
       />
 
-      {/* Confirmation Modal */}
+      {/* Receipt Modal */}
       <Modal
-        visible={confirmModalVisible}
+        visible={receiptModalVisible}
         transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmModalVisible(false)}
+        animationType="slide"
+        onRequestClose={() => setReceiptModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <Animated.View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIconContainer}>
-                <Ionicons name="alert-circle" size={32} color="#FF3B30" />
+          <Animated.View style={styles.receiptModalContent}>
+            {/* Header */}
+            <View style={styles.receiptHeader}>
+              <View style={styles.receiptIconContainer}>
+                <Ionicons name="receipt" size={32} color={theme.accent} />
               </View>
-              <Text style={[styles.modalTitle, { fontFamily: fontFamily.bold }]}>
-                {confirmAction?.title}
+              <Text style={[styles.receiptTitle, { fontFamily: fontFamily.bold }]}>
+                Order Receipt
               </Text>
+              <TouchableOpacity
+                onPress={() => setReceiptModalVisible(false)}
+                style={styles.closeButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
             </View>
-            
-            <Text style={[styles.modalMessage, { fontFamily: fontFamily.regular }]}>
-              {confirmAction?.message}
-            </Text>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                onPress={() => setConfirmModalVisible(false)}
-                style={[styles.modalButton, styles.cancelButton]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.cancelButtonText, { fontFamily: fontFamily.semiBold }]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  confirmAction?.onConfirm();
-                  setConfirmModalVisible(false);
-                }}
-                style={[styles.modalButton, styles.confirmButton]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.confirmButtonText, { fontFamily: fontFamily.bold }]}>
-                  Confirm
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {selectedOrder && (
+              <View style={styles.receiptBody}>
+                {/* Product Image */}
+                {selectedOrder.product_image_urls?.[0] && (
+                  <Image 
+                    source={{ uri: selectedOrder.product_image_urls[0] }} 
+                    style={styles.receiptImage} 
+                  />
+                )}
+
+                {/* Order Details */}
+                <View style={styles.receiptSection}>
+                  <Text style={[styles.receiptLabel, { fontFamily: fontFamily.medium }]}>
+                    Product Name
+                  </Text>
+                  <Text style={[styles.receiptValue, { fontFamily: fontFamily.bold }]}>
+                    {selectedOrder.product_name}
+                  </Text>
+                </View>
+
+                <View style={styles.receiptDivider} />
+
+                <View style={styles.receiptRow}>
+                  <View style={styles.receiptSection}>
+                    <Text style={[styles.receiptLabel, { fontFamily: fontFamily.medium }]}>
+                      Unit Price
+                    </Text>
+                    <Text style={[styles.receiptValue, { fontFamily: fontFamily.bold }]}>
+                      ₱{selectedOrder.price}
+                    </Text>
+                  </View>
+
+                  <View style={styles.receiptSection}>
+                    <Text style={[styles.receiptLabel, { fontFamily: fontFamily.medium }]}>
+                      Quantity
+                    </Text>
+                    <Text style={[styles.receiptValue, { fontFamily: fontFamily.bold }]}>
+                      ×{selectedOrder.quantity}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.receiptDivider} />
+
+                <View style={styles.receiptSection}>
+                  <Text style={[styles.receiptLabel, { fontFamily: fontFamily.medium }]}>
+                    Seller
+                  </Text>
+                  <Text style={[styles.receiptValue, { fontFamily: fontFamily.bold }]}>
+                    {selectedOrder.seller_name || 'Unknown'}
+                  </Text>
+                </View>
+
+                <View style={styles.receiptDivider} />
+
+                <View style={styles.receiptSection}>
+                  <Text style={[styles.receiptLabel, { fontFamily: fontFamily.medium }]}>
+                    Purchase Date
+                  </Text>
+                  <Text style={[styles.receiptValue, { fontFamily: fontFamily.bold }]}>
+                    {new Date(selectedOrder.checkout_date).toLocaleString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                </View>
+
+                <View style={styles.receiptDivider} />
+
+                {/* Total */}
+                <View style={styles.receiptTotalSection}>
+                  <Text style={[styles.receiptTotalLabel, { fontFamily: fontFamily.bold }]}>
+                    Total Amount
+                  </Text>
+                  <Text style={[styles.receiptTotalValue, { fontFamily: fontFamily.extraBold }]}>
+                    ₱{(parseFloat(selectedOrder.price) * parseInt(selectedOrder.quantity)).toFixed(2)}
+                  </Text>
+                </View>
+
+                {/* Action Button */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setReceiptModalVisible(false);
+                    handleContactSeller(selectedOrder);
+                  }}
+                  style={styles.contactSellerButton}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble" size={18} color="#fff" />
+                  <Text style={[styles.contactSellerText, { fontFamily: fontFamily.bold }]}>
+                    Contact Seller
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </Animated.View>
         </View>
       </Modal>
@@ -763,17 +829,6 @@ const createStyles = (theme) => StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: theme.cardBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: theme.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  actionIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: theme.shadowColor,
@@ -1078,13 +1133,13 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 14,
     gap: 8,
   },
-  reorderBtn: {
+  viewDetailsBtn: {
     backgroundColor: `${theme.accent}08`,
     borderRightWidth: 0.5,
     borderRightColor: theme.border,
   },
-  deleteBtn: {
-    backgroundColor: '#FF3B3008',
+  contactBtn: {
+    backgroundColor: `${theme.secondary}08`,
     borderLeftWidth: 0.5,
     borderLeftColor: theme.border,
   },
@@ -1158,76 +1213,121 @@ const createStyles = (theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 30,
+    justifyContent: 'flex-end',
   },
-  modalContent: {
+  receiptModalContent: {
     backgroundColor: theme.cardBackground,
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    maxHeight: height * 0.85,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
   },
-  modalHeader: {
+  receiptHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    position: 'relative',
   },
-  modalIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FF3B3015',
+  receiptIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: `${theme.accent}15`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginRight: 12,
   },
-  modalTitle: {
+  receiptTitle: {
     fontSize: 20,
     color: theme.text,
-    textAlign: 'center',
     letterSpacing: -0.3,
   },
-  modalMessage: {
-    fontSize: 14,
+  closeButton: {
+    position: 'absolute',
+    right: 20,
+    top: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  receiptBody: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+  },
+  receiptImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    marginBottom: 20,
+    resizeMode: 'cover',
+  },
+  receiptSection: {
+    marginBottom: 16,
+  },
+  receiptLabel: {
+    fontSize: 13,
     color: theme.textSecondary,
-    textAlign: 'center',
-    lineHeight: 21,
-    marginBottom: 24,
+    marginBottom: 6,
   },
-  modalActions: {
+  receiptValue: {
+    fontSize: 16,
+    color: theme.text,
+  },
+  receiptRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 20,
   },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
+  receiptDivider: {
+    height: 1,
+    backgroundColor: theme.border,
+    marginVertical: 16,
+  },
+  receiptTotalSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: `${theme.accent}10`,
+    padding: 16,
     borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  receiptTotalLabel: {
+    fontSize: 16,
+    color: theme.text,
+  },
+  receiptTotalValue: {
+    fontSize: 24,
+    color: theme.accent,
+  },
+  contactSellerButton: {
+    backgroundColor: theme.secondary,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: theme.borderColor,
-  },
-  confirmButton: {
-    backgroundColor: '#FF3B30',
-    shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 2 },
+    paddingVertical: 16,
+    borderRadius: 14,
+    gap: 10,
+    shadowColor: theme.secondary,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 8,
   },
-  cancelButtonText: {
-    fontSize: 15,
-    color: theme.text,
-    letterSpacing: -0.2,
-  },
-  confirmButtonText: {
-    fontSize: 15,
+  contactSellerText: {
     color: '#fff',
+    fontSize: 16,
     letterSpacing: -0.2,
   },
   toastContainer: {

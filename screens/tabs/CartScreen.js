@@ -14,6 +14,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useColorScheme
@@ -23,29 +24,32 @@ import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from "../../supabase/supabaseClient";
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
+import { sendPurchaseNotification, sendSaleConfirmationNotification } from '../../utils/MessageNotificationHelper';
 
 const { width, height } = Dimensions.get('window');
 
-export const handleDirectCheckout = async (product, buyer, buyerName) => {
+export const handleDirectCheckout = async (product, buyer, buyerName, checkoutQuantity = 1) => {
   if (!product || !buyer || !buyerName) {
     Alert.alert("Error", "Missing product or user information for checkout.");
     return false;
   }
 
   try {
+    // Insert into checkout history
     const { error: historyError } = await supabase
       .from("checkout_history")
       .insert([{
         buyer_email: buyer.email,
         product_name: product.product_name,
         price: product.price,
-        quantity: 1,
+        quantity: checkoutQuantity,
         seller_name: product.seller_name || 'Unknown Seller',
         checkout_date: new Date().toISOString(),
       }]);
 
     if (historyError) throw historyError;
 
+    // Get current product details
     const { data: currentProduct, error: productError } = await supabase
       .from("products")
       .select("quantity, email")
@@ -56,12 +60,13 @@ export const handleDirectCheckout = async (product, buyer, buyerName) => {
       throw new Error("Could not retrieve product details for checkout.");
     }
 
-    if (currentProduct.quantity < 1) {
-      Alert.alert("Out of Stock", "This item is no longer available.");
+    if (currentProduct.quantity < checkoutQuantity) {
+      Alert.alert("Insufficient Stock", `Only ${currentProduct.quantity} items available.`);
       return false;
     }
 
-    const newQuantity = currentProduct.quantity - 1;
+    // Update product quantity
+    const newQuantity = currentProduct.quantity - checkoutQuantity;
     const { error: updateError } = await supabase
       .from("products")
       .update({ 
@@ -72,11 +77,25 @@ export const handleDirectCheckout = async (product, buyer, buyerName) => {
 
     if (updateError) throw updateError;
 
-    await supabase.from("notifications").insert({
-      sender_id: buyer.email,
-      receiver_id: currentProduct.email,
-      title: "Product Sold! 🎉",
-      message: `${buyerName} has purchased your product: "${product.product_name}".`,
+    // Send notifications
+    await sendPurchaseNotification({
+      buyerId: buyer.email,
+      sellerId: currentProduct.email,
+      buyerName: buyerName,
+      productName: product.product_name,
+      productPrice: product.price,
+      productId: product.id || product.product_id,
+      productImage: product.product_image_url,
+    });
+
+    await sendSaleConfirmationNotification({
+      buyerId: buyer.email,
+      sellerId: currentProduct.email,
+      sellerName: product.seller_name || 'Unknown Seller',
+      productName: product.product_name,
+      productPrice: product.price,
+      productId: product.id || product.product_id,
+      productImage: product.product_image_url,
     });
 
     return true;
@@ -95,6 +114,7 @@ export default function CartScreen({ navigation }) {
   const [buyerName, setBuyerName] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [userProfileImage, setUserProfileImage] = useState(null);
+  const [editingQuantity, setEditingQuantity] = useState(null);
   
   const user = auth.currentUser;
   const systemColorScheme = useColorScheme();
@@ -203,6 +223,34 @@ export default function CartScreen({ navigation }) {
     if (buyerName) fetchCart();
   }, [buyerName, fetchCart]);
 
+  const updateQuantity = async (itemId, newQuantity) => {
+    if (newQuantity < 1) {
+      Alert.alert('Invalid Quantity', 'Quantity must be at least 1');
+      return;
+    }
+
+    // Check if quantity exceeds available stock
+    const item = cartItems.find(i => i.id === itemId);
+    if (item?.productData?.quantity < newQuantity) {
+      Alert.alert('Insufficient Stock', `Only ${item.productData.quantity} items available`);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("cart")
+      .update({ quantity: newQuantity })
+      .eq("id", itemId);
+
+    if (!error) {
+      setCartItems(cartItems.map(item => 
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
+      ));
+      setEditingQuantity(null);
+    } else {
+      Alert.alert('Error', 'Failed to update quantity');
+    }
+  };
+
   const removeFromCart = async (id) => {
     Alert.alert('Remove Item', 'Are you sure you want to remove this item?', [
       { text: 'Cancel', style: 'cancel' },
@@ -238,7 +286,12 @@ export default function CartScreen({ navigation }) {
         ...item.productData,
         product_id: item.productData.id,
       };
-      const success = await handleDirectCheckout(productToCheckout, user, buyerName);
+      const success = await handleDirectCheckout(
+        productToCheckout, 
+        user, 
+        buyerName, 
+        parseInt(item.quantity)
+      );
       if (!success) {
         allCheckoutsSuccessful = false;
       }
@@ -319,14 +372,25 @@ export default function CartScreen({ navigation }) {
         </View>
 
         <View style={styles.headerActionsContainer}>
+          {/* Purchase History Button - Green */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('CheckoutScreen')}
-            style={[styles.actionButton, styles.historyButton]}
+            onPress={() => navigation.navigate('PurchasedHistory')}
+            style={[styles.actionButton, styles.purchaseHistoryButton]}
             activeOpacity={0.7}
           >
             <Ionicons name="receipt-outline" size={20} color="#fff" />
           </TouchableOpacity>
+
+          {/* Sold History Button - Blue */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('SoldHistory')}
+            style={[styles.actionButton, styles.soldHistoryButton]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="bag-check-outline" size={20} color="#fff" />
+          </TouchableOpacity>
           
+          {/* Profile Button */}
           <TouchableOpacity 
             onPress={() => navigation.navigate("ProfileScreen")}
             activeOpacity={0.8}
@@ -341,7 +405,6 @@ export default function CartScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
-
 
       {/* Summary Cards */}
       <View style={styles.summaryCards}>
@@ -397,6 +460,7 @@ export default function CartScreen({ navigation }) {
   const renderItem = ({ item, index }) => {
     const thumbnail = item.product_image_urls?.[0] || null;
     const isSelected = selectedIds.includes(item.id);
+    const isEditing = editingQuantity === item.id;
 
     return (
       <Animated.View 
@@ -461,9 +525,61 @@ export default function CartScreen({ navigation }) {
                 <Text style={[styles.priceText, { fontFamily: fontFamily.bold }]}>₱{item.price}</Text>
               </View>
               <View style={styles.metaDivider} />
+              
+              {/* Quantity Editor */}
               <View style={styles.metaItem}>
-                <Text style={[styles.metaLabel, { fontFamily: fontFamily.medium }]}>Qty</Text>
-                <Text style={[styles.quantityText, { fontFamily: fontFamily.bold }]}>×{item.quantity}</Text>
+                <Text style={[styles.metaLabel, { fontFamily: fontFamily.medium }]}>Quantity</Text>
+                <View style={styles.quantityControls}>
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => {
+                      const newQty = parseInt(item.quantity) - 1;
+                      if (newQty >= 1) updateQuantity(item.id, newQty);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="remove" size={16} color={theme.accent} />
+                  </TouchableOpacity>
+                  
+                  {isEditing ? (
+                    <TextInput
+                      style={[styles.quantityInput, { fontFamily: fontFamily.bold }]}
+                      value={item.quantity.toString()}
+                      keyboardType="number-pad"
+                      onChangeText={(text) => {
+                        const qty = parseInt(text) || 1;
+                        updateQuantity(item.id, qty);
+                      }}
+                      onBlur={() => setEditingQuantity(null)}
+                      autoFocus
+                      selectTextOnFocus
+                    />
+                  ) : (
+                    <TouchableOpacity onPress={() => setEditingQuantity(item.id)}>
+                      <Text style={[styles.quantityText, { fontFamily: fontFamily.bold }]}>
+                        {item.quantity}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => {
+                      const newQty = parseInt(item.quantity) + 1;
+                      if (newQty <= item.productData?.quantity) {
+                        updateQuantity(item.id, newQty);
+                      } else {
+                        Alert.alert('Stock Limit', `Only ${item.productData?.quantity} items available`);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add" size={16} color={theme.accent} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.stockText, { fontFamily: fontFamily.regular }]}>
+                  Stock: {item.productData?.quantity || 0}
+                </Text>
               </View>
             </View>
 
@@ -571,10 +687,7 @@ export default function CartScreen({ navigation }) {
           <Animated.View 
             style={[
               styles.checkoutFooter,
-              { opacity: fadeAnim, transform: [{ translateY: scaleAnim.interpolate({
-                inputRange: [0.95, 1],
-                outputRange: [100, 0]
-              })}]}
+              { opacity: fadeAnim }
             ]}
           >
             <View style={styles.summaryRow}>
@@ -630,13 +743,13 @@ export default function CartScreen({ navigation }) {
   );
 }
 
-const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
+const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 140,
   },
   loadingContainer: {
     flex: 1,
@@ -693,7 +806,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     backgroundColor: 'rgba(253, 173, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    
     shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -726,14 +838,20 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    
-    shadowColor: '#000',
+  },
+  purchaseHistoryButton: {
+    backgroundColor: '#10b981',
+    shadowColor: '#10b981',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  historyButton: {
-    backgroundColor: '#10b981',
+  soldHistoryButton: {
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   profileImageWrapper: {
     width: 40,
@@ -744,7 +862,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     padding: 2,
     backgroundColor: theme.cardBackground,
     position: 'relative',
-    
     shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -766,25 +883,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     borderWidth: 2.5,
     borderColor: theme.gradientBackground,
   },
-  welcomeContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  greetingText: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    marginBottom: 4,
-  },
-  userNameText: {
-    fontSize: Math.min(width * 0.07, 28),
-    color: theme.text,
-    marginBottom: 6,
-    letterSpacing: -0.5,
-  },
-  descriptionText: {
-    fontSize: 13,
-    color: theme.textSecondary,
-  },
   summaryCards: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -797,7 +895,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    
     shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -829,7 +926,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 14,
-    
     shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -865,7 +961,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    
     shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -874,7 +969,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
   itemCardSelected: {
     borderColor: theme.accent,
     backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.05)' : 'rgba(253, 173, 0, 0.08)',
-    
     shadowColor: theme.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -888,7 +982,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     backgroundColor: theme.cardBackground,
     borderRadius: 8,
     padding: 6,
-    
     shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -935,7 +1028,7 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 14,
   },
   metaItem: {
@@ -943,7 +1036,7 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
   },
   metaDivider: {
     width: 1,
-    height: 30,
+    height: 60,
     backgroundColor: isDarkMode ? 'rgba(253, 173, 0, 0.2)' : 'rgba(0, 0, 0, 0.08)',
     marginHorizontal: 12,
   },
@@ -956,9 +1049,40 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     fontSize: 18,
     color: theme.accent,
   },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  quantityButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: `${theme.accent}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   quantityText: {
     fontSize: 18,
     color: theme.text,
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  quantityInput: {
+    fontSize: 18,
+    color: theme.text,
+    minWidth: 30,
+    textAlign: 'center',
+    backgroundColor: `${theme.accent}10`,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  stockText: {
+    fontSize: 10,
+    color: theme.textSecondary,
+    marginTop: 4,
   },
   footerRow: {
     flexDirection: 'row',
@@ -985,7 +1109,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
-    
     shadowColor: '#ef4444',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -1027,7 +1150,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
   shopButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    
     shadowColor: '#FDAD00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1044,15 +1166,16 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
     fontSize: 16,
   },
   checkoutFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: theme.cardBackground,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 28, 
+    paddingBottom: insets.bottom + 16,
     borderTopWidth: 1,
     borderTopColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    
     shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
@@ -1081,7 +1204,6 @@ const createStyles = (theme, isDarkMode, insets)=> StyleSheet.create({
   checkoutButton: {
     borderRadius: 16,
     overflow: 'hidden',
-    
     shadowColor: '#FDAD00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
