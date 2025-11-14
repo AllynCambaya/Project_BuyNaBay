@@ -1,4 +1,10 @@
-// screens/MessagingScreen.js
+// screens/MessagingScreen.js - FIXED: Purchase confirmations now appear in chat
+// ✅ Fix #1: Product messages send as 'product' type with product_context
+// ✅ Fix #2: Checkout sends confirmation message that appears in chat
+// ✅ Fix #3: Purchase confirmation messages have special styling
+// ✅ Fix #4: Realtime subscription properly detects all messages
+// ✅ Fix #5: Better duplicate detection and auto-scroll
+
 import { FontAwesome as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,30 +30,199 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
-import { sendMessageNotification } from '../../utils/MessageNotificationHelper';
+import { sendMessageNotification, sendPurchaseNotification, sendSaleConfirmationNotification } from '../../utils/MessageNotificationHelper';
 import { handleDirectCheckout } from './CartScreen';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-// Separate component for message items to handle animations properly
-const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, receiverAvatar, onReply, onLongPress, onImagePress, theme, styles }) => {
+// 🆕 BEAUTIFUL PRODUCT MESSAGE CARD COMPONENT
+const ProductMessageCard = ({ product, isMine, theme, styles, onCheckout, canCheckout, onLongPress }) => {
+  let imageUrl = null;
+  try {
+    const rawImage = product.product_image_url || product.rental_item_image;
+    if (rawImage) {
+      if (typeof rawImage === 'string' && rawImage.startsWith('http')) {
+        imageUrl = rawImage;
+      } else if (typeof rawImage === 'string' && rawImage.startsWith('[')) {
+        imageUrl = JSON.parse(rawImage)[0];
+      } else {
+        imageUrl = rawImage;
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing product image:', e);
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onLongPress={onLongPress}
+      style={[styles.productMessageCard, isMine && styles.productMessageCardMine]}
+    >
+      <View style={styles.productCardBorder} />
+      
+      <View style={styles.productMessageHeader}>
+        <View style={styles.productBadge}>
+          <Icon name="shopping-bag" size={12} color="#fff" />
+        </View>
+        <Text style={styles.productMessageHeaderText}>
+          {isMine ? 'You shared a product' : 'Product recommendation'}
+        </Text>
+      </View>
+      
+      <View style={styles.productMessageContent}>
+        {imageUrl && (
+          <View style={styles.productImageWrapper}>
+            <Image 
+              source={{ uri: imageUrl }} 
+              style={styles.productMessageImage}
+              resizeMode="cover"
+            />
+            <View style={styles.productImageOverlay} />
+          </View>
+        )}
+        <View style={styles.productMessageInfo}>
+          <Text style={styles.productMessageName} numberOfLines={2}>
+            {product.product_name || product.item_name}
+          </Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.productMessagePrice}>₱{product.price}</Text>
+            {product.rental_duration && (
+              <Text style={styles.productMessageDuration}>/ {product.rental_duration}</Text>
+            )}
+          </View>
+          {product.condition && (
+            <View style={styles.productMessageConditionBadge}>
+              <View style={styles.conditionDot} />
+              <Text style={styles.productMessageConditionText}>{product.condition}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {canCheckout && !product.rental_duration && (
+        <TouchableOpacity 
+          style={styles.productMessageCheckoutBtn}
+          onPress={() => onCheckout(product)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.checkoutGradient}>
+            <Icon name="shopping-cart" size={14} color="#fff" />
+            <Text style={styles.productMessageCheckoutText}>Buy Now</Text>
+            <Icon name="chevron-right" size={12} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+};
+
+// 🎉 BEAUTIFUL PURCHASE CONFIRMATION CARD COMPONENT
+const PurchaseConfirmationCard = ({ product, theme, styles, onLongPress }) => {
+  let imageUrl = null;
+  try {
+    const rawImage = product.product_image_url || product.rental_item_image;
+    if (rawImage) {
+      if (typeof rawImage === 'string' && rawImage.startsWith('http')) {
+        imageUrl = rawImage;
+      } else if (typeof rawImage === 'string' && rawImage.startsWith('[')) {
+        imageUrl = JSON.parse(rawImage)[0];
+      } else {
+        imageUrl = rawImage;
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing product image:', e);
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onLongPress={onLongPress}
+      style={styles.purchaseConfirmationCard}
+    >
+      <View style={styles.purchaseCardBorder} />
+      
+      <View style={styles.purchaseConfirmationHeader}>
+        <View style={styles.purchaseSuccessBadge}>
+          <Icon name="check-circle" size={14} color="#fff" />
+        </View>
+        <Text style={styles.purchaseConfirmationHeaderText}>
+          Purchase Confirmed
+        </Text>
+        <View style={styles.purchaseSparkle}>
+          <Icon name="star" size={10} color="#10B981" />
+        </View>
+      </View>
+      
+      <View style={styles.purchaseMessageContent}>
+        {imageUrl && (
+          <View style={styles.purchaseImageWrapper}>
+            <Image 
+              source={{ uri: imageUrl }} 
+              style={styles.purchaseMessageImage}
+              resizeMode="cover"
+            />
+            <View style={styles.purchaseImageOverlay}>
+              <View style={styles.purchaseImageBadge}>
+                <Icon name="check" size={12} color="#fff" />
+              </View>
+            </View>
+          </View>
+        )}
+        <View style={styles.purchaseMessageInfo}>
+          <Text style={styles.purchaseMessageName} numberOfLines={2}>
+            {product.product_name || product.item_name}
+          </Text>
+          <View style={styles.purchasePriceRow}>
+            <Text style={styles.purchaseMessagePrice}>₱{product.price}</Text>
+          </View>
+          <View style={styles.purchaseStatusBadge}>
+            <View style={styles.purchaseStatusDot} />
+            <Text style={styles.purchaseStatusText}>Order Placed</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.purchaseSuccessFooter}>
+        <Icon name="shield" size={12} color="#10B981" />
+        <Text style={styles.purchaseSuccessFooterText}>
+          Your order has been successfully placed
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// Message Item Component
+const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, receiverAvatar, onReply, onLongPress, onImagePress, onProductCheckout, theme, styles }) => {
   const isMine = item.sender_id === user.email;
   const avatarSource = isMine ? userAvatar : receiverAvatar;
-  const isProductMessage = !!item.product_context;
+  const isProductMessage = item.message_type === 'product' && item.product_context;
+  
+  // ✅ FIX #3: Detect purchase confirmation messages
+  const isPurchaseConfirmation = item.message_type === 'purchase_confirmation';
 
-  // Fade animation for this item
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  // Don't render empty messages unless they are product messages
-  if (!item.text && !item.messages_image_url && !isProductMessage) return null;
+  if (!item.text && !item.messages_image_url && !isProductMessage && !isPurchaseConfirmation) return null;
 
   let imageUrls = [];
   if (item.messages_image_url) {
@@ -64,7 +239,9 @@ const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, re
   const prevMessage = index > 0 ? messages[index - 1] : null;
   const shouldGroup = prevMessage && 
     item.sender_id === prevMessage.sender_id && 
-    (new Date(item.created_at) - new Date(prevMessage.created_at)) < 60000;
+    (new Date(item.created_at) - new Date(prevMessage.created_at)) < 60000 &&
+    !isProductMessage && prevMessage.message_type !== 'product' &&
+    !isPurchaseConfirmation && prevMessage.message_type !== 'purchase_confirmation';
   const showAvatar = !shouldGroup;
 
   const formatMessageTime = (timestamp) => {
@@ -73,7 +250,7 @@ const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, re
   };
 
   return (
-    <Animated.View style={{ opacity: fadeAnim }}>
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       <Swipeable
         friction={2}
         leftThreshold={50}
@@ -110,11 +287,13 @@ const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, re
         }}
       >
         <View style={[styles.messageWrapper, isMine ? styles.myWrapper : styles.otherWrapper]}>
-          {/* Avatar (only show if not grouped) */}
           {!isMine && (
             <View style={styles.avatarContainer}>
               {showAvatar && avatarSource ? (
-                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+                <View style={styles.avatarWrapper}>
+                  <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+                  <View style={styles.avatarRing} />
+                </View>
               ) : (
                 <View style={styles.avatarSpacer} />
               )}
@@ -123,10 +302,9 @@ const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, re
 
           <TouchableOpacity
             activeOpacity={0.9}
-            onLongPress={() => onLongPress(item)}
+            onLongPress={() => !isProductMessage && !isPurchaseConfirmation && onLongPress(item)}
             style={styles.messageContentWrapper}
           >
-            {/* Reply indicator */}
             {repliedMessage && (
               <View style={[styles.replyIndicator, isMine && styles.replyIndicatorMine]}>
                 <View style={styles.replyLine} />
@@ -134,7 +312,15 @@ const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, re
                   <Text style={styles.replyLabel}>
                     {repliedMessage.sender_id === user.email ? 'You' : receiverName}
                   </Text>
-                  {repliedMessage.text ? (
+                  
+                  {repliedMessage.message_type === 'product' && repliedMessage.product_context ? (
+                    <View style={styles.replyPhotoRow}>
+                      <Icon name="shopping-bag" size={10} color={theme.accent} />
+                      <Text style={styles.replyText}>
+                        {' '}{repliedMessage.product_context.product_name || repliedMessage.product_context.item_name}
+                      </Text>
+                    </View>
+                  ) : repliedMessage.text ? (
                     <Text numberOfLines={1} style={styles.replyText}>
                       {repliedMessage.text}
                     </Text>
@@ -148,35 +334,62 @@ const MessageItem = ({ item, index, messages, user, receiverName, userAvatar, re
               </View>
             )}
 
-            {/* Message bubble */}
-            <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.otherBubble]}>
-              {item.text ? (
-                <Text style={[styles.bubbleText, isMine && styles.myBubbleText]}>
-                  {item.text}
-                </Text>
-              ) : null}
-              
-              {imageUrls.length > 0 && imageUrls.map((url, idx) => (
-                <TouchableOpacity key={idx} onPress={() => onImagePress(url)}>
-                  <Image source={{ uri: url }} style={styles.messageImage} />
-                </TouchableOpacity>
-              ))}
+            {isPurchaseConfirmation && item.product_context ? (
+              <PurchaseConfirmationCard
+                product={item.product_context}
+                theme={theme}
+                styles={styles}
+                onLongPress={() => onReply(item)}
+              />
+            ) : isProductMessage ? (
+              <ProductMessageCard
+                product={item.product_context}
+                isMine={isMine}
+                theme={theme}
+                styles={styles}
+                onCheckout={onProductCheckout}
+                canCheckout={!isMine && user.email !== item.product_context.email}
+                onLongPress={() => onReply(item)}
+              />
+            ) : (
+              <View style={[
+                styles.messageBubble, 
+                isMine ? styles.myBubble : styles.otherBubble,
+              ]}>
+                {item.text ? (
+                  <Text style={[styles.bubbleText, isMine && styles.myBubbleText]}>
+                    {item.text}
+                  </Text>
+                ) : null}
+                
+                {imageUrls.length > 0 && imageUrls.map((url, idx) => (
+                  <TouchableOpacity key={idx} onPress={() => onImagePress(url)}>
+                    <Image source={{ uri: url }} style={styles.messageImage} />
+                  </TouchableOpacity>
+                ))}
 
-              {/* Timestamp */}
-              <Text style={[styles.messageTime, isMine && styles.myMessageTime]}>
-                {formatMessageTime(item.created_at)}
-                {isMine && (
-                  <Text style={styles.checkMark}> ✓✓</Text>
-                )}
-              </Text>
-            </View>
+                <View style={styles.messageFooter}>
+                  <Text style={[styles.messageTime, isMine && styles.myMessageTime]}>
+                    {formatMessageTime(item.created_at)}
+                  </Text>
+                  {isMine && (
+                    <View style={styles.checkMarks}>
+                      <Icon name="check" size={10} color="rgba(255,255,255,0.9)" />
+                      <Icon name="check" size={10} color="rgba(255,255,255,0.9)" style={{ marginLeft: -6 }} />
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
           </TouchableOpacity>
 
-          {/* Avatar for sent messages */}
           {isMine && (
             <View style={styles.avatarContainer}>
               {showAvatar && avatarSource ? (
-                <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+                <View style={styles.avatarWrapper}>
+                  <Image source={{ uri: avatarSource }} style={styles.messageAvatar} />
+                  <View style={styles.avatarRing} />
+                </View>
               ) : (
                 <View style={styles.avatarSpacer} />
               )}
@@ -204,28 +417,21 @@ export default function MessagingScreen({ route }) {
   const [userAvatar, setUserAvatar] = useState(null);
   const [activeProduct, setActiveProduct] = useState(productToSend || null);
   const [buyerName, setBuyerName] = useState('');
+  const [productSent, setProductSent] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState(null);
-
-  // --- Long press options ---
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
-  // Typing indicator
   const [isTyping, setIsTyping] = useState(false);
   const typingDotAnim = useRef(new Animated.Value(0)).current;
 
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
   const styles = createStyles(theme);
 
   const flatListRef = useRef(null);
-  
-  // CRITICAL: Track if component is mounted to prevent state updates after unmount
   const isMounted = useRef(true);
 
   // Fetch avatars
@@ -233,7 +439,6 @@ export default function MessagingScreen({ route }) {
     const fetchAvatars = async () => {
       if (!user?.email || !receiverId) return;
 
-      // Fetch receiver avatar
       const { data: receiverData } = await supabase
         .from('users')
         .select('profile_photo')
@@ -243,7 +448,6 @@ export default function MessagingScreen({ route }) {
         setReceiverAvatar(receiverData.profile_photo);
       }
 
-      // Fetch current user avatar
       const { data: userData } = await supabase
         .from('users')
         .select('profile_photo')
@@ -270,7 +474,6 @@ export default function MessagingScreen({ route }) {
     fetchBuyerName();
   }, [user]);
 
-  // Typing indicator animation
   useEffect(() => {
     if (isTyping) {
       Animated.loop(
@@ -298,7 +501,6 @@ export default function MessagingScreen({ route }) {
   const handleUnsend = async () => {
     if (!selectedMessage) return;
 
-    // Only allow unsend if the message was sent by the current user
     if (selectedMessage.sender_id !== user.email) {
       Alert.alert('Cannot unsend', 'You can only unsend your own messages.');
       setOptionsVisible(false);
@@ -331,18 +533,16 @@ export default function MessagingScreen({ route }) {
 
   const cancelReply = () => setReplyTo(null);
 
-  // --- FIXED: Fetch messages with proper realtime subscription ---
+  // ✅ FIX #4: Improved realtime subscription with better duplicate detection
   useEffect(() => {
     if (!user?.email || !receiverId) return;
 
-    console.log('📨 [MessagingScreen] Setting up message subscription for:', user.email, '<->', receiverId);
+    console.log('📨 [MessagingScreen] Setting up message subscription');
 
-    // 1. Initial fetch of messages
     const fetchMessages = async () => {
-      console.log('📥 [MessagingScreen] Fetching initial messages...');
       const { data, error } = await supabase
         .from('messages')
-        .select('*, product_context')
+        .select('*')
         .or(
           `and(sender_id.eq.${user.email},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${user.email})`
         )
@@ -358,7 +558,6 @@ export default function MessagingScreen({ route }) {
 
     fetchMessages();
 
-    // 2. FIXED: Set up realtime subscription with proper filtering
     const channel = supabase
       .channel(`messages-${user.email}-${receiverId}`)
       .on(
@@ -367,41 +566,47 @@ export default function MessagingScreen({ route }) {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          // Listen for messages where current user is sender OR receiver
-          filter: `sender_id=eq.${user.email},receiver_id=eq.${receiverId}`
         },
         (payload) => {
-          console.log('🔔 [MessagingScreen] New message (sent):', payload.new);
-          if (isMounted.current) {
+          console.log('🔔 [MessagingScreen] New message received:', payload.new);
+          
+          // Check if message is for this conversation
+          const isForThisConversation = 
+            (payload.new.sender_id === user.email && payload.new.receiver_id === receiverId) ||
+            (payload.new.sender_id === receiverId && payload.new.receiver_id === user.email);
+          
+          if (isForThisConversation && isMounted.current) {
             setMessages((prev) => {
-              // Prevent duplicates
+              // Avoid duplicates - check by ID first
               if (prev.some(m => m.id === payload.new.id)) {
+                console.log('⚠️ [MessagingScreen] Duplicate message ID, skipping');
                 return prev;
               }
-              return [...prev, payload.new];
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          // Listen for messages from receiver to current user
-          filter: `sender_id=eq.${receiverId},receiver_id=eq.${user.email}`
-        },
-        (payload) => {
-          console.log('🔔 [MessagingScreen] New message (received):', payload.new);
-          if (isMounted.current) {
-            setMessages((prev) => {
-              // Prevent duplicates
-              if (prev.some(m => m.id === payload.new.id)) {
+              
+              // Also check for duplicate temp IDs that might match
+              const hasTempMatch = prev.some(m => 
+                m.id && typeof m.id === 'string' && m.id.startsWith('temp-') &&
+                m.message_type === payload.new.message_type &&
+                Math.abs(new Date(m.created_at) - new Date(payload.new.created_at)) < 2000
+              );
+              
+              if (hasTempMatch) {
+                console.log('⚠️ [MessagingScreen] Temp message already exists, skipping');
                 return prev;
               }
+              
+              console.log('✅ [MessagingScreen] Adding new message to state');
               return [...prev, payload.new];
             });
+            
+            // ✅ FIX #5: Auto-scroll to bottom when new message arrives
+            setTimeout(() => {
+              if (flatListRef.current && isMounted.current) {
+                flatListRef.current.scrollToEnd({ animated: true });
+              }
+            }, 100);
+          } else {
+            console.log('⚠️ [MessagingScreen] Message not for this conversation, ignoring');
           }
         }
       )
@@ -425,7 +630,6 @@ export default function MessagingScreen({ route }) {
         console.log('🔌 [MessagingScreen] Subscription status:', status);
       });
 
-    // 3. Cleanup on unmount
     return () => {
       console.log('🧹 [MessagingScreen] Cleaning up subscription');
       isMounted.current = false;
@@ -433,17 +637,15 @@ export default function MessagingScreen({ route }) {
     };
   }, [user?.email, receiverId]);
 
-  // FIXED: Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom
   useEffect(() => {
     if (messages.length > 0 && flatListRef.current && isMounted.current) {
-      // Small delay to ensure FlatList has rendered the new item
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages.length]); // Trigger on message count change
+  }, [messages.length]);
 
-  // --- Pick multiple images ---
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -463,7 +665,6 @@ export default function MessagingScreen({ route }) {
     }
   };
 
-  // --- Upload images ---
   const uploadImagesToSupabase = async (uris) => {
     try {
       setUploading(true);
@@ -500,14 +701,68 @@ export default function MessagingScreen({ route }) {
     }
   };
 
-  // --- FIXED: Send message with optimistic UI update ---
+  // ✅ FIX #1: Send product message as 'product' type
+  const sendProductMessage = async () => {
+    if (!activeProduct || productSent || !user) return;
+
+    const tempId = `temp-product-${Date.now()}`;
+
+    const optimisticMessage = {
+      id: tempId,
+      sender_id: user.email,
+      receiver_id: receiverId,
+      text: null,
+      messages_image_url: null,
+      reply_to: null,
+      created_at: new Date().toISOString(),
+      message_type: 'product',
+      product_context: activeProduct,
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+    setProductSent(true);
+
+    const { data: insertedMessage, error } = await supabase
+      .from('messages')
+      .insert([{
+        sender_id: user.email,
+        receiver_id: receiverId,
+        text: null,
+        messages_image_url: null,
+        reply_to: null,
+        message_type: 'product',
+        product_context: activeProduct,
+      }])
+      .select()
+      .single();
+
+    if (!error && insertedMessage) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? insertedMessage : m))
+      );
+
+      await sendMessageNotification({
+        senderEmail: user.email,
+        receiverEmail: receiverId,
+        messageText: null,
+        hasImages: false,
+        productContext: activeProduct,
+      });
+
+    } else if (error) {
+      console.error('❌ Send product message error:', error.message);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setProductSent(false);
+      Alert.alert('Error', 'Failed to send product info.');
+    }
+  };
+
   const sendMessage = async () => {
     if ((!input.trim() && images.length === 0) || !user) return;
 
     const messageText = input.trim() || null;
-    const tempId = `temp-${Date.now()}`; // Temporary ID for optimistic update
+    const tempId = `temp-${Date.now()}`;
 
-    // OPTIMISTIC UPDATE: Add message to UI immediately
     const optimisticMessage = {
       id: tempId,
       sender_id: user.email,
@@ -516,22 +771,22 @@ export default function MessagingScreen({ route }) {
       messages_image_url: null,
       reply_to: replyTo ? replyTo.id : null,
       created_at: new Date().toISOString(),
+      message_type: 'text',
       product_context: null,
     };
 
     setMessages((prev) => [...prev, optimisticMessage]);
-    setInput(''); // Clear input immediately
+    setInput('');
     setReplyTo(null);
 
     let imageUrls = [];
     if (images.length > 0) {
       imageUrls = await uploadImagesToSupabase(images);
-      setImages([]); // Clear images after upload starts
+      setImages([]);
     }
 
     const hasImages = imageUrls.length > 0;
 
-    // Insert the actual message
     const { data: insertedMessage, error } = await supabase
       .from('messages')
       .insert([
@@ -540,6 +795,7 @@ export default function MessagingScreen({ route }) {
           receiver_id: receiverId,
           text: messageText,
           product_context: null,
+          message_type: 'text',
           messages_image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
           reply_to: replyTo ? replyTo.id : null,
         },
@@ -548,14 +804,10 @@ export default function MessagingScreen({ route }) {
       .single();
 
     if (!error && insertedMessage) {
-      console.log('✅ [MessagingScreen] Message sent successfully:', insertedMessage.id);
-
-      // Replace optimistic message with real message
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? insertedMessage : m))
       );
 
-      // 🆕 Send notification using helper
       await sendMessageNotification({
         senderEmail: user.email,
         receiverEmail: receiverId,
@@ -564,56 +816,134 @@ export default function MessagingScreen({ route }) {
       });
 
     } else if (error) {
-      console.error('❌ [MessagingScreen] Send message error:', error.message);
-      // Remove optimistic message on error
+      console.error('❌ Send message error:', error.message);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      Alert.alert('Error', 'Failed to send message. Please try again.');
+      Alert.alert('Error', 'Failed to send message.');
     }
   };
 
+  // ✅ FIX #2: onProductCheckout with improved error handling
   const onProductCheckout = async (product) => {
+    const productName = product.product_name || product.item_name;
+    const productImage = product.product_image_url || product.rental_item_image;
+
     Alert.alert(
-      "Confirm Checkout",
-      `Do you want to buy "${product.product_name}" for ₱${product.price}?`,
+      "Confirm Purchase",
+      `Do you want to buy "${productName}" for ₱${product.price}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Checkout",
+          text: "Buy Now",
           onPress: async () => {
+            console.log('🛒 [Checkout] Starting checkout process...');
             const success = await handleDirectCheckout(product, user, buyerName);
+            
             if (success) {
+              console.log('✅ [Checkout] Order placed successfully');
               Alert.alert("Success!", "Your order has been placed.");
               
-              // Send confirmation message
-              const confirmationText = `I have successfully purchased "${product.product_name}".`;
-              await supabase.from('messages').insert({
+              const confirmationText = `✅ I have successfully purchased "${productName}" for ₱${product.price}`;
+              const tempId = `temp-confirmation-${Date.now()}`;
+
+              console.log('💬 [Checkout] Creating confirmation message...');
+
+              const optimisticMessage = {
+                id: tempId,
                 sender_id: user.email,
                 receiver_id: receiverId,
                 text: confirmationText,
+                messages_image_url: null,
+                reply_to: null,
+                created_at: new Date().toISOString(),
+                message_type: 'purchase_confirmation',
+                product_context: product,
+              };
+
+              console.log('⚡ [Checkout] Adding optimistic message to UI');
+              setMessages((prev) => {
+                const newMessages = [...prev, optimisticMessage];
+                console.log('📊 [Checkout] Total messages:', newMessages.length);
+                return newMessages;
               });
 
-              // Send notification to seller
+              // Scroll to bottom to show new message
+              setTimeout(() => {
+                if (flatListRef.current) {
+                  flatListRef.current.scrollToEnd({ animated: true });
+                }
+              }, 100);
+
+              console.log('💾 [Checkout] Inserting to database...');
+              const { data: insertedMessage, error: msgError } = await supabase
+                .from('messages')
+                .insert({
+                  sender_id: user.email,
+                  receiver_id: receiverId,
+                  text: confirmationText,
+                  message_type: 'purchase_confirmation',
+                  product_context: product,
+                })
+                .select()
+                .single();
+
+              if (!msgError && insertedMessage) {
+                console.log('✅ [Checkout] Message saved to database:', insertedMessage.id);
+                // Replace temp message with real one
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === tempId ? insertedMessage : m))
+                );
+              } else if (msgError) {
+                console.error('❌ [Checkout] Failed to save message:', msgError);
+                // Keep optimistic message even if DB save fails
+                console.log('⚠️ [Checkout] Keeping optimistic message despite DB error');
+              }
+
               try {
+                console.log('📧 [Checkout] Sending notifications...');
                 const { data: buyerData } = await supabase
                   .from('users')
                   .select('name')
                   .eq('email', user.email)
                   .maybeSingle();
 
-                const buyerName = buyerData?.name || user.email;
+                const buyerDisplayName = buyerData?.name || user.email;
 
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    sender_id: user.email,
-                    receiver_id: receiverId,
-                    title: 'Product Sold',
-                    message: `${buyerName} purchased "${product.product_name}" for ₱${product.price}`,
-                    created_at: new Date().toISOString(),
-                  });
+                const { data: sellerData } = await supabase
+                  .from('users')
+                  .select('name')
+                  .eq('email', receiverId)
+                  .maybeSingle();
+
+                const sellerDisplayName = sellerData?.name || receiverId;
+
+                await sendPurchaseNotification({
+                  buyerId: user.email,
+                  sellerId: receiverId,
+                  buyerName: buyerDisplayName,
+                  productName: productName,
+                  productPrice: product.price,
+                  productId: product.id,
+                  productImage: productImage,
+                });
+
+                await sendSaleConfirmationNotification({
+                  buyerId: user.email,
+                  sellerId: receiverId,
+                  sellerName: sellerDisplayName,
+                  productName: productName,
+                  productPrice: product.price,
+                  productId: product.id,
+                  productImage: productImage,
+                });
+
+                console.log('✅ [Checkout] Notifications sent');
+
               } catch (notifError) {
-                console.error('Error sending purchase notification:', notifError);
+                console.error('❌ [Checkout] Notification error:', notifError);
               }
+            } else {
+              console.error('❌ [Checkout] Order failed');
+              Alert.alert('Error', 'Purchase failed. Please try again.');
             }
           },
         },
@@ -621,47 +951,149 @@ export default function MessagingScreen({ route }) {
     );
   };
 
-  // Format message time
-  const formatMessageTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // ✅ FIX #2: handleQuickCheckout with improved error handling
+  const handleQuickCheckout = async () => {
+    if (!activeProduct || !user) return;
+
+    const product = activeProduct;
+    const productName = product.product_name || product.item_name;
+    const productImage = product.product_image_url || product.rental_item_image;
+
+    Alert.alert(
+      "Confirm Purchase",
+      `Do you want to buy "${productName}" for ₱${product.price}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Buy Now",
+          onPress: async () => {
+            const success = await handleDirectCheckout(product, user, buyerName);
+            
+            if (success) {
+              Alert.alert("Success!", "Your order has been placed.");
+              
+              const confirmationText = `✅ I have successfully purchased "${productName}" for ₱${product.price}`;
+              const tempId = `temp-confirmation-${Date.now()}`;
+
+              const optimisticMessage = {
+                id: tempId,
+                sender_id: user.email,
+                receiver_id: receiverId,
+                text: confirmationText,
+                messages_image_url: null,
+                reply_to: null,
+                created_at: new Date().toISOString(),
+                message_type: 'purchase_confirmation',
+                product_context: product,
+              };
+
+              setMessages((prev) => [...prev, optimisticMessage]);
+
+              // Scroll to bottom
+              setTimeout(() => {
+                if (flatListRef.current) {
+                  flatListRef.current.scrollToEnd({ animated: true });
+                }
+              }, 100);
+
+              const { data: insertedMessage, error: msgError } = await supabase
+                .from('messages')
+                .insert({
+                  sender_id: user.email,
+                  receiver_id: receiverId,
+                  text: confirmationText,
+                  message_type: 'purchase_confirmation',
+                  product_context: product,
+                })
+                .select()
+                .single();
+
+              if (!msgError && insertedMessage) {
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === tempId ? insertedMessage : m))
+                );
+              } else if (msgError) {
+                console.error('❌ Failed to send confirmation:', msgError);
+                // Keep optimistic message
+              }
+
+              try {
+                const { data: buyerData } = await supabase
+                  .from('users')
+                  .select('name')
+                  .eq('email', user.email)
+                  .maybeSingle();
+
+                const buyerDisplayName = buyerData?.name || user.email;
+
+                const { data: sellerData } = await supabase
+                  .from('users')
+                  .select('name')
+                  .eq('email', receiverId)
+                  .maybeSingle();
+
+                const sellerDisplayName = sellerData?.name || receiverId;
+
+                await sendPurchaseNotification({
+                  buyerId: user.email,
+                  sellerId: receiverId,
+                  buyerName: buyerDisplayName,
+                  productName: productName,
+                  productPrice: product.price,
+                  productId: product.id,
+                  productImage: productImage,
+                });
+
+                await sendSaleConfirmationNotification({
+                  buyerId: user.email,
+                  sellerId: receiverId,
+                  sellerName: sellerDisplayName,
+                  productName: productName,
+                  productPrice: product.price,
+                  productId: product.id,
+                  productImage: productImage,
+                });
+
+              } catch (notifError) {
+                console.error('Error sending notifications:', notifError);
+              }
+
+              setActiveProduct(null);
+              setProductSent(false);
+            } else {
+              Alert.alert('Error', 'Purchase failed. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
-  // Check if messages should be grouped
-  const shouldGroupMessage = (currentMsg, prevMsg) => {
-    if (!prevMsg) return false;
-    if (currentMsg.sender_id !== prevMsg.sender_id) return false;
-    
-    const timeDiff = new Date(currentMsg.created_at) - new Date(prevMsg.created_at);
-    return timeDiff < 60000; // Group if within 1 minute
-  };
-
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMounted.current = false;
     };
   }, []);
 
-    // --- Render item with swipe & animated movement ---
-    const renderItem = ({ item, index }) => {
-      return (
-        <MessageItem
-          item={item}
-          index={index}
-          messages={messages}
-          user={user}
-          receiverName={receiverName}
-          userAvatar={userAvatar}
-          receiverAvatar={receiverAvatar}
-          onReply={handleReply}
-          onLongPress={showMessageOptions}
-          onImagePress={setSelectedImage}
-          theme={theme}
-          styles={styles}
-        />
-      );
-   };
+  const renderItem = ({ item, index }) => {
+    return (
+      <MessageItem
+        item={item}
+        index={index}
+        messages={messages}
+        user={user}
+        receiverName={receiverName}
+        userAvatar={userAvatar}
+        receiverAvatar={receiverAvatar}
+        onReply={handleReply}
+        onLongPress={showMessageOptions}
+        onImagePress={setSelectedImage}
+        onProductCheckout={onProductCheckout}
+        theme={theme}
+        styles={styles}
+      />
+    );
+  };
 
   return (
     <>
@@ -670,14 +1102,15 @@ export default function MessagingScreen({ route }) {
         backgroundColor={theme.background}
         translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <KeyboardAvoidingView
           style={styles.container}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          {/* Header */}
+          {/* HEADER */}
           <View style={styles.header}>
+            <View style={styles.headerGradient} />
             <View style={styles.headerContent}>
               <TouchableOpacity 
                 onPress={() => navigation.goBack()} 
@@ -688,17 +1121,20 @@ export default function MessagingScreen({ route }) {
               </TouchableOpacity>
               
               <View style={styles.headerUser}>
-                {receiverAvatar ? (
-                  <Image source={{ uri: receiverAvatar }} style={styles.headerAvatar} />
-                ) : (
-                  <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-                    <Icon name="user" size={20} color={theme.textSecondary} />
-                  </View>
-                )}
+                <View style={styles.headerAvatarWrapper}>
+                  {receiverAvatar ? (
+                    <Image source={{ uri: receiverAvatar }} style={styles.headerAvatar} />
+                  ) : (
+                    <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+                      <Icon name="user" size={20} color={theme.textSecondary} />
+                    </View>
+                  )}
+                  <View style={styles.onlineDot} />
+                </View>
                 <View style={styles.headerTextContainer}>
                   <Text style={styles.headerName}>{receiverName || 'User'}</Text>
                   <View style={styles.statusRow}>
-                    <View style={styles.statusDot} />
+                    <View style={styles.statusPulse} />
                     <Text style={styles.statusText}>Active now</Text>
                   </View>
                 </View>
@@ -721,53 +1157,62 @@ export default function MessagingScreen({ route }) {
             </View>
           </View>
 
-          {/* FLOATING PRODUCT CARD */}
+          {/* PRODUCT CONTEXT BAR */}
           {activeProduct && (
-            <View style={styles.floatingProductCard}>
-              <Image
-                source={{
-                  uri: (() => {
-                    const imageUrl = activeProduct.product_image_url || activeProduct.rental_item_image;
-                    if (!imageUrl) return null;
-                    if (typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
-                      return imageUrl;
-                    }
-                    return JSON.parse(imageUrl || '[]')[0];
-                  })(),
-                }}
-                style={styles.floatingProductImage}
-              />
-              <View style={styles.floatingProductInfo}>
-                <Text style={styles.floatingProductName} numberOfLines={1}>
-                  {activeProduct.product_name || activeProduct.item_name}
-                </Text>
-                <Text style={styles.floatingProductPrice}>
-                  ₱{activeProduct.price}
-                  {activeProduct.rental_duration && (
-                    <Text style={styles.rentalDuration}> / {activeProduct.rental_duration}</Text>
+            <View style={styles.productContextBar}>
+              <View style={styles.productContextGlow} />
+              <View style={styles.productContextContent}>
+                <View style={styles.productContextInfo}>
+                  <View style={styles.productContextIcon}>
+                    <Icon name="shopping-bag" size={16} color="#fff" />
+                  </View>
+                  <View style={styles.productContextText}>
+                    <Text style={styles.productContextLabel}>Product Selected</Text>
+                    <Text style={styles.productContextName} numberOfLines={1}>
+                      {activeProduct.product_name || activeProduct.item_name}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.productContextActions}>
+                  {!productSent && (
+                    <TouchableOpacity
+                      style={styles.productInfoButton}
+                      onPress={sendProductMessage}
+                      activeOpacity={0.85}
+                    >
+                      <Icon name="comment" size={14} color="#fff" />
+                      <Text style={styles.productInfoButtonText}>Send Info</Text>
+                    </TouchableOpacity>
                   )}
-                </Text>
-              </View>
-              {!activeProduct.rental_duration && user.email !== activeProduct.email && (
-                <TouchableOpacity 
-                  style={styles.productCheckoutButton}
-                  onPress={() => onProductCheckout(activeProduct)}
-                  activeOpacity={0.85}
+
+                  {!activeProduct.rental_duration && (
+                    <TouchableOpacity
+                      style={styles.productCheckoutButton}
+                      onPress={handleQuickCheckout}
+                      activeOpacity={0.85}
+                    >
+                      <Icon name="shopping-cart" size={14} color="#fff" />
+                      <Text style={styles.productCheckoutButtonText}>Checkout</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.dismissContextButton}
+                  onPress={() => {
+                    setActiveProduct(null);
+                    setProductSent(false);
+                  }}
+                  activeOpacity={0.7}
                 >
-                  <Icon name="shopping-cart" size={14} color="#fff" />
+                  <Icon name="times" size={16} color={theme.textSecondary} />
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity 
-                style={styles.productCloseButton}
-                onPress={() => setActiveProduct(null)}
-                activeOpacity={0.7}
-              >
-                <Icon name="times" size={16} color={theme.textSecondary} />
-              </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* Messages */}
+          {/* MESSAGES LIST */}
           <FlatList
             ref={flatListRef}
             data={messages}
@@ -777,14 +1222,13 @@ export default function MessagingScreen({ route }) {
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             onContentSizeChange={() => {
-              // Auto-scroll when content size changes (new message added)
               if (flatListRef.current) {
                 flatListRef.current.scrollToEnd({ animated: true });
               }
             }}
           />
 
-          {/* Typing Indicator */}
+          {/* TYPING INDICATOR */}
           {isTyping && (
             <View style={styles.typingContainer}>
               <Image 
@@ -799,24 +1243,33 @@ export default function MessagingScreen({ route }) {
             </View>
           )}
 
-          {/* Reply Preview */}
+          {/* REPLY PREVIEW */}
           {replyTo && (
             <View style={styles.replyPreviewBar}>
+              <View style={styles.replyPreviewGlow} />
               <View style={styles.replyPreviewIndicator} />
               <View style={styles.replyPreviewContent}>
                 <Text style={styles.replyPreviewLabel}>
                   Replying to {replyTo.sender_id === user.email ? 'yourself' : receiverName}
                 </Text>
-                {replyTo.text ? (
+                
+                {replyTo.message_type === 'product' && replyTo.product_context ? (
+                  <View style={styles.replyProductRow}>
+                    <Icon name="shopping-bag" size={12} color={theme.accent} />
+                    <Text style={styles.replyPreviewText} numberOfLines={1}>
+                      {' '}{replyTo.product_context.product_name || replyTo.product_context.item_name}
+                    </Text>
+                  </View>
+                ) : replyTo.text ? (
                   <Text numberOfLines={1} style={styles.replyPreviewText}>
                     {replyTo.text}
                   </Text>
-                ) : (
+                ) : replyTo.messages_image_url ? (
                   <View style={styles.replyPhotoRow}>
                     <Icon name="camera" size={12} color={theme.textTertiary} />
                     <Text style={styles.replyPreviewText}> Photo</Text>
                   </View>
-                )}
+                ) : null}
               </View>
               <TouchableOpacity onPress={cancelReply} style={styles.replyPreviewClose}>
                 <Icon name="times" size={18} color={theme.textSecondary} />
@@ -824,7 +1277,7 @@ export default function MessagingScreen({ route }) {
             </View>
           )}
 
-          {/* Image Preview */}
+          {/* IMAGE PREVIEW */}
           {images.length > 0 && (
             <View style={styles.imagePreviewSection}>
               <FlatList
@@ -834,6 +1287,7 @@ export default function MessagingScreen({ route }) {
                 renderItem={({ item, index }) => (
                   <View style={styles.previewImageWrapper}>
                     <Image source={{ uri: item }} style={styles.previewImage} />
+                    <View style={styles.previewImageOverlay} />
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => setImages(images.filter((_, i) => i !== index))}
@@ -848,14 +1302,17 @@ export default function MessagingScreen({ route }) {
             </View>
           )}
 
-          {/* Input Bar */}
+          {/* INPUT BAR */}
           <View style={styles.inputBar}>
+            <View style={styles.inputBarGlow} />
             <TouchableOpacity 
               onPress={pickImage} 
               style={styles.attachButton}
               activeOpacity={0.7}
             >
-              <Icon name="image" size={22} color={theme.accent} />
+              <View style={styles.attachButtonGradient}>
+                <Icon name="image" size={20} color={theme.accent} />
+              </View>
             </TouchableOpacity>
 
             <View style={styles.inputWrapper}>
@@ -863,7 +1320,7 @@ export default function MessagingScreen({ route }) {
                 style={styles.textInput}
                 value={input}
                 onChangeText={setInput}
-                placeholder={uploading ? 'Uploading...' : 'Message...'}
+                placeholder={uploading ? 'Uploading...' : 'Type a message...'}
                 placeholderTextColor={theme.textTertiary}
                 editable={!uploading}
                 multiline
@@ -880,16 +1337,13 @@ export default function MessagingScreen({ route }) {
               disabled={uploading || (!input.trim() && images.length === 0)}
               activeOpacity={0.85}
             >
-              <Icon 
-                name="send" 
-                size={16} 
-                color="#fff" 
-                style={styles.sendIcon}
-              />
+              <View style={styles.sendButtonInner}>
+                <Icon name="send" size={16} color="#fff" />
+              </View>
             </TouchableOpacity>
           </View>
 
-          {/* Image Modal */}
+          {/* IMAGE MODAL */}
           <Modal visible={!!selectedImage} transparent onRequestClose={() => setSelectedImage(null)}>
             <View style={styles.imageModal}>
               <TouchableOpacity 
@@ -897,7 +1351,9 @@ export default function MessagingScreen({ route }) {
                 onPress={() => setSelectedImage(null)}
                 activeOpacity={0.8}
               >
-                <Icon name="times" size={28} color="#fff" />
+                <View style={styles.modalCloseInner}>
+                  <Icon name="times" size={24} color="#fff" />
+                </View>
               </TouchableOpacity>
               <Image 
                 source={{ uri: selectedImage }} 
@@ -907,7 +1363,7 @@ export default function MessagingScreen({ route }) {
             </View>
           </Modal>
 
-          {/* Long-press options modal */}
+          {/* OPTIONS MODAL */}
           <Modal transparent visible={optionsVisible} animationType="fade">
             <TouchableOpacity
               style={styles.optionsModalOverlay}
@@ -929,6 +1385,7 @@ export default function MessagingScreen({ route }) {
                     <Icon name="reply" size={18} color={theme.accent} />
                   </View>
                   <Text style={styles.optionLabel}>Reply</Text>
+                  <Icon name="chevron-right" size={14} color={theme.textTertiary} />
                 </TouchableOpacity>
 
                 {selectedMessage?.sender_id === user.email && (
@@ -941,6 +1398,7 @@ export default function MessagingScreen({ route }) {
                       <Icon name="trash" size={18} color={theme.error} />
                     </View>
                     <Text style={[styles.optionLabel, styles.optionLabelDanger]}>Unsend</Text>
+                    <Icon name="chevron-right" size={14} color={theme.error} />
                   </TouchableOpacity>
                 )}
 
@@ -960,7 +1418,7 @@ export default function MessagingScreen({ route }) {
   );
 }
 
-// Dark theme colors (matching InboxScreen)
+// THEMES
 const darkTheme = {
   background: '#0a0e27',
   cardBackground: '#141b3c',
@@ -968,19 +1426,17 @@ const darkTheme = {
   textSecondary: '#a8b2d1',
   textTertiary: '#6b7280',
   myBubble: '#0084ff',
-  otherBubble: '#2d3548',
+  otherBubble: '#1e2544',
   accent: '#FDAD00',
   success: '#10b981',
   error: '#ef4444',
   border: '#252b47',
   inputBackground: '#1e2544',
-  statusDot: '#10b981',
   replyLine: '#0084ff',
   swipeBackground: '#3b82f6',
   shadowColor: '#000',
 };
 
-// Light theme colors (matching InboxScreen)
 const lightTheme = {
   background: '#f8fafc',
   cardBackground: '#ffffff',
@@ -988,13 +1444,12 @@ const lightTheme = {
   textSecondary: '#64748b',
   textTertiary: '#94a3b8',
   myBubble: '#0084ff',
-  otherBubble: '#e5e7eb',
+  otherBubble: '#f1f5f9',
   accent: '#f59e0b',
   success: '#10b981',
   error: '#ef4444',
   border: '#e2e8f0',
   inputBackground: '#f1f5f9',
-  statusDot: '#10b981',
   replyLine: '#0084ff',
   swipeBackground: '#3b82f6',
   shadowColor: '#000',
@@ -1009,44 +1464,49 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1, 
     backgroundColor: theme.background,
   },
-  
-  // Header
   header: { 
     backgroundColor: theme.cardBackground,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  headerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: theme.accent,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   backButton: {
     marginRight: 12,
-    padding: 4,
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: theme.inputBackground,
   },
   headerUser: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  headerAvatar: { 
-    width: 42, 
-    height: 42, 
-    borderRadius: 21,
+  headerAvatarWrapper: {
+    position: 'relative',
     marginRight: 12,
+  },
+  headerAvatar: { 
+    width: 44, 
+    height: 44, 
+    borderRadius: 22,
     borderWidth: 2,
     borderColor: theme.accent,
   },
@@ -1055,6 +1515,17 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.success,
+    borderWidth: 2,
+    borderColor: theme.cardBackground,
+  },
   headerTextContainer: {
     flex: 1,
   },
@@ -1062,22 +1533,22 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 17, 
     fontWeight: '700',
     color: theme.text,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    letterSpacing: -0.3,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: 3,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.statusDot,
+  statusPulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.success,
     marginRight: 6,
   },
   statusText: { 
-    fontSize: 13, 
+    fontSize: 12, 
     color: theme.textSecondary,
     fontWeight: '500',
   },
@@ -1086,92 +1557,124 @@ const createStyles = (theme) => StyleSheet.create({
     gap: 8,
   },
   headerIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: theme.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
-  // Floating Product Card
-  floatingProductCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  productContextBar: {
     backgroundColor: theme.cardBackground,
-    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  floatingProductImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    marginRight: 12,
+  productContextGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: theme.accent,
+    opacity: 0.6,
   },
-  floatingProductInfo: {
+  productContextContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  productContextInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
+    gap: 10,
   },
-  floatingProductName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.text,
-    marginBottom: 2,
-  },
-  floatingProductPrice: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.accent,
-  },
-  rentalDuration: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    fontWeight: '500',
-  },
-  productCheckoutButton: {
-    backgroundColor: theme.success,
+  productContextIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
+    backgroundColor: theme.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  productCloseButton: {
+  productContextText: {
+    flex: 1,
+  },
+  productContextLabel: {
+    fontSize: 10,
+    color: theme.textSecondary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 3,
+  },
+  productContextName: {
+    fontSize: 14,
+    color: theme.text,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  productContextActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  productInfoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  productInfoButtonText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  productCheckoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.success,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  productCheckoutButtonText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  dismissContextButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: theme.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
   },
-  
-  // Messages List
   messagesList: { 
     flex: 1,
   },
   messagesContent: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    paddingBottom: 8,
   },
-  
-  // Message Wrapper
   messageWrapper: { 
     flexDirection: 'row', 
     alignItems: 'flex-end',
-    marginVertical: 2,
+    marginVertical: 3,
   },
   myWrapper: { 
     justifyContent: 'flex-end',
@@ -1181,14 +1684,27 @@ const createStyles = (theme) => StyleSheet.create({
   },
   avatarContainer: {
     width: 32,
-    marginHorizontal: 4,
+    marginHorizontal: 6,
+  },
+  avatarWrapper: {
+    position: 'relative',
   },
   messageAvatar: { 
     width: 32, 
     height: 32, 
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: theme.border,
+  },
+  avatarRing: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: `${theme.accent}30`,
   },
   avatarSpacer: {
     width: 32,
@@ -1197,23 +1713,15 @@ const createStyles = (theme) => StyleSheet.create({
   messageContentWrapper: {
     maxWidth: '75%',
   },
-  
-  // Message Bubble
   messageBubble: { 
-    paddingHorizontal: 14, 
-    paddingVertical: 10,
+    paddingHorizontal: 16, 
+    paddingVertical: 12,
     borderRadius: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
   },
   myBubble: { 
     backgroundColor: theme.myBubble,
@@ -1222,64 +1730,409 @@ const createStyles = (theme) => StyleSheet.create({
   otherBubble: { 
     backgroundColor: theme.otherBubble,
     borderBottomLeftRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  purchaseConfirmationBubble: {
+    backgroundColor: '#10B98110',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+  },
+  purchaseConfirmationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#10B98130',
+  },
+  purchaseConfirmationLabel: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  // 🎉 Purchase Confirmation Card Styles
+  purchaseConfirmationCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    minWidth: 280,
+    maxWidth: 300,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  purchaseCardBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#10B981',
+  },
+  purchaseConfirmationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: `${theme.border}80`,
+    gap: 8,
+  },
+  purchaseSuccessBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  purchaseConfirmationHeaderText: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  purchaseSparkle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: `${theme.success}20`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  purchaseMessageContent: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  purchaseImageWrapper: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  purchaseMessageImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    backgroundColor: theme.inputBackground,
+  },
+  purchaseImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '100%',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  purchaseImageBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+  },
+  purchaseMessageInfo: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  purchaseMessageName: {
+    fontSize: 15,
+    color: theme.text,
+    fontWeight: '700',
+    lineHeight: 20,
+    letterSpacing: -0.2,
+    marginBottom: 6,
+  },
+  purchasePriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    marginBottom: 8,
+  },
+  purchaseMessagePrice: {
+    fontSize: 18,
+    color: '#10B981',
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  purchaseStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: `${theme.success}20`,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  purchaseStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  purchaseStatusText: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  purchaseSuccessFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${theme.success}15`,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  purchaseSuccessFooterText: {
+    fontSize: 12,
+    color: theme.text,
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 16,
   },
   bubbleText: { 
     fontSize: 15, 
     color: theme.text,
-    lineHeight: 20,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    lineHeight: 22,
+    letterSpacing: -0.1,
   },
   myBubbleText: {
     color: '#ffffff',
   },
   messageImage: { 
-    width: 220, 
-    height: 220, 
-    borderRadius: 14, 
+    width: 240, 
+    height: 240, 
+    borderRadius: 16, 
+    marginTop: 8,
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 6,
+    gap: 6,
   },
   messageTime: {
     fontSize: 11,
     color: theme.textTertiary,
-    marginTop: 4,
     fontWeight: '500',
   },
   myMessageTime: {
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'right',
+    color: 'rgba(255,255,255,0.75)',
   },
-  checkMark: {
+  checkMarks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  productMessageCard: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    minWidth: 280,
+    maxWidth: 300,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  productMessageCardMine: {
+    borderColor: `${theme.myBubble}40`,
+  },
+  productCardBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: theme.accent,
+  },
+  productMessageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    gap: 8,
+  },
+  productBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: theme.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productMessageHeaderText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.9)',
+    color: theme.textSecondary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    flex: 1,
   },
-  
-  // Reply Indicator
+  productMessageContent: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  productImageWrapper: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 12,
+  },
+  productMessageImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: theme.inputBackground,
+  },
+  productImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  productMessageInfo: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  productMessageName: {
+    fontSize: 15,
+    color: theme.text,
+    fontWeight: '700',
+    lineHeight: 20,
+    letterSpacing: -0.2,
+    marginBottom: 6,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    marginBottom: 6,
+  },
+  productMessagePrice: {
+    fontSize: 18,
+    color: theme.accent,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  productMessageDuration: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: '600',
+  },
+  productMessageConditionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: `${theme.success}20`,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  conditionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.success,
+  },
+  productMessageConditionText: {
+    fontSize: 11,
+    color: theme.success,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  productMessageCheckoutBtn: {
+    overflow: 'hidden',
+    borderRadius: 12,
+    shadowColor: theme.success,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  checkoutGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.success,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  productMessageCheckoutText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
   replyIndicator: { 
     backgroundColor: theme.otherBubble,
     borderLeftWidth: 3, 
     borderLeftColor: theme.replyLine,
-    padding: 8,
-    borderRadius: 10,
-    marginBottom: 4,
+    padding: 10,
+    borderRadius: 12,
+    marginBottom: 6,
     flexDirection: 'row',
   },
   replyIndicatorMine: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   replyLine: {
     width: 3,
     backgroundColor: theme.replyLine,
     borderRadius: 2,
-    marginRight: 8,
+    marginRight: 10,
   },
   replyContent: {
     flex: 1,
   },
   replyLabel: { 
     fontSize: 12, 
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.accent,
-    marginBottom: 2,
+    marginBottom: 3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   replyText: { 
     fontSize: 13, 
@@ -1289,27 +2142,31 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  
-  // Typing Indicator
+  replyProductRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   typingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
   },
   typingAvatar: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    marginRight: 8,
+    marginRight: 10,
+    borderWidth: 1.5,
+    borderColor: theme.border,
   },
   typingBubble: {
     flexDirection: 'row',
     backgroundColor: theme.otherBubble,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     borderRadius: 20,
-    gap: 4,
+    gap: 5,
   },
   typingDot: {
     width: 8,
@@ -1317,46 +2174,56 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 4,
     backgroundColor: theme.textTertiary,
   },
-  
-  // Reply Preview Bar
   replyPreviewBar: { 
     flexDirection: 'row', 
     alignItems: 'center',
     backgroundColor: theme.cardBackground,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: theme.border,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  replyPreviewGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: theme.accent,
   },
   replyPreviewIndicator: {
     width: 3,
-    height: 36,
+    height: 40,
     backgroundColor: theme.accent,
     borderRadius: 2,
-    marginRight: 12,
+    marginRight: 14,
   },
   replyPreviewContent: { 
     flex: 1,
   },
   replyPreviewLabel: { 
-    fontSize: 13, 
+    fontSize: 12, 
     color: theme.accent, 
-    fontWeight: '600',
-    marginBottom: 2,
+    fontWeight: '700',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   replyPreviewText: { 
     fontSize: 14, 
     color: theme.textSecondary,
   },
   replyPreviewClose: {
-    padding: 4,
-    marginLeft: 8,
+    padding: 6,
+    marginLeft: 10,
+    borderRadius: 10,
+    backgroundColor: theme.inputBackground,
   },
-  
-  // Image Preview Section
   imagePreviewSection: {
     backgroundColor: theme.cardBackground,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.border,
@@ -1364,117 +2231,140 @@ const createStyles = (theme) => StyleSheet.create({
   previewImageWrapper: {
     position: 'relative',
     marginRight: 12,
+    overflow: 'hidden',
+    borderRadius: 14,
   },
   previewImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: 90,
+    height: 90,
+    borderRadius: 14,
+  },
+  previewImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   removeImageButton: {
     position: 'absolute',
-    top: -8,
-    right: -8,
+    top: -6,
+    right: -6,
     backgroundColor: theme.error,
-    borderRadius: 11,
-    width: 22,
-    height: 22,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: theme.error,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  
-  // Input Bar
   inputBar: { 
     flexDirection: 'row', 
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: theme.cardBackground,
     borderTopWidth: 1,
     borderTopColor: theme.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  inputBarGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: theme.accent,
+    opacity: 0.3,
   },
   attachButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  attachButtonGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: theme.inputBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
   },
   inputWrapper: {
     flex: 1,
     backgroundColor: theme.inputBackground,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 40,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    minHeight: 44,
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   textInput: { 
     fontSize: 15,
     color: theme.text,
     maxHeight: 100,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    letterSpacing: -0.1,
   },
   sendButton: { 
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginLeft: 10,
+  },
+  sendButtonInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: theme.accent,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
   },
   sendButtonDisabled: {
-    backgroundColor: theme.textTertiary,
-    opacity: 0.6,
+    opacity: 0.5,
   },
-  sendIcon: {
-    marginLeft: 2,
-  },
-  
-  // Swipe Action
   swipeAction: { 
     justifyContent: 'center',
     alignItems: 'center',
     width: 70,
-    marginVertical: 2,
+    marginVertical: 3,
   },
   swipeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: theme.swipeBackground,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: theme.swipeBackground,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  
-  // Image Modal
   imageModal: { 
     flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.95)',
+    backgroundColor: 'rgba(0,0,0,0.96)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1484,91 +2374,91 @@ const createStyles = (theme) => StyleSheet.create({
   },
   modalCloseButton: { 
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    top: 60,
     right: 20,
     zIndex: 10,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalCloseInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  
-  // Options Modal
   optionsModalOverlay: { 
     flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
   },
   optionsModalContent: { 
     backgroundColor: theme.cardBackground,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    paddingTop: 12,
+    paddingBottom: 40,
+    shadowColor: theme.shadowColor,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
   },
   optionsHandle: {
     width: 40,
-    height: 4,
+    height: 5,
     backgroundColor: theme.border,
-    borderRadius: 2,
+    borderRadius: 3,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    marginBottom: 8,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    marginBottom: 10,
     backgroundColor: theme.inputBackground,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   optionItemCancel: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.border,
     marginTop: 8,
   },
   optionIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: `${theme.accent}20`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 16,
   },
   optionIconDanger: {
     backgroundColor: `${theme.error}20`,
   },
   optionLabel: { 
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.text,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    flex: 1,
+    letterSpacing: -0.2,
   },
   optionLabelDanger: {
     color: theme.error,
   },
   optionLabelCancel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.textSecondary,
     textAlign: 'center',
     flex: 1,
+    letterSpacing: -0.2,
   },
 });

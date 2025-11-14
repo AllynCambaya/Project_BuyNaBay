@@ -2,16 +2,159 @@
 import { supabase } from '../supabase/supabaseClient';
 import { sendPushNotification } from './PushNotificationSender';
 
+// Notification Types
+export const NotificationType = {
+  MESSAGE: 'message',
+  PURCHASE: 'purchase',
+  SALE: 'sale',
+  PRODUCT_SHARED: 'product_shared',
+};
+
+// Base notification sender
+export const sendEnhancedNotification = async ({
+  senderId,
+  receiverId,
+  type,
+  title,
+  message,
+  metadata = {},
+}) => {
+  try {
+    console.log('🔔 [NotificationHelper] Sending notification:', type);
+
+    const { data: notification, error: notificationError } = await supabase
+      .from('notifications')
+      .insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        type: type,
+        title: title,
+        message: message,
+        metadata: metadata,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (notificationError) {
+      console.error('❌ Notification error:', notificationError);
+      return false;
+    }
+
+    console.log('✅ Notification sent:', notification.id);
+    return true;
+  } catch (err) {
+    console.error('❌ Notification exception:', err);
+    return false;
+  }
+};
+
+// Purchase Notification (for seller)
+export const sendPurchaseNotification = async ({
+  buyerId,
+  sellerId,
+  buyerName,
+  productName,
+  productPrice,
+  productId,
+  productImage = null,
+}) => {
+  const metadata = {
+    product_id: productId,
+    product_name: productName,
+    product_price: productPrice,
+    product_image: productImage,
+    buyer_id: buyerId,
+    buyer_name: buyerName,
+    action: 'purchase',
+  };
+
+  const success = await sendEnhancedNotification({
+    senderId: buyerId,
+    receiverId: sellerId,
+    type: NotificationType.PURCHASE,
+    title: '🎉 Product Sold!',
+    message: `${buyerName} purchased "${productName}" for ₱${productPrice}`,
+    metadata: metadata,
+  });
+
+  if (success) {
+    // ✅ FIXED: Pass object parameter instead of positional parameters
+    await sendPushNotification({
+      receiverEmail: sellerId,
+      title: '🎉 Product Sold!',
+      body: `${buyerName} purchased "${productName}"`,
+      data: {
+        type: 'purchase',
+        screen: 'MessagingScreen',
+        params: {
+          receiverId: buyerId,
+          receiverName: buyerName,
+        },
+      },
+    });
+  }
+
+  return success;
+};
+
+// Sale Confirmation (for buyer)
+export const sendSaleConfirmationNotification = async ({
+  buyerId,
+  sellerId,
+  sellerName,
+  productName,
+  productPrice,
+  productId,
+  productImage = null,
+}) => {
+  const metadata = {
+    product_id: productId,
+    product_name: productName,
+    product_price: productPrice,
+    product_image: productImage,
+    seller_id: sellerId,
+    seller_name: sellerName,
+    action: 'sale_confirmation',
+  };
+
+  const success = await sendEnhancedNotification({
+    senderId: sellerId,
+    receiverId: buyerId,
+    type: NotificationType.SALE,
+    title: '✅ Purchase Confirmed',
+    message: `Your purchase of "${productName}" (₱${productPrice}) has been confirmed`,
+    metadata: metadata,
+  });
+
+  if (success) {
+    // ✅ FIXED: Pass object parameter
+    await sendPushNotification({
+      receiverEmail: buyerId,
+      title: '✅ Purchase Confirmed',
+      body: `You successfully purchased "${productName}"`,
+      data: {
+        type: 'sale',
+        screen: 'OrderHistory',
+      },
+    });
+  }
+
+  return success;
+};
+
+// Message Notification (enhanced with product context)
 export const sendMessageNotification = async ({
   senderEmail,
   receiverEmail,
   messageText,
   hasImages = false,
+  productContext = null,
 }) => {
   try {
     console.log('🔔 [NotificationHelper] Sending notification to:', receiverEmail);
 
-    // Fetch sender's name
     const { data: senderData, error: senderError } = await supabase
       .from('users')
       .select('name')
@@ -24,35 +167,53 @@ export const sendMessageNotification = async ({
 
     const senderName = senderData?.name || senderEmail;
 
-    // Construct notification message
     let notificationMessage = '';
     let pushTitle = 'New Message';
-    
-    if (hasImages && !messageText) {
+    let notificationType = NotificationType.MESSAGE;
+    let metadata = { has_images: hasImages };
+
+    // Product shared
+    if (productContext) {
+      notificationType = NotificationType.PRODUCT_SHARED;
+      notificationMessage = `${senderName} shared a product: ${productContext.product_name || productContext.item_name}`;
+      pushTitle = '📦 Product Shared';
+      metadata = {
+        ...metadata,
+        product_id: productContext.id,
+        product_name: productContext.product_name || productContext.item_name,
+        product_price: productContext.price,
+        product_image: productContext.product_image_url || productContext.rental_item_image,
+      };
+    }
+    // Image message
+    else if (hasImages && !messageText) {
       notificationMessage = `${senderName} sent you a photo`;
     } else if (hasImages && messageText) {
       const truncatedText = messageText.length > 50 
         ? `${messageText.substring(0, 50)}...` 
         : messageText;
       notificationMessage = `${senderName} sent you a photo: ${truncatedText}`;
-    } else if (messageText) {
+    }
+    // Text message
+    else if (messageText) {
       const truncatedText = messageText.length > 100 
         ? `${messageText.substring(0, 100)}...` 
         : messageText;
       notificationMessage = `${truncatedText}`;
-      pushTitle = senderName; // Use sender name as title for text messages
+      pushTitle = senderName;
     } else {
       notificationMessage = `${senderName} sent you a message`;
     }
 
-    // Insert notification into database
     const { data: notification, error: notificationError } = await supabase
       .from('notifications')
       .insert({
         sender_id: senderEmail,
         receiver_id: receiverEmail,
-        title: 'New Message',
+        type: notificationType,
+        title: productContext ? '📦 Product Shared' : 'New Message',
         message: notificationMessage,
+        metadata: metadata,
         is_read: false,
         created_at: new Date().toISOString(),
       })
@@ -66,13 +227,13 @@ export const sendMessageNotification = async ({
 
     console.log('✅ [NotificationHelper] Database notification created:', notification.id);
 
-    // Send push notification
-    await sendPushNotification(
-      receiverEmail,
-      pushTitle,
-      notificationMessage,
-      {
-        type: 'message',
+    // ✅ FIXED: Pass object parameter instead of positional parameters
+    await sendPushNotification({
+      receiverEmail: receiverEmail,
+      title: pushTitle,
+      body: notificationMessage,
+      data: {
+        type: notificationType,
         senderId: senderEmail,
         senderName: senderName,
         screen: 'MessagingScreen',
@@ -80,8 +241,8 @@ export const sendMessageNotification = async ({
           receiverId: senderEmail,
           receiverName: senderName,
         },
-      }
-    );
+      },
+    });
 
     return true;
 
@@ -91,16 +252,15 @@ export const sendMessageNotification = async ({
   }
 };
 
+// Keep your existing sendProductSoldNotification for backward compatibility
 export const sendProductSoldNotification = async ({
   buyerEmail,
   sellerEmail,
   productName,
   price,
+  productId = null,
 }) => {
   try {
-    console.log('🔔 [NotificationHelper] Sending product sold notification to:', sellerEmail);
-
-    // Fetch buyer's name
     const { data: buyerData } = await supabase
       .from('users')
       .select('name')
@@ -108,42 +268,15 @@ export const sendProductSoldNotification = async ({
       .maybeSingle();
 
     const buyerName = buyerData?.name || buyerEmail;
-    const notificationMessage = `${buyerName} purchased "${productName}" for ₱${price}`;
 
-    // Insert notification
-    const { error } = await supabase
-      .from('notifications')
-      .insert({
-        sender_id: buyerEmail,
-        receiver_id: sellerEmail,
-        title: 'Product Sold',
-        message: notificationMessage,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      });
-
-    if (error) {
-      console.error('❌ [NotificationHelper] Failed to send product sold notification:', error);
-      return false;
-    }
-
-    // Send push notification
-    await sendPushNotification(
-      sellerEmail,
-      'Product Sold! 🎉',
-      notificationMessage,
-      {
-        type: 'order',
-        buyerEmail: buyerEmail,
-        productName: productName,
-        price: price,
-        screen: 'OrderHistory',
-      }
-    );
-
-    console.log('✅ [NotificationHelper] Product sold notification sent successfully');
-    return true;
-
+    return await sendPurchaseNotification({
+      buyerId: buyerEmail,
+      sellerId: sellerEmail,
+      buyerName: buyerName,
+      productName: productName,
+      productPrice: price,
+      productId: productId,
+    });
   } catch (error) {
     console.error('❌ [NotificationHelper] Unexpected error:', error);
     return false;

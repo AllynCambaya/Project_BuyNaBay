@@ -22,143 +22,8 @@ import { auth } from "../../firebase/firebaseConfig";
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
-import { sendPushNotification } from '../../utils/PushNotificationSender';
 
 const { width, height } = Dimensions.get('window');
-
-export const sendMessageNotification = async ({
-  senderEmail,
-  receiverEmail,
-  messageText,
-  hasImages = false,
-}) => {
-  try {
-    const { data: senderData, error: senderError } = await supabase
-      .from('users')
-      .select('name')
-      .eq('email', senderEmail)
-      .maybeSingle();
-
-    if (senderError) {
-      console.warn('⚠️ [NotificationHelper] Error fetching sender name:', senderError);
-    }
-
-    const senderName = senderData?.name || senderEmail;
-
-    let notificationMessage = '';
-    let pushTitle = 'New Message';
-    
-    if (hasImages && !messageText) {
-      notificationMessage = `${senderName} sent you a photo`;
-    } else if (hasImages && messageText) {
-      const truncatedText = messageText.length > 50 
-        ? `${messageText.substring(0, 50)}...` 
-        : messageText;
-      notificationMessage = `${senderName} sent you a photo: ${truncatedText}`;
-    } else if (messageText) {
-      const truncatedText = messageText.length > 100 
-        ? `${messageText.substring(0, 100)}...` 
-        : messageText;
-      notificationMessage = `${truncatedText}`;
-      pushTitle = senderName;
-    } else {
-      notificationMessage = `${senderName} sent you a message`;
-    }
-
-    const { data: notification, error: notificationError } = await supabase
-      .from('notifications')
-      .insert({
-        sender_id: senderEmail,
-        receiver_id: receiverEmail,
-        title: 'New Message',
-        message: notificationMessage,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (notificationError) {
-      console.error('❌ [NotificationHelper] Failed to insert notification:', notificationError);
-      return false;
-    }
-
-    await sendPushNotification(
-      receiverEmail,
-      pushTitle,
-      notificationMessage,
-      {
-        type: 'message',
-        senderId: senderEmail,
-        senderName: senderName,
-        screen: 'MessagingScreen',
-        params: {
-          receiverId: senderEmail,
-          receiverName: senderName,
-        },
-      }
-    );
-
-    return true;
-
-  } catch (error) {
-    console.error('❌ [NotificationHelper] Unexpected error:', error);
-    return false;
-  }
-};
-
-export const sendProductSoldNotification = async ({
-  buyerEmail,
-  sellerEmail,
-  productName,
-  price,
-}) => {
-  try {
-    const { data: buyerData } = await supabase
-      .from('users')
-      .select('name')
-      .eq('email', buyerEmail)
-      .maybeSingle();
-
-    const buyerName = buyerData?.name || buyerEmail;
-    const notificationMessage = `${buyerName} purchased "${productName}" for ₱${price}`;
-
-    const { error } = await supabase
-      .from('notifications')
-      .insert({
-        sender_id: buyerEmail,
-        receiver_id: sellerEmail,
-        title: 'Product Sold',
-        message: notificationMessage,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      });
-
-    if (error) {
-      console.error('❌ [NotificationHelper] Failed to send product sold notification:', error);
-      return false;
-    }
-
-    await sendPushNotification(
-      sellerEmail,
-      'Product Sold! 🎉',
-      notificationMessage,
-      {
-        type: 'order',
-        buyerEmail: buyerEmail,
-        productName: productName,
-        price: price,
-        screen: 'OrderHistory',
-      }
-    );
-
-    return true;
-
-  } catch (error) {
-    console.error('❌ [NotificationHelper] Unexpected error:', error);
-    return false;
-  }
-};
 
 const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete }) => {
   const animatedScale = useRef(new Animated.Value(1)).current;
@@ -199,8 +64,8 @@ const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete 
     displayMessage = `${item.grouped_count} new messages`;
   }
 
-  const iconName = getNotificationIcon(item.title);
-  const iconColor = getNotificationColor(item.title, theme);
+  const iconName = getNotificationIcon(item.type, item.title);
+  const iconColor = getNotificationColor(item.type, item.title, theme);
 
   const notifDate = new Date(item.created_at);
   const now = new Date();
@@ -274,6 +139,21 @@ const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete 
             {displayMessage}
           </Text>
 
+          {/* NEW: Show product badge if metadata contains product info */}
+          {item.metadata?.product_name && (
+            <View style={styles.productMetaBadge}>
+              <Icon name="shopping-bag" size={10} color={iconColor} />
+              <Text style={[styles.productMetaText, { fontFamily: fontFamily.semiBold }]} numberOfLines={1}>
+                {item.metadata.product_name}
+              </Text>
+              {item.metadata?.product_price && (
+                <Text style={[styles.productMetaPrice, { fontFamily: fontFamily.bold }]}>
+                  ₱{item.metadata.product_price}
+                </Text>
+              )}
+            </View>
+          )}
+
           <View style={styles.metaRow}>
             <View style={styles.timeRow}>
               <Ionicons name="time-outline" size={12} color={theme.textSecondary} />
@@ -284,7 +164,7 @@ const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete 
           </View>
         </View>
 
-        {/* Action Buttons - Properly Centered */}
+        {/* Action Buttons */}
         <View style={styles.actionButtonsContainer}>
           {!item.is_read && (
             <TouchableOpacity
@@ -314,16 +194,31 @@ const NotificationItem = ({ item, index, theme, onPress, onMarkAsRead, onDelete 
   );
 };
 
-// Helper functions
-const getNotificationIcon = (title) => {
+// 🆕 UPDATED: Helper functions with type-aware detection
+const getNotificationIcon = (type, title) => {
+  // Check type first (new system)
+  if (type === 'purchase') return 'shopping-cart';
+  if (type === 'sale') return 'check-circle';
+  if (type === 'product_shared') return 'gift';
+  if (type === 'message') return 'envelope';
+  
+  // Fallback to title-based detection (old system)
   if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'shopping-cart';
   if (title.includes('Rent') || title.includes('Rental')) return 'calendar';
   if (title.includes('Message')) return 'envelope';
   if (title.includes('Review')) return 'star';
+  if (title.includes('Product') || title.includes('Shared')) return 'gift';
   return 'bell';
 };
 
-const getNotificationColor = (title, theme) => {
+const getNotificationColor = (type, title, theme) => {
+  // Check type first (new system)
+  if (type === 'purchase') return '#10B981'; // Green for sales
+  if (type === 'sale') return '#10B981'; // Green for confirmed purchases
+  if (type === 'product_shared') return theme.accent;
+  if (type === 'message') return '#3b82f6'; // Blue for messages
+  
+  // Fallback to title-based detection (old system)
   if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return theme.accent;
   if (title.includes('Rent') || title.includes('Rental')) return theme.rentalColor || '#6366F1';
   if (title.includes('Message')) return theme.messageColor || '#10B981';
@@ -331,7 +226,12 @@ const getNotificationColor = (title, theme) => {
   return theme.accent;
 };
 
-const getNotificationCategory = (title) => {
+const getNotificationCategory = (type, title) => {
+  // Check type first
+  if (type === 'purchase' || type === 'sale') return 'orders';
+  if (type === 'product_shared' || type === 'message') return 'messages';
+  
+  // Fallback to title-based
   if (title.includes('Order') || title.includes('Checkout') || title.includes('Sold')) return 'orders';
   if (title.includes('Rent') || title.includes('Rental')) return 'rentals';
   if (title.includes('Message')) return 'messages';
@@ -718,22 +618,56 @@ export default function NotificationsScreen({ navigation }) {
     setConfirmModalVisible(true);
   };
 
+  // 🆕 UPDATED: handleNotificationPress with type-based navigation
   const handleNotificationPress = async (notification) => {
     await markAsRead(notification);
 
-    if (notification.title.includes('Message') && notification.sender_id) {
-      try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('name')
-          .eq('email', notification.sender_id)
-          .maybeSingle();
+    // Handle different notification types
+    switch (notification.type) {
+      case 'purchase':
+      case 'sale':
+      case 'product_shared':
+      case 'message':
+        // All these types should navigate to messaging
+        if (notification.sender_id) {
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('name, profile_photo')
+              .eq('email', notification.sender_id)
+              .maybeSingle();
 
-        const receiverName = userData?.name || null;
-        navigateToMessaging({ receiverId: notification.sender_id, receiverName });
-      } catch (err) {
-        navigateToMessaging({ receiverId: notification.sender_id });
-      }
+            const receiverName = userData?.name || null;
+            const receiverAvatar = userData?.profile_photo || null;
+            
+            navigateToMessaging({ 
+              receiverId: notification.sender_id, 
+              receiverName,
+              receiverAvatar,
+            });
+          } catch (err) {
+            navigateToMessaging({ receiverId: notification.sender_id });
+          }
+        }
+        break;
+
+      default:
+        // Fallback for old-style notifications (title-based)
+        if (notification.title.includes('Message') && notification.sender_id) {
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('name')
+              .eq('email', notification.sender_id)
+              .maybeSingle();
+
+            const receiverName = userData?.name || null;
+            navigateToMessaging({ receiverId: notification.sender_id, receiverName });
+          } catch (err) {
+            navigateToMessaging({ receiverId: notification.sender_id });
+          }
+        }
+        break;
     }
   };
 
@@ -742,10 +676,13 @@ export default function NotificationsScreen({ navigation }) {
     fetchNotifications(true);
   };
 
+  // 🆕 UPDATED: getFilteredNotifications with type-aware function
   const getFilteredNotifications = () => {
     if (filter === 'all') return notifications;
     if (filter === 'unread') return notifications.filter(n => !n.is_read);
-    return notifications.filter(n => getNotificationCategory(n.title) === filter);
+    
+    // Updated to use type-aware category function
+    return notifications.filter(n => getNotificationCategory(n.type, n.title) === filter);
   };
 
   const filteredNotifications = getFilteredNotifications();
@@ -1367,6 +1304,30 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textSecondary,
     lineHeight: 19,
     marginBottom: 8,
+  },
+  // 🆕 NEW: Product metadata badge styles
+  productMetaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${theme.accent}10`,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: `${theme.accent}30`,
+  },
+  productMetaText: {
+    fontSize: 11,
+    color: theme.text,
+    flex: 1,
+  },
+  productMetaPrice: {
+    fontSize: 11,
+    color: theme.accent,
+    marginLeft: 4,
   },
   metaRow: {
     flexDirection: 'row',

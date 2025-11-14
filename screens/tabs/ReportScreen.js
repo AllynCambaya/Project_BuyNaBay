@@ -91,11 +91,12 @@ export default function ReportScreen({ route, navigation }) {
     try {
       const { error } = await supabase.from('reports').insert([
         {
-          reporter_id: user?.email,
-          reported_user_id: reported_student_id,
-          reported_user_name: reported_name,
+          reporter_name: user?.displayName || 'Anonymous',
+          reporter_student_id: user?.email || '',
+          reported_student_id: reported_student_id,
+          reported_name: reported_name,
           reason: selectedReason,
-          description: description.trim(),
+          details: description.trim(),
           created_at: new Date().toISOString(),
         },
       ]);
@@ -149,8 +150,8 @@ export default function ReportScreen({ route, navigation }) {
               <Icon name="chevron-left" size={24} color={theme.text} />
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
-              <Text style={[styles.headerTitle, { fontWeight: fontFamily.semiBold }]}>Report User</Text>
-              <Text style={[styles.headerSubtitle, { fontWeight: fontFamily.medium }]}>Help keep BuyNaBay safe</Text>
+              <Text style={styles.headerTitle}>Report User</Text>
+              <Text style={styles.headerSubtitle}>Help keep BuyNaBay safe</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
@@ -175,8 +176,8 @@ export default function ReportScreen({ route, navigation }) {
                   <Icon name="shield" size={28} color={theme.error} />
                 </View>
                 <View style={styles.warningContent}>
-                  <Text style={[styles.warningTitle, { fontWeight: fontFamily.bold }]}>Confidential Report</Text>
-                  <Text style={[styles.warningText, { fontWeight: fontFamily.regular }]}>
+                  <Text style={styles.warningTitle}>Confidential Report</Text>
+                  <Text style={styles.warningText}>
                     Your report helps protect our community. All submissions are reviewed confidentially.
                   </Text>
                 </View>
@@ -188,7 +189,7 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.sectionIconContainer}>
                     <Icon name="user" size={14} color={theme.accent} />
                   </View>
-                  <Text style={[styles.sectionTitle, { fontWeight: fontFamily.semiBold }]}>Reporting</Text>
+                  <Text style={styles.sectionTitle}>Reporting</Text>
                 </View>
                 
                 <View style={styles.userCard}>
@@ -205,8 +206,8 @@ export default function ReportScreen({ route, navigation }) {
                     </View>
                   </View>
                   <View style={styles.userInfo}>
-                    <Text style={[styles.userName, { fontWeight: fontFamily.bold }]}>{reported_name || 'User'}</Text>
-                    <Text style={[styles.userEmail, { fontWeight: fontFamily.regular }]}>{reported_student_id}</Text>
+                    <Text style={styles.userName}>{reported_name || 'User'}</Text>
+                    <Text style={styles.userEmail}>{reported_student_id}</Text>
                   </View>
                 </View>
               </View>
@@ -217,8 +218,8 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.sectionIconContainer}>
                     <Icon name="list-ul" size={14} color={theme.accent} />
                   </View>
-                  <Text style={[styles.sectionTitle, { fontWeight: fontFamily.semiBold }]}>Select Reason</Text>
-                  {selectedReason && <Text style={[styles.sectionBadge, { fontWeight: fontFamily.bold }]}>Selected</Text>}
+                  <Text style={styles.sectionTitle}>Select Reason</Text>
+                  {selectedReason && <Text style={styles.sectionBadge}>Selected</Text>}
                 </View>
 
                 <View style={styles.reasonsGrid}>
@@ -257,12 +258,11 @@ export default function ReportScreen({ route, navigation }) {
                           style={[
                             styles.reasonLabel,
                             isSelected && styles.reasonLabelSelected,
-                            { fontWeight: isSelected ? fontFamily.bold : fontFamily.semiBold }
                           ]}
                         >
                           {reason.label}
                         </Text>
-                        <Text style={[styles.reasonDescription, { fontWeight: fontFamily.regular }]}>{reason.description}</Text>
+                        <Text style={styles.reasonDescription}>{reason.description}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -275,13 +275,13 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.sectionIconContainer}>
                     <Icon name="align-left" size={14} color={theme.accent} />
                   </View>
-                  <Text style={[styles.sectionTitle, { fontWeight: fontFamily.semiBold }]}>Additional Details</Text>
-                  <Text style={[styles.requiredBadge, { fontWeight: fontFamily.bold }]}>Required</Text>
+                  <Text style={styles.sectionTitle}>Additional Details</Text>
+                  <Text style={styles.requiredBadge}>Required</Text>
                 </View>
 
                 <View style={styles.textAreaCard}>
                   <TextInput
-                    style={[styles.textArea, { fontWeight: fontFamily.regular }]}
+                    style={styles.textArea}
                     value={description}
                     onChangeText={setDescription}
                     multiline
@@ -293,12 +293,11 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.textAreaFooter}>
                     <View style={styles.textAreaHint}>
                       <Icon name="info-circle" size={12} color={theme.textSecondary} />
-                      <Text style={[styles.hintText, { fontWeight: fontFamily.regular }]}>Be as specific as possible</Text>
+                      <Text style={styles.hintText}>Be as specific as possible</Text>
                     </View>
                     <Text style={[
                       styles.charCount,
                       description.length >= 450 && styles.charCountWarning,
-                      { fontWeight: fontFamily.semiBold }
                     ]}>
                       {description.length}/500
                     </Text>
@@ -313,8 +312,8 @@ export default function ReportScreen({ route, navigation }) {
                     <Icon name="lock" size={16} color={theme.success} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoTitle, { fontWeight: fontFamily.semiBold }]}>Your Privacy Protected</Text>
-                    <Text style={[styles.infoText, { fontWeight: fontFamily.regular }]}>
+                    <Text style={styles.infoTitle}>Your Privacy Protected</Text>
+                    <Text style={styles.infoText}>
                       Reports are confidential and will not be shared with the reported user.
                     </Text>
                   </View>
@@ -325,8 +324,8 @@ export default function ReportScreen({ route, navigation }) {
                     <Icon name="clock-o" size={16} color={theme.accent} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={[styles.infoTitle, { fontWeight: fontFamily.semiBold }]}>Review Process</Text>
-                    <Text style={[styles.infoText, { fontWeight: fontFamily.regular }]}>
+                    <Text style={styles.infoTitle}>Review Process</Text>
+                    <Text style={styles.infoText}>
                       Our team will review your report within 24-48 hours and take appropriate action.
                     </Text>
                   </View>
@@ -340,7 +339,7 @@ export default function ReportScreen({ route, navigation }) {
             {selectedReasonData && (
               <View style={styles.selectionSummary}>
                 <Icon name={selectedReasonData.icon} size={16} color={theme.accent} />
-                <Text style={[styles.summaryText, { fontWeight: fontFamily.semiBold }]}>{selectedReasonData.label}</Text>
+                <Text style={styles.summaryText}>{selectedReasonData.label}</Text>
               </View>
             )}
             <TouchableOpacity
@@ -356,12 +355,12 @@ export default function ReportScreen({ route, navigation }) {
               {submitting ? (
                 <View style={styles.buttonContent}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.submitButtonText, { fontWeight: fontFamily.semiBold }]}>Submitting Report...</Text>
+                  <Text style={styles.submitButtonText}>Submitting Report...</Text>
                 </View>
               ) : (
                 <View style={styles.buttonContent}>
                   <Icon name="send" size={18} color="#fff" />
-                  <Text style={[styles.submitButtonText, { fontWeight: fontFamily.bold }]}>Submit Report</Text>
+                  <Text style={styles.submitButtonText}>Submit Report</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -390,8 +389,8 @@ export default function ReportScreen({ route, navigation }) {
                   <View style={styles.successIconCircle}>
                     <Icon name="check" size={48} color="#fff" />
                   </View>
-                  <Text style={[styles.successTitle, { fontWeight: fontFamily.extraBold }]}>Report Submitted!</Text>
-                  <Text style={[styles.successMessage, { fontWeight: fontFamily.regular }]}>
+                  <Text style={styles.successTitle}>Report Submitted!</Text>
+                  <Text style={styles.successMessage}>
                     Thank you for helping keep BuyNaBay safe. We'll review your report shortly.
                   </Text>
                 </Animated.View>
@@ -484,10 +483,12 @@ const createStyles = (theme) => StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
+    fontWeight: '600',
     color: theme.text,
   },
   headerSubtitle: {
     fontSize: 12,
+    fontWeight: '500',
     color: theme.textSecondary,
     marginTop: 2,
   },
@@ -533,11 +534,13 @@ const createStyles = (theme) => StyleSheet.create({
   },
   warningTitle: {
     fontSize: 16,
+    fontWeight: '700',
     color: theme.error,
     marginBottom: 6,
   },
   warningText: {
     fontSize: 14,
+    fontWeight: '400',
     color: theme.textSecondary,
     lineHeight: 20,
   },
@@ -562,6 +565,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 17,
+    fontWeight: '600',
     color: theme.text,
     flex: 1,
   },
@@ -571,6 +575,7 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     fontSize: 11,
+    fontWeight: '700',
     color: '#fff',
   },
   requiredBadge: {
@@ -579,6 +584,7 @@ const createStyles = (theme) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     fontSize: 11,
+    fontWeight: '700',
     color: '#fff',
   },
   
@@ -630,11 +636,13 @@ const createStyles = (theme) => StyleSheet.create({
   },
   userName: {
     fontSize: 17,
+    fontWeight: '700',
     color: theme.text,
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
+    fontWeight: '400',
     color: theme.textSecondary,
   },
   
@@ -686,14 +694,17 @@ const createStyles = (theme) => StyleSheet.create({
   },
   reasonLabel: {
     fontSize: 16,
+    fontWeight: '600',
     color: theme.text,
     marginBottom: 4,
   },
   reasonLabelSelected: {
+    fontWeight: '700',
     color: theme.text,
   },
   reasonDescription: {
     fontSize: 13,
+    fontWeight: '400',
     color: theme.textSecondary,
     lineHeight: 18,
   },
@@ -715,6 +726,7 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
+    fontWeight: '400',
     color: theme.text,
     minHeight: 140,
   },
@@ -731,10 +743,12 @@ const createStyles = (theme) => StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
+    fontWeight: '400',
     color: theme.textSecondary,
   },
   charCount: {
     fontSize: 13,
+    fontWeight: '600',
     color: theme.textSecondary,
   },
   charCountWarning: {
@@ -768,11 +782,13 @@ const createStyles = (theme) => StyleSheet.create({
   },
   infoTitle: {
     fontSize: 14,
+    fontWeight: '600',
     color: theme.text,
     marginBottom: 3,
   },
   infoText: {
     fontSize: 13,
+    fontWeight: '400',
     color: theme.textSecondary,
     lineHeight: 18,
   },
@@ -802,6 +818,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   summaryText: {
     fontSize: 14,
+    fontWeight: '600',
     color: theme.text,
   },
   submitButton: {
@@ -827,6 +844,7 @@ const createStyles = (theme) => StyleSheet.create({
   submitButtonText: {
     color: '#fff',
     fontSize: 17,
+    fontWeight: '600',
   },
   
   // Success Modal 
@@ -864,6 +882,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   successTitle: {
     fontSize: 24,
+    fontWeight: '800',
     color: theme.text,
     marginBottom: 10,
     textAlign: 'center',
@@ -871,6 +890,7 @@ const createStyles = (theme) => StyleSheet.create({
   },
   successMessage: {
     fontSize: 15,
+    fontWeight: '400',
     color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,

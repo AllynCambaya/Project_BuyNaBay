@@ -17,7 +17,6 @@ import AddRentalScreen from './AddRentalScreen';
 import AddScreen from './AddScreen';
 import AdminPanel from './AdminPanel';
 import CartScreen from './CartScreen';
-import CheckoutScreen from './CheckoutScreen';
 import GetVerifiedScreen from './GetVerifiedScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
@@ -27,8 +26,10 @@ import MessagingScreen from './MessagingScreen';
 import NotVerifiedScreen from './NotVerifiedScreen';
 import ProductScreen from './ProductScreen';
 import ProfileScreen from './ProfileScreen';
+import PurchasedHistoryScreen from './PurchasedHistoryScreen';
 import RentalScreen from './RentalScreen';
 import ReportScreen from './ReportScreen';
+import SoldHistoryScreen from './SoldHistoryScreen'; // ⭐ NEW IMPORT
 import VerificationStatusScreen from './VerificationStatusScreen';
 
 const Tab = createBottomTabNavigator();
@@ -206,8 +207,6 @@ function CustomTabBarBackground({ theme, isDarkMode, insets }) {
   );
 }
 
-// MODIFIED: ScreenWrapper no longer applies top safe area
-// Each screen is now responsible for its own header and top padding
 function ScreenWrapper({ children, theme, insets }) {
   return (
     <View 
@@ -609,7 +608,19 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+      
+      {/* ⭐ HISTORY SCREENS - Updated route names */}
+      <Stack.Screen 
+        name="PurchasedHistory" 
+        component={PurchasedHistoryScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="SoldHistory" 
+        component={SoldHistoryScreen} 
+        options={{ headerShown: false }}
+      />
+      
       <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
     </Stack.Navigator>
   );

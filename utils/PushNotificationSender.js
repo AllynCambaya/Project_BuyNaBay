@@ -1,48 +1,53 @@
 // utils/PushNotificationSender.js
 import { supabase } from '../supabase/supabaseClient';
 
-/**
- * Send a push notification to a specific user
- * @param {string} receiverEmail - Email of the user to send notification to
- * @param {string} title - Notification title
- * @param {string} body - Notification body/message
- * @param {object} data - Additional data to include (for navigation, etc.)
- */
-export const sendPushNotification = async (receiverEmail, title, body, data = {}) => {
-  try {
-    console.log('📤 [PushNotificationSender] Sending push to:', receiverEmail);
+const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
 
-    // Fetch the user's push token from database
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('push_token')
-      .eq('email', receiverEmail)
+/**
+ * Send push notification to a single user
+ */
+export async function sendPushNotification({ 
+  receiverEmail, 
+  title, 
+  body, 
+  data = {} 
+}) {
+  console.log('📤 [PushNotificationSender] Sending push to:', receiverEmail);
+
+  try {
+    // ✅ FIXED: Fetch from push_tokens table instead of users table
+    const { data: tokenData, error: fetchError } = await supabase
+      .from('push_tokens')
+      .select('push_token, device_type')
+      .eq('user_email', receiverEmail)
       .maybeSingle();
 
-    if (userError) {
-      console.error('❌ [PushNotificationSender] Error fetching push token:', userError);
-      return false;
+    if (fetchError) {
+      console.error('❌ [PushNotificationSender] Error fetching push token:', fetchError);
+      return { success: false, error: fetchError };
     }
 
-    if (!userData?.push_token) {
-      console.warn('⚠️ [PushNotificationSender] No push token found for user:', receiverEmail);
-      return false;
+    if (!tokenData?.push_token) {
+      console.warn('⚠️ [PushNotificationSender] No push token found for:', receiverEmail);
+      return { success: false, error: 'No push token' };
     }
 
-    const pushToken = userData.push_token;
+    console.log('✅ [PushNotificationSender] Found push token for:', receiverEmail);
 
-    // Send the push notification via Expo's push notification service
+    // Construct push notification payload
     const message = {
-      to: pushToken,
+      to: tokenData.push_token,
       sound: 'default',
       title: title,
       body: body,
       data: data,
       priority: 'high',
       channelId: 'default',
+      badge: 1,
     };
 
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    // Send to Expo Push API
+    const response = await fetch(EXPO_PUSH_API, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -54,80 +59,67 @@ export const sendPushNotification = async (receiverEmail, title, body, data = {}
 
     const result = await response.json();
 
-    if (result.data?.status === 'error') {
-      console.error('❌ [PushNotificationSender] Push notification failed:', result.data.message);
-      return false;
+    // Check for errors in Expo response
+    if (result.data?.[0]?.status === 'error') {
+      console.error('❌ [PushNotificationSender] Expo API error:', result.data[0]);
+      
+      // Handle DeviceNotRegistered error (token expired)
+      if (result.data[0].details?.error === 'DeviceNotRegistered') {
+        console.log('🗑️ [PushNotificationSender] Removing expired token');
+        await supabase
+          .from('push_tokens')
+          .delete()
+          .eq('push_token', tokenData.push_token);
+      }
+      
+      return { success: false, error: result.data[0] };
     }
 
-    console.log('✅ [PushNotificationSender] Push notification sent successfully');
-    return true;
+    console.log('✅ [PushNotificationSender] Push sent successfully');
+    return { success: true, data: result };
 
   } catch (error) {
     console.error('❌ [PushNotificationSender] Unexpected error:', error);
-    return false;
+    return { success: false, error: error.message };
   }
-};
+}
 
 /**
- * Send push notifications to multiple users
- * @param {Array<string>} receiverEmails - Array of user emails
- * @param {string} title - Notification title
- * @param {string} body - Notification body/message
- * @param {object} data - Additional data to include
+ * Send push notifications to multiple users (bulk)
  */
-export const sendBulkPushNotifications = async (receiverEmails, title, body, data = {}) => {
-  try {
-    console.log(`📤 [PushNotificationSender] Sending bulk push to ${receiverEmails.length} users`);
+export async function sendBulkPushNotifications(notifications) {
+  console.log(`📤 [PushNotificationSender] Sending ${notifications.length} push notifications`);
+  
+  const results = await Promise.allSettled(
+    notifications.map(notif => sendPushNotification(notif))
+  );
 
-    // Fetch all push tokens
-    const { data: usersData, error } = await supabase
-      .from('users')
-      .select('email, push_token')
-      .in('email', receiverEmails);
+  const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+  const failed = results.length - successful;
+
+  console.log(`📊 [PushNotificationSender] Bulk send: ${successful} succeeded, ${failed} failed`);
+  
+  return { successful, failed, results };
+}
+
+/**
+ * Get all push tokens for a user (in case of multiple devices)
+ */
+export async function getAllPushTokensForUser(userEmail) {
+  try {
+    const { data, error } = await supabase
+      .from('push_tokens')
+      .select('push_token, device_type')
+      .eq('user_email', userEmail);
 
     if (error) {
-      console.error('❌ [PushNotificationSender] Error fetching push tokens:', error);
-      return false;
+      console.error('❌ [PushNotificationSender] Error fetching tokens:', error);
+      return [];
     }
 
-    // Filter out users without push tokens
-    const validTokens = usersData
-      .filter(user => user.push_token)
-      .map(user => user.push_token);
-
-    if (validTokens.length === 0) {
-      console.warn('⚠️ [PushNotificationSender] No valid push tokens found');
-      return false;
-    }
-
-    // Create messages for all tokens
-    const messages = validTokens.map(token => ({
-      to: token,
-      sound: 'default',
-      title: title,
-      body: body,
-      data: data,
-      priority: 'high',
-      channelId: 'default',
-    }));
-
-    // Send all notifications
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
-
-    const result = await response.json();
-    console.log('✅ [PushNotificationSender] Bulk push notifications sent:', result);
-    return true;
-
+    return data || [];
   } catch (error) {
-    console.error('❌ [PushNotificationSender] Unexpected error:', error);
-    return false;
+    console.error('❌ [PushNotificationSender] Error in getAllPushTokensForUser:', error);
+    return [];
   }
-};
+}
