@@ -683,7 +683,7 @@ const createStyles = (theme, insets, isDarkMode, statusColor) => StyleSheet.crea
   
   // Header
   headerContainer: {
-    paddingTop: insets.top,
+    paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: theme.background,

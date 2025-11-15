@@ -152,8 +152,8 @@ export default function GetVerifiedScreen({ navigation }) {
       }
       if (!phone.trim()) {
         newErrors.phone = 'Phone number is required';
-      } else if (!/^\+63\d{10}$/.test(phone)) {
-        newErrors.phone = 'Use format: +63XXXXXXXXXX';
+      } else if (!/^09\d{9}$/.test(phone)) {
+        newErrors.phone = 'Use format: 09XXXXXXXXX';
       }
       if (!studentId.trim()) {
         newErrors.studentId = 'Student ID is required';
@@ -493,7 +493,7 @@ export default function GetVerifiedScreen({ navigation }) {
                 setPhone(text);
                 setErrors({ ...errors, phone: null });
               }}
-              placeholder="+63XXXXXXXXXX"
+              placeholder="09XXXXXXXXXX"
               placeholderTextColor={theme.textSecondary}
               keyboardType="phone-pad"
               maxLength={13}
@@ -505,7 +505,7 @@ export default function GetVerifiedScreen({ navigation }) {
               <Text style={[styles.errorText, { fontFamily: fontFamily.medium }]}>{errors.phone}</Text>
             </View>
           ) : (
-            <Text style={[styles.helperText, { fontFamily: fontFamily.regular }]}>Format: +63 followed by 10 digits</Text>
+            <Text style={[styles.helperText, { fontFamily: fontFamily.regular }]}>Format: 09 followed by 9 digits</Text>
           )}
         </View>
 
@@ -924,7 +924,7 @@ export default function GetVerifiedScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.background}
@@ -937,22 +937,6 @@ export default function GetVerifiedScreen({ navigation }) {
           { transform: [{ translateY: headerSlideAnim }], opacity: fadeAnim }
         ]}
       >
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            onPress={handleBack}
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </TouchableOpacity>
-
-          <View style={styles.headerTitleContainer}>
-            <Text style={[styles.headerStepText, { fontFamily: fontFamily.semiBold }]}>
-              Step {currentStep} of 3
-            </Text>
-          </View>
-        </View>
-
         <View style={styles.headerContent}>
           <View style={styles.logoCircle}>
             <Image
@@ -1090,48 +1074,21 @@ const createStyles = (theme, insets, isDarkMode) => StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 10,
     fontSize: 15,
     color: theme.textSecondary,
   },
   
   // Header Styles
   headerContainer: {
-    paddingTop: insets.top,
-    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingHorizontal: 30,
     paddingBottom: 24,
     backgroundColor: isDarkMode 
       ? 'rgba(42, 40, 86, 0.6)' 
       : 'rgba(253, 173, 0, 0.05)',
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.cardBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: theme.shadowColor || '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerStepText: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    letterSpacing: 0.5,
   },
   headerContent: {
     alignItems: 'center',

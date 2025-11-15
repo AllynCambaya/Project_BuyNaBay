@@ -221,20 +221,14 @@ export default function NotVerifiedScreen({ navigation }) {
         </View>
 
         <View style={styles.topBar}>
-          <TouchableOpacity
-            onPress={handleGoBack}
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={22} color={theme.text} />
-          </TouchableOpacity>
-
           <View style={styles.logoContainer}>
-            <Image
-              source={require('../../assets/images/OfficialBuyNaBay.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+             <View style={styles.logoWrapper}>
+                <Image
+                  source={require('../../assets/images/OfficialBuyNaBay.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                 />
+              </View>
             <View>
               <Text style={[styles.logoText, { fontFamily: fontFamily.extraBold }]}>
                 BuyNaBay
@@ -436,6 +430,7 @@ const createStyles = (theme) => StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 20,
     paddingBottom: 16,
+    paddingTop: 10,
     zIndex: 1,
   },
   backgroundGradient: {
@@ -443,7 +438,7 @@ const createStyles = (theme) => StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: '100%',
+    height: '150%',
     backgroundColor: theme.gradientBackground,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -458,27 +453,27 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.cardBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: theme.shadowColor || '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     flex: 1,
   },
+  logoWrapper: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: 'rgba(253, 173, 0, 0.15)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+  },
   logoImage: {
-    width: 32,
-    height: 32,
+    width: 26,
+    height: 26,
   },
   logoText: {
     fontSize: 18,
