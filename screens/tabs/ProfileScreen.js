@@ -216,6 +216,53 @@ export default function ProfileScreen({ navigation, route }) {
     }
   };
 
+  // Edit Product Handler
+  const handleEditProduct = (product) => {
+    const isRental = activeTab === 'rent';
+    
+    if (isRental) {
+      navigation.navigate('EditRental', { rentalItem: product });
+    } else {
+      navigation.navigate('EditProduct', { product });
+    }
+  };
+
+  // Delete Product Handler
+  const handleDeleteProduct = async (product) => {
+    const isRental = activeTab === 'rent';
+    const itemType = isRental ? 'rental item' : 'product';
+    
+    Alert.alert(
+      `Delete ${itemType}`,
+      `Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const tableName = isRental ? 'rental_items' : 'products';
+              
+              const { error } = await supabase
+                .from(tableName)
+                .delete()
+                .eq('id', product.id);
+
+              if (error) throw error;
+              await fetchMyProducts();
+              
+              Alert.alert('Success', `${itemType} deleted successfully`);
+            } catch (error) {
+              console.error('Error deleting item:', error);
+              Alert.alert('Error', `Failed to delete ${itemType}`);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Update Quantity
   const handleQuantityChange = async (product, change) => {
     const newQuantity = Math.max(0, product.quantity + change);
@@ -805,17 +852,35 @@ export default function ProfileScreen({ navigation, route }) {
                   </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.visibilityToggle}
-                  onPress={() => handleToggleVisibility(product)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons 
-                    name={product.is_visible ? "eye" : "eye-off"} 
-                    size={18} 
-                    color={product.is_visible ? theme.accent : theme.textSecondary} 
-                  />
-                </TouchableOpacity>
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity
+                    style={styles.actionIconButton}
+                    onPress={() => handleEditProduct(product)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="pencil" size={16} color={theme.primaryButton || '#2196F3'} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionIconButton}
+                    onPress={() => handleDeleteProduct(product)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash" size={16} color="#FF6B6B" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionIconButton}
+                    onPress={() => handleToggleVisibility(product)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons 
+                      name={product.is_visible ? "eye" : "eye-off"} 
+                      size={16} 
+                      color={product.is_visible ? theme.accent : theme.textSecondary} 
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : (
               <TouchableOpacity
@@ -1471,14 +1536,12 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Controls
+// Controls
   controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+    gap: 8,
   },
   quantityControl: {
     flexDirection: 'row',
@@ -1486,6 +1549,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     backgroundColor: isDarkMode ? 'rgba(42, 40, 86, 0.6)' : 'rgba(245, 245, 245, 1)',
     borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 8,
   },
   qtyButton: {
     width: 32,
@@ -1499,17 +1563,24 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     opacity: 0.4,
   },
   qtyText: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     fontSize: 15,
     color: theme.text,
   },
-  visibilityToggle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  actionIconButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 12,
     backgroundColor: isDarkMode ? 'rgba(42, 40, 86, 0.6)' : 'rgba(245, 245, 245, 1)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
   },
   messageButton: {
     borderRadius: 12,

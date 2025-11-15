@@ -17,6 +17,8 @@ import AddRentalScreen from './AddRentalScreen';
 import AddScreen from './AddScreen';
 import AdminPanel from './AdminPanel';
 import CartScreen from './CartScreen';
+import EditProductScreen from './EditProductScreen';
+import EditRentalScreen from './EditRentalScreen';
 import GetVerifiedScreen from './GetVerifiedScreen';
 import HomeScreen from './HomeScreen';
 import InboxScreen from './InboxScreen';
@@ -29,8 +31,9 @@ import ProfileScreen from './ProfileScreen';
 import PurchasedHistoryScreen from './PurchasedHistoryScreen';
 import RentalScreen from './RentalScreen';
 import ReportScreen from './ReportScreen';
-import SoldHistoryScreen from './SoldHistoryScreen'; // ⭐ NEW IMPORT
+import SoldHistoryScreen from './SoldHistoryScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
+
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -336,9 +339,10 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
         options={{ tabBarLabel: 'Home' }}
       />
 
+
       <Tab.Screen
         name="Cart"
-        component={wrapScreen(CartScreen)}
+        component={CartScreen}
         options={{ tabBarLabel: 'Cart' }}
         listeners={({ navigation }) => ({
           tabPress: (e) => handleTabPress(e, navigation, 'Cart'),
@@ -506,6 +510,8 @@ export default function MainTabNavigator({ route }) {
         }}
       />
       <Stack.Screen name="Messaging" component={MessagingScreen} />
+      <Stack.Screen name="EditProduct" component={EditProductScreen} />
+      <Stack.Screen name="EditRental"  component={EditRentalScreen} options={{ headerShown: false }}/>
       <Stack.Screen name="LostAndFound" component={LostAndFoundScreen} />
       <Stack.Screen name="AddLostItem" component={AddLostItemScreen} />
       <Stack.Screen name="LostAndFoundDetails" component={LostAndFoundDetailsScreen} />
@@ -609,7 +615,7 @@ export default function MainTabNavigator({ route }) {
         }}
       />
       
-      {/* ⭐ HISTORY SCREENS - Updated route names */}
+      {/* History Screens */}
       <Stack.Screen 
         name="PurchasedHistory" 
         component={PurchasedHistoryScreen} 

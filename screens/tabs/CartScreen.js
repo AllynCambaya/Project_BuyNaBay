@@ -1,4 +1,10 @@
 // screens/tabs/CartScreen.js
+// ✅ FIXED: Cart checkout now behaves exactly like MessagingScreen checkout
+// - Correctly identifies seller from products table
+// - Sends purchase confirmation message card to seller conversation
+// - Updates purchase history with complete seller information
+// - Matches MessagingScreen's data structure 1:1
+
 import { FontAwesome as Icon, Ionicons } from '@expo/vector-icons';
 import ExpoCheckbox from "expo-checkbox";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,79 +34,183 @@ import { sendPurchaseNotification, sendSaleConfirmationNotification } from '../.
 
 const { width, height } = Dimensions.get('window');
 
-export const handleDirectCheckout = async (product, buyer, buyerName, checkoutQuantity = 1) => {
+// ✅ FIX #1: Enhanced handleDirectCheckout with proper seller identification and message card generation
+export const handleDirectCheckout = async (product, buyer, buyerName, checkoutQuantity = 1, sendConfirmationCard = false) => {
   if (!product || !buyer || !buyerName) {
+    console.error("❌ [Checkout] Missing required parameters");
     Alert.alert("Error", "Missing product or user information for checkout.");
     return false;
   }
 
   try {
-    // Insert into checkout history
-    const { error: historyError } = await supabase
-      .from("checkout_history")
-      .insert([{
-        buyer_email: buyer.email,
-        product_name: product.product_name,
-        price: product.price,
-        quantity: checkoutQuantity,
-        seller_name: product.seller_name || 'Unknown Seller',
-        checkout_date: new Date().toISOString(),
-      }]);
-
-    if (historyError) throw historyError;
-
-    // Get current product details
+    console.log('🛒 [Checkout] Starting checkout process...');
+    console.log('📦 [Checkout] Product:', product.product_name || product.item_name);
+    console.log('👤 [Checkout] Buyer:', buyerName);
+    console.log('🔢 [Checkout] Quantity:', checkoutQuantity);
+    
+    // ✅ FIX #1A: Get complete product details from database
+    const productId = product.id || product.product_id;
+    
+    if (!productId) {
+      console.error('❌ [Checkout] No product ID found');
+      throw new Error("Product ID is missing.");
+    }
+    
     const { data: currentProduct, error: productError } = await supabase
       .from("products")
-      .select("quantity, email")
-      .eq("id", product.id || product.product_id)
+      .select("quantity, email, product_name, price, product_image_url")
+      .eq("id", productId)
       .single();
 
-    if (productError || !currentProduct) {
-      throw new Error("Could not retrieve product details for checkout.");
+    if (productError) {
+      console.error('❌ [Checkout] Failed to retrieve product:', productError);
+      throw new Error(`Could not retrieve product: ${productError.message}`);
+    }
+    
+    if (!currentProduct) {
+      console.error('❌ [Checkout] Product not found');
+      throw new Error("Product not found in database.");
     }
 
+    console.log('✅ [Checkout] Product retrieved:', currentProduct.product_name);
+    console.log('👨‍💼 [Checkout] Seller email:', currentProduct.email);
+
+    // ✅ FIX #1B: Validate stock
     if (currentProduct.quantity < checkoutQuantity) {
+      console.warn('⚠️ [Checkout] Insufficient stock');
       Alert.alert("Insufficient Stock", `Only ${currentProduct.quantity} items available.`);
       return false;
     }
 
-    // Update product quantity
+    // ✅ FIX #1C: Get seller's display name from users table
+    const { data: sellerData, error: sellerError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('email', currentProduct.email)
+      .maybeSingle();
+
+    if (sellerError) {
+      console.error('⚠️ [Checkout] Error fetching seller name:', sellerError);
+    }
+
+    const sellerDisplayName = sellerData?.name || 'Unknown Seller';
+    console.log('✅ [Checkout] Final seller name:', sellerDisplayName);
+
+    // ✅ FIX #2: Insert into checkout history with complete seller information
+    console.log('💾 [Checkout] Saving to checkout_history...');
+    const { error: historyError } = await supabase
+      .from("checkout_history")
+      .insert([{
+        buyer_email: buyer.email,
+        product_name: currentProduct.product_name,
+        price: currentProduct.price,
+        quantity: checkoutQuantity,
+        seller_name: sellerDisplayName,
+        checkout_date: new Date().toISOString(),
+      }]);
+
+    if (historyError) {
+      console.error('❌ [Checkout] History error:', historyError);
+      throw new Error(`Failed to save checkout history: ${historyError.message}`);
+    }
+
+    console.log('✅ [Checkout] History saved successfully');
+
+    // ✅ FIX #3: Update product quantity
     const newQuantity = currentProduct.quantity - checkoutQuantity;
+    console.log('📊 [Checkout] Updating stock:', currentProduct.quantity, '->', newQuantity);
+    
     const { error: updateError } = await supabase
       .from("products")
       .update({ 
         quantity: newQuantity,
         is_visible: newQuantity > 0 
       })
-      .eq("id", product.id || product.product_id);
+      .eq("id", productId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('❌ [Checkout] Update error:', updateError);
+      throw new Error(`Failed to update product quantity: ${updateError.message}`);
+    }
 
-    // Send notifications
-    await sendPurchaseNotification({
-      buyerId: buyer.email,
-      sellerId: currentProduct.email,
-      buyerName: buyerName,
-      productName: product.product_name,
-      productPrice: product.price,
-      productId: product.id || product.product_id,
-      productImage: product.product_image_url,
-    });
+    console.log('✅ [Checkout] Stock updated successfully');
 
-    await sendSaleConfirmationNotification({
-      buyerId: buyer.email,
-      sellerId: currentProduct.email,
-      sellerName: product.seller_name || 'Unknown Seller',
-      productName: product.product_name,
-      productPrice: product.price,
-      productId: product.id || product.product_id,
-      productImage: product.product_image_url,
-    });
+    // ✅ FIX #4: Send purchase confirmation message card (EXACTLY like MessagingScreen)
+    if (sendConfirmationCard) {
+      console.log('💬 [Checkout] Sending purchase confirmation message card...');
+      
+      try {
+        const productImage = currentProduct.product_image_url;
+        const confirmationText = `✅ I have successfully purchased "${currentProduct.product_name}" for ₱${currentProduct.price}`;
 
+        // Create product context matching MessagingScreen structure
+        const productContext = {
+          id: productId,
+          product_name: currentProduct.product_name,
+          price: currentProduct.price,
+          product_image_url: productImage,
+          email: currentProduct.email,
+        };
+
+        const { data: insertedMessage, error: msgError } = await supabase
+          .from('messages')
+          .insert({
+            sender_id: buyer.email,
+            receiver_id: currentProduct.email,
+            text: confirmationText,
+            message_type: 'purchase_confirmation',
+            product_context: productContext,
+          })
+          .select()
+          .single();
+
+        if (msgError) {
+          console.error('❌ [Checkout] Failed to send confirmation message:', msgError);
+          // Don't fail the entire checkout if message fails
+        } else {
+          console.log('✅ [Checkout] Confirmation message sent:', insertedMessage.id);
+        }
+      } catch (msgException) {
+        console.error('❌ [Checkout] Message exception:', msgException);
+        // Don't fail the entire checkout if message fails
+      }
+    }
+
+    // ✅ FIX #5: Send notifications (with correct seller info)
+    console.log('📧 [Checkout] Sending notifications...');
+    
+    try {
+      await sendPurchaseNotification({
+        buyerId: buyer.email,
+        sellerId: currentProduct.email,
+        buyerName: buyerName,
+        productName: currentProduct.product_name,
+        productPrice: currentProduct.price,
+        productId: productId,
+        productImage: currentProduct.product_image_url,
+      });
+
+      await sendSaleConfirmationNotification({
+        buyerId: buyer.email,
+        sellerId: currentProduct.email,
+        sellerName: sellerDisplayName,
+        productName: currentProduct.product_name,
+        productPrice: currentProduct.price,
+        productId: productId,
+        productImage: currentProduct.product_image_url,
+      });
+
+      console.log('✅ [Checkout] All notifications sent successfully');
+    } catch (notifError) {
+      console.error('⚠️ [Checkout] Notification error:', notifError);
+      // Don't fail the entire checkout if notifications fail
+    }
+
+    console.log('🎉 [Checkout] Checkout completed successfully!');
     return true;
+    
   } catch (e) {
-    console.error("Direct checkout error:", e);
+    console.error("❌ [Checkout] Direct checkout error:", e);
     Alert.alert("Checkout Failed", e.message || "There was a problem processing your order.");
     return false;
   }
@@ -229,7 +339,6 @@ export default function CartScreen({ navigation }) {
       return;
     }
 
-    // Check if quantity exceeds available stock
     const item = cartItems.find(i => i.id === itemId);
     if (item?.productData?.quantity < newQuantity) {
       Alert.alert('Insufficient Stock', `Only ${item.productData.quantity} items available`);
@@ -270,6 +379,7 @@ export default function CartScreen({ navigation }) {
     ]);
   };
 
+  // ✅ FIX #6: Enhanced handleCheckout - now sends confirmation message cards
   const handleCheckout = async () => {
     if (selectedIds.length === 0) {
       Alert.alert("No Items Selected", "Please select items to checkout.");
@@ -280,33 +390,79 @@ export default function CartScreen({ navigation }) {
 
     setIsCheckingOut(true);
     let allCheckoutsSuccessful = true;
+    let successfulCheckouts = [];
+    let failedCheckouts = [];
 
+    console.log('🛒 [CartCheckout] Processing', itemsToCheckout.length, 'items');
+
+    // Process each item
     for (const item of itemsToCheckout) {
       const productToCheckout = {
         ...item.productData,
         product_id: item.productData.id,
       };
+      
+      console.log('🛒 [CartCheckout] Processing item:', item.product_name);
+      
+      // ✅ CRITICAL: Pass sendConfirmationCard=true to enable message card generation
       const success = await handleDirectCheckout(
         productToCheckout, 
         user, 
         buyerName, 
-        parseInt(item.quantity)
+        parseInt(item.quantity),
+        true
       );
-      if (!success) {
+      
+      if (success) {
+        console.log('✅ [CartCheckout] Item checkout successful:', item.product_name);
+        successfulCheckouts.push(item.id);
+      } else {
+        console.log('❌ [CartCheckout] Item checkout failed:', item.product_name);
         allCheckoutsSuccessful = false;
+        failedCheckouts.push(item.product_name);
       }
     }
     
-    if (allCheckoutsSuccessful) {
-      const { error } = await supabase.from("cart").delete().in("id", selectedIds);
-      if (!error) {
-        setCartItems(cartItems.filter((item) => !selectedIds.includes(item.id)));
-        setSelectedIds([]);
+    console.log('📊 [CartCheckout] Results:', {
+      successful: successfulCheckouts.length,
+      failed: failedCheckouts.length
+    });
+    
+    // Remove successfully checked out items from cart
+    if (successfulCheckouts.length > 0) {
+      console.log('🧹 [CartCheckout] Cleaning up cart...');
+      
+      const { error: deleteError } = await supabase
+        .from("cart")
+        .delete()
+        .in("id", successfulCheckouts);
+      
+      if (deleteError) {
+        console.error('❌ [CartCheckout] Cart cleanup error:', deleteError);
+      } else {
+        console.log('✅ [CartCheckout] Cart cleaned successfully');
+      }
+      
+      // Update UI immediately regardless of delete result
+      setCartItems(prevItems => prevItems.filter((item) => !successfulCheckouts.includes(item.id)));
+      setSelectedIds([]);
+      
+      // Refresh cart data
+      setTimeout(() => {
+        fetchCart();
+      }, 500);
+      
+      if (allCheckoutsSuccessful) {
         Alert.alert("Order Successful 🎉", "Thank you for shopping at BuyNaBay!");
       } else {
-        console.error(error);
-        Alert.alert("Checkout Failed", "There was a problem processing your order.");
+        Alert.alert(
+          "Partial Success", 
+          `${successfulCheckouts.length} item(s) checked out successfully.\n\nFailed items: ${failedCheckouts.join(', ')}`
+        );
       }
+    } else {
+      console.error('❌ [CartCheckout] All checkouts failed');
+      Alert.alert("Checkout Failed", "No items were successfully checked out. Please try again.");
     }
 
     setIsCheckingOut(false);
@@ -346,12 +502,10 @@ export default function CartScreen({ navigation }) {
         }
       ]}
     >
-      {/* Gradient Background */}
       <View style={styles.backgroundGradient}>
         <View style={styles.gradientOverlay} />
       </View>
 
-      {/* Top Navigation Bar */}
       <View style={styles.topNavBar}>
         <View style={styles.brandedLogoContainer}>
           <View style={styles.logoWrapper}>
@@ -372,7 +526,6 @@ export default function CartScreen({ navigation }) {
         </View>
 
         <View style={styles.headerActionsContainer}>
-          {/* Purchase History Button - Green */}
           <TouchableOpacity
             onPress={() => navigation.navigate('PurchasedHistory')}
             style={[styles.actionButton, styles.purchaseHistoryButton]}
@@ -381,7 +534,6 @@ export default function CartScreen({ navigation }) {
             <Ionicons name="receipt-outline" size={20} color="#fff" />
           </TouchableOpacity>
 
-          {/* Sold History Button - Blue */}
           <TouchableOpacity
             onPress={() => navigation.navigate('SoldHistory')}
             style={[styles.actionButton, styles.soldHistoryButton]}
@@ -390,7 +542,6 @@ export default function CartScreen({ navigation }) {
             <Ionicons name="bag-check-outline" size={20} color="#fff" />
           </TouchableOpacity>
           
-          {/* Profile Button */}
           <TouchableOpacity 
             onPress={() => navigation.navigate("ProfileScreen")}
             activeOpacity={0.8}
@@ -406,7 +557,6 @@ export default function CartScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Summary Cards */}
       <View style={styles.summaryCards}>
         <Animated.View style={[styles.summaryCard, { transform: [{ scale: scaleAnim }] }]}>
           <View style={[styles.cardIconContainer, { backgroundColor: `${theme.accent}15` }]}>
@@ -433,7 +583,6 @@ export default function CartScreen({ navigation }) {
         </Animated.View>
       </View>
 
-      {/* Select All Bar */}
       {cartItems.length > 0 && (
         <TouchableOpacity 
           style={styles.selectAllBar}
@@ -526,7 +675,6 @@ export default function CartScreen({ navigation }) {
               </View>
               <View style={styles.metaDivider} />
               
-              {/* Quantity Editor */}
               <View style={styles.metaItem}>
                 <Text style={[styles.metaLabel, { fontFamily: fontFamily.medium }]}>Quantity</Text>
                 <View style={styles.quantityControls}>
@@ -749,7 +897,7 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
     backgroundColor: theme.background,
   },
   listContent: {
-    paddingBottom: 140,
+    paddingBottom: 220,
   },
   loadingContainer: {
     flex: 1,
@@ -1167,13 +1315,13 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
   },
   checkoutFooter: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 50 + (insets.bottom > 10 ? insets.bottom : 30), 
     left: 0,
     right: 0,
     backgroundColor: theme.cardBackground,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: insets.bottom + 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderTopWidth: 1,
     borderTopColor: isDarkMode ? 'rgba(253, 173, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
     shadowColor: theme.shadowColor,
@@ -1185,7 +1333,7 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 0,
   },
   totalText: {
     fontSize: 14,
@@ -1213,7 +1361,7 @@ const createStyles = (theme, isDarkMode, insets) => StyleSheet.create({
     opacity: 0.5,
   },
   checkoutGradient: {
-    paddingVertical: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
