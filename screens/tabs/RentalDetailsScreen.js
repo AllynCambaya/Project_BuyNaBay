@@ -16,7 +16,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -27,6 +27,7 @@ const { width } = Dimensions.get('window');
 export default function RentalDetailsScreen({ route, navigation }) {
   const rentalItem = route?.params?.rentalItem;
   const user = auth.currentUser;
+  const insets = useSafeAreaInsets(); 
   
   const [sellerName, setSellerName] = useState('');
   const [sellerAvatar, setSellerAvatar] = useState(null);
@@ -237,6 +238,7 @@ export default function RentalDetailsScreen({ route, navigation }) {
           style={[
             styles.collapsibleHeader,
             {
+              top: insets.top,
               opacity: headerOpacity,
               transform: [{ translateY: headerTranslate }],
             },

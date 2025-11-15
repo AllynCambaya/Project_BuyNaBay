@@ -16,7 +16,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
@@ -27,6 +27,7 @@ const { width } = Dimensions.get('window');
 export default function ProductDetailsScreen({ route, navigation }) {
   const product = route?.params?.product;
   const user = auth.currentUser;
+  const insets = useSafeAreaInsets(); 
   
   const [sellerName, setSellerName] = useState('');
   const [sellerAvatar, setSellerAvatar] = useState(null);
@@ -269,6 +270,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
           style={[
             styles.collapsibleHeader,
             {
+              top: insets.top,
               opacity: headerOpacity,
               transform: [{ translateY: headerTranslate }],
             },
@@ -571,6 +573,7 @@ const createStyles = (theme, isDarkMode) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: 12,
     backgroundColor: theme.background,
     borderBottomWidth: 1,
     borderBottomColor: theme.borderColor,
