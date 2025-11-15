@@ -22,6 +22,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { getAuthErrorMessage } from '../../utils/authErrorMessages';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -123,74 +125,61 @@ const RegisterScreen = () => {
     );
   }, [name, email, password, confirmPassword]);
 
-  const handleRegister = async () => {
-    Keyboard.dismiss();
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Missing Info", "Please fill in all fields.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Password Mismatch", "Passwords do not match.");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCredential.user;
-
-      await updateProfile(user, { displayName: name.trim() });
-
-      await sendEmailVerification(user);
-
-      const { error } = await supabase.from("users").insert([
-        {
-          id: user.uid,
-          name: name.trim(),
-          email: email.trim(),
-          is_verified: false,
-        },
-      ]);
-
-      if (error) {
-        console.error("Supabase Insert Error:", error);
-        Alert.alert("Error", "Account created but failed to save profile.");
+    const handleRegister = async () => {
+      Keyboard.dismiss();
+      if (!name || !email || !password || !confirmPassword) {
+        Alert.alert("Missing Info", "Please fill in all fields.");
+        return;
       }
 
-      Alert.alert(
-        "Verify Your Email",
-        "A verification link has been sent to your email. Please verify before logging in.",
-        [{ text: "OK", onPress: () => navigation.replace("Login") }]
-      );
-
-    } catch (error) {
-      let errorMessage = 'Registration failed. Please try again.';
-      
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'This email is already registered. Please log in instead.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address format.';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Password is too weak. Please use a stronger password.';
-          break;
-        case 'auth/operation-not-allowed':
-          errorMessage = 'Email/password accounts are not enabled.';
-          break;
-        default:
-          errorMessage = error.message;
+      if (password !== confirmPassword) {
+        Alert.alert("Password Mismatch", "Passwords do not match.");
+        return;
       }
-      
-      Alert.alert('Registration Error', errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
+      setIsLoading(true);
+
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const user = userCredential.user;
+
+        await updateProfile(user, { displayName: name.trim() });
+
+        // Send verification email
+        await sendEmailVerification(user);
+
+        const { error } = await supabase.from("users").insert([
+          {
+            id: user.uid,
+            name: name.trim(),
+            email: email.trim(),
+            is_verified: false,
+          },
+        ]);
+
+        if (error) {
+          console.error("Supabase Insert Error:", error);
+        }
+
+        // Show success alert - the auth listener will handle navigation
+        Alert.alert(
+          "Registration Successful! 📧",
+          "A verification email has been sent to your inbox. Please verify your email to continue.",
+          [{ text: "OK" }]
+        );
+
+        // The auth state listener in App.js will automatically redirect to EmailVerification
+
+      } catch (error) {
+        console.error('Registration error:', error);
+        
+        // Use friendly error messages
+        const errorMessage = getAuthErrorMessage(error.code);
+        Alert.alert('Registration Error', errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    };
   const styles = createStyles(theme);
 
   return (

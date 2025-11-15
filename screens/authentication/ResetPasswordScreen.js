@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
+import { getAuthErrorMessage } from '../../utils/authErrorMessages';
 
 const { width, height } = Dimensions.get('window');
 
@@ -116,27 +117,12 @@ const ResetPasswordScreen = () => {
         [{ text: "OK", onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      let errorMessage = 'Failed to send reset email. Please try again.';
-      
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email address.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address format.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many requests. Please try again later.';
-          break;
-        default:
-          errorMessage = error.message;
-      }
-      
+      const errorMessage = getAuthErrorMessage(error.code);
       Alert.alert('Reset Password Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
-  };
+  }; // <-- This closing brace was missing!
 
   const styles = createStyles(theme);
 
@@ -173,7 +159,6 @@ const ResetPasswordScreen = () => {
             <Text style={styles.brandedLogoText}>BuyNaBay</Text>
           </View>
           
-    
           <Animated.View 
             style={[
               styles.header, 

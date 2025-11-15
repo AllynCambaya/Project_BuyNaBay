@@ -22,6 +22,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
+import { getAuthErrorMessage } from '../../utils/authErrorMessages';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -115,83 +117,75 @@ const LoginScreen = () => {
   }, [email, password]);
 
   const handleLogin = async () => {
-    Keyboard.dismiss();
-    if (!email || !password) {
-      Alert.alert("Missing Info", "Please fill in both email and password.");
+  Keyboard.dismiss();
+  if (!email || !password) {
+    Alert.alert("Missing Info", "Please fill in both email and password.");
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    const user = userCredential.user;
+
+    // IMPORTANT: Reload user to get latest verification status
+    await user.reload();
+
+    // Check if email is verified
+    if (!user.emailVerified) {
+      Alert.alert(
+        "Email Not Verified",
+        "Please verify your email before logging in. Check your inbox for the verification link.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Resend Email',
+            onPress: async () => {
+              try {
+                await sendEmailVerification(user);
+                Alert.alert('Email Sent! ✉️', 'A new verification email has been sent to your inbox.');
+                // Auth state listener will handle navigation
+              } catch (error) {
+                Alert.alert('Error', 'Failed to send verification email. Please try again later.');
+              }
+            }
+          }
+        ]
+      );
+      // Sign out user since they're not verified
+      await auth.signOut();
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-
+    // If email is verified, fetch role from Supabase
+    let role = 'user';
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCredential.user;
+      const { data, error } = await supabase
+        .from('users')
+        .select('role')
+        .eq('email', user.email)
+        .single();
 
-      if (!user.emailVerified) {
-        Alert.alert(
-          "Email Not Verified",
-          "Please verify your email before logging in.",
-          [
-            {
-              text: "Resend Email",
-              onPress: async () => {
-                await sendEmailVerification(user);
-                Alert.alert("Verification Sent", "A new verification email has been sent.");
-              }
-            },
-            { text: "OK" }
-          ]
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Fetch role from Supabase 'users' table (by email)
-      let role = 'user';
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('role')
-          .eq('email', user.email)
-          .single();
-
-        if (!error && data?.role) role = data.role;
-      } catch (supError) {
-        console.log('Supabase role lookup error:', supError?.message || supError);
-        // default to 'user' on error
-      }
-
-      // Pass role to MainTabs so MainTabNavigator can show/hide Admin tab
-      navigation.replace("MainTabs", { role });
-
-    } catch (error) {
-      let errorMessage = 'Login failed. Please try again.';
-      
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email address.';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Incorrect password. Please try again.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address format.';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'This account has been disabled.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many login attempts. Please try again later.';
-          break;
-        default:
-          errorMessage = error.message;
-      }
-      
-      Alert.alert('Login Error', errorMessage);
-    } finally {
-      setIsLoading(false);
+      if (!error && data?.role) role = data.role;
+    } catch (supError) {
+      console.log('Supabase role lookup error:', supError?.message || supError);
     }
-  };
+
+    // Auth state listener will handle navigation to MainTabs
+    console.log('✅ Login successful, user verified');
+
+  } catch (error) {
+    console.error('Login error:', error);
+    
+    // Use friendly error messages
+    const errorMessage = getAuthErrorMessage(error.code);
+    Alert.alert('Login Error', errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const styles = createStyles(theme);
 

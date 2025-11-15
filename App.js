@@ -12,6 +12,7 @@ import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'r
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { auth } from './firebase/firebaseConfig';
+import EmailVerificationScreen from './screens/authentication/EmailVerificationScreen';
 import LoginScreen from './screens/authentication/LoginScreen';
 import RegisterScreen from './screens/authentication/RegisterScreen';
 import ResetPasswordScreen from './screens/authentication/ResetPasswordScreen';
@@ -40,21 +41,29 @@ export default function App() {
   const notificationListener = useRef();
   const responseListener = useRef();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+ useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    if (currentUser) {
+      // IMPORTANT: Reload user to get latest emailVerified status
+      await currentUser.reload();
       setUser(currentUser);
-      setLoading(false);
       
-      if (currentUser) {
-        console.log('✅ User is logged in:', currentUser.email);
+      console.log('✅ User is logged in:', currentUser.email);
+      console.log('📧 Email verified:', currentUser.emailVerified);
+      
+      // Only register for push notifications if email is verified
+      if (currentUser.emailVerified) {
         registerForPushNotificationsAsync(currentUser.email);
-      } else {
-        console.log('❌ User is logged out');
       }
-    });
+    } else {
+      setUser(null);
+      console.log('❌ User is logged out');
+    }
+    setLoading(false);
+  });
 
-    return unsubscribe;
-  }, []);
+  return unsubscribe;
+}, []);
 
   useEffect(() => {
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
@@ -121,7 +130,11 @@ export default function App() {
         >
           <NavigationContainer ref={navigationRef} onReady={onLayoutRootView}>
             <Stack.Navigator 
-              initialRouteName={user ? "MainTabs" : "Login"}
+              initialRouteName={
+                user 
+                  ? (user.emailVerified ? "MainTabs" : "EmailVerification")
+                  : "Login"
+              }
               screenOptions={{ 
                 headerShown: false,
                 contentStyle: { 
@@ -129,17 +142,26 @@ export default function App() {
                 }
               }}
             >
-              {user ? (
+              {user && user.emailVerified ? (
+                // Authenticated AND verified users
                 <>
                   <Stack.Screen name="MainTabs" component={MainTabNavigator} />
                   <Stack.Screen name="Notifications" component={NotificationsScreen} />
                   <Stack.Screen name="MessagingScreen" component={MessagingScreen} />
                 </>
+              ) : user && !user.emailVerified ? (
+                // Authenticated but NOT verified users
+                <>
+                  <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+                  <Stack.Screen name="Login" component={LoginScreen} />
+                </>
               ) : (
+                // Not authenticated users
                 <>
                   <Stack.Screen name="Login" component={LoginScreen} />
                   <Stack.Screen name="Register" component={RegisterScreen} />
                   <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+                  <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
                 </>
               )}
             </Stack.Navigator>
