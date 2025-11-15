@@ -1,10 +1,13 @@
 // screens/tabs/NotVerifiedScreen.js
-import { FontAwesome as Icon } from '@expo/vector-icons';
-import { useEffect, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -13,416 +16,413 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../../firebase/firebaseConfig';
+import { supabase } from '../../supabase/supabaseClient';
+import { darkTheme, lightTheme } from '../../theme/theme';
+import { fontFamily } from '../../theme/typography';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export default function NotVerifiedScreen({ navigation }) {
-  // Automatically detect system theme
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
-
-  // Get current theme colors based on system settings
   const theme = isDarkMode ? darkTheme : lightTheme;
 
-  // Animation values
+  const [loading, setLoading] = useState(true);
+  const [rejectionReason, setRejectionReason] = useState('Your documents did not meet our verification requirements.');
+  const [canResubmit, setCanResubmit] = useState(false);
+  const [verificationData, setVerificationData] = useState(null);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const iconRotateAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Entrance animations
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Continuous icon rotation animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconRotateAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconRotateAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    checkRejectionStatus();
   }, []);
 
-  const iconRotate = iconRotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '10deg'],
-  });
+  useEffect(() => {
+    if (!loading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: 10, duration: 100, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -10, duration: 100, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 10, duration: 100, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [loading]);
+
+  const checkRejectionStatus = async () => {
+    const user = auth.currentUser;
+    if (!user?.email) {
+      navigation.replace('Tabs');
+      return;
+    }
+
+    try {
+      // ✅ Query verifications table for latest rejection
+      const { data, error } = await supabase
+        .from('verifications')
+        .select('*')
+        .eq('email', user.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (!data) {
+        Alert.alert(
+          'No Verification Found',
+          'You haven\'t submitted a verification request yet.',
+          [{ text: 'Get Verified', onPress: () => navigation.replace('GetVerified') }]
+        );
+        return;
+      }
+
+      if (data.status === 'pending') {
+        Alert.alert(
+          'Verification Pending',
+          'Your verification is currently under review.',
+          [{ text: 'View Status', onPress: () => navigation.replace('VerificationStatus') }]
+        );
+        return;
+      }
+
+      if (data.status === 'approved') {
+        Alert.alert(
+          'Already Verified',
+          'Your account is already verified!',
+          [{ text: 'OK', onPress: () => navigation.replace('Tabs') }]
+        );
+        return;
+      }
+
+      if (data.status !== 'rejected') {
+        Alert.alert(
+          'No Rejection Found',
+          'You don\'t have a rejected verification request.',
+          [{ text: 'Get Verified', onPress: () => navigation.replace('GetVerified') }]
+        );
+        return;
+      }
+
+      // If we reach here, status is 'rejected' - show the screen
+      setCanResubmit(true);
+      setVerificationData(data);
+      // You can add a 'rejection_reason' column to verifications table if you want custom reasons
+      // For now, use a generic message
+      setRejectionReason('Your documents did not meet our verification requirements.');
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error checking rejection status:', error);
+      setLoading(false);
+    }
+  };
+
+  const handleResubmit = async () => {
+    const user = auth.currentUser;
+    if (!user?.email) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    try {
+      // Double-check: ensure no pending verification exists
+      const { data: pendingCheck } = await supabase
+        .from('verifications')
+        .select('id')
+        .eq('email', user.email)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (pendingCheck) {
+        Alert.alert(
+          'Already Submitted',
+          'You already have a pending verification request.',
+          [{ text: 'View Status', onPress: () => navigation.replace('VerificationStatus') }]
+        );
+        return;
+      }
+
+      // Check if already approved
+      const { data: approvedCheck } = await supabase
+        .from('verifications')
+        .select('id')
+        .eq('email', user.email)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+      if (approvedCheck) {
+        Alert.alert(
+          'Already Verified',
+          'Your account is already verified!',
+          [{ text: 'OK', onPress: () => navigation.replace('Tabs') }]
+        );
+        return;
+      }
+
+      // Allow resubmission - navigate to GetVerifiedScreen
+      navigation.replace('GetVerified');
+    } catch (error) {
+      console.error('Error checking resubmit eligibility:', error);
+      Alert.alert('Error', 'Failed to check verification status. Please try again.');
+    }
+  };
+
+  const handleGoBack = () => {
+    navigation.navigate('Tabs');
+  };
 
   const styles = createStyles(theme);
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={theme.background}
+        />
+        <ActivityIndicator size="large" color={theme.accent} />
+        <Text style={[styles.loadingText, { fontFamily: fontFamily.medium }]}>
+          Loading verification status...
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor={theme.background}
-        translucent={false}
       />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          {/* Background gradient effect */}
-          <View style={styles.backgroundGradient} />
 
-          {/* Branded logo - upper left */}
-          <View style={styles.brandedLogoContainer}>
+      <View style={styles.headerContainer}>
+        <View style={styles.backgroundGradient}>
+          <View style={styles.gradientOverlay} />
+        </View>
+
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={22} color={theme.text} />
+          </TouchableOpacity>
+
+          <View style={styles.logoContainer}>
             <Image
               source={require('../../assets/images/OfficialBuyNaBay.png')}
-              style={styles.brandedLogoImage}
+              style={styles.logoImage}
               resizeMode="contain"
             />
-            <Text style={styles.brandedLogoText}>BuyNaBay</Text>
+            <View>
+              <Text style={[styles.logoText, { fontFamily: fontFamily.extraBold }]}>
+                BuyNaBay
+              </Text>
+              <Text style={[styles.logoSubtext, { fontFamily: fontFamily.medium }]}>
+                Verification
+              </Text>
+            </View>
           </View>
+        </View>
+      </View>
 
-          {/* Main Content */}
-          <Animated.View
-            style={[
-              styles.contentContainer,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-              },
-            ]}
-          >
-            {/* Icon Container with Animation */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View
+          style={[
+            styles.contentContainer,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+          ]}
+        >
+          <View style={styles.heroSection}>
             <Animated.View
               style={[
                 styles.iconContainer,
-                { transform: [{ rotate: iconRotate }] },
+                { transform: [{ translateX: shakeAnim }] }
               ]}
             >
-              <View style={styles.iconBackground}>
-                <Icon name="shield" size={64} color={theme.accent} />
-              </View>
+              <Ionicons name="close-circle" size={80} color={theme.error} />
             </Animated.View>
+            
+            <Text style={[styles.statusTitle, { fontFamily: fontFamily.extraBold }]}>
+              Verification Rejected
+            </Text>
+            
+            <View style={styles.statusBadge}>
+              <View style={[styles.statusDot, { backgroundColor: theme.error }]} />
+              <Text style={[styles.statusBadgeText, { fontFamily: fontFamily.bold, color: theme.error }]}>
+                Not Approved
+              </Text>
+            </View>
+            
+            <Text style={[styles.statusDescription, { fontFamily: fontFamily.regular }]}>
+              Unfortunately, your verification request was not approved. Please review the reason below and submit a new request.
+            </Text>
+          </View>
 
-            {/* Title Section */}
-            <Text style={styles.title}>Account Not Verified</Text>
-            <Text style={styles.subtitle}>Verification Required</Text>
-
-            {/* Message Card */}
-            <View style={styles.messageCard}>
-              <View style={styles.messageIconContainer}>
-                <Icon name="info-circle" size={24} color={theme.accent} />
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionIconWrapper, { backgroundColor: `${theme.error}15` }]}>
+                <Ionicons name="information-circle" size={18} color={theme.error} />
               </View>
-              <Text style={styles.message}>
-                Your account must be verified to access this feature. Complete the verification process to unlock all features and start shopping safely.
+              <Text style={[styles.sectionTitle, { fontFamily: fontFamily.bold }]}>
+                Rejection Reason
               </Text>
             </View>
 
-            {/* Benefits Section */}
-            <View style={styles.benefitsContainer}>
-              <Text style={styles.benefitsTitle}>Why Get Verified?</Text>
-              
-              <View style={styles.benefitItem}>
-                <View style={styles.benefitIconContainer}>
-                  <Icon name="check-circle" size={20} color={theme.historyColor} />
-                </View>
-                <Text style={styles.benefitText}>Access all marketplace features</Text>
-              </View>
+            <View style={styles.reasonContainer}>
+              <Text style={[styles.reasonText, { fontFamily: fontFamily.medium }]}>
+                {rejectionReason}
+              </Text>
+            </View>
+          </View>
 
-              <View style={styles.benefitItem}>
-                <View style={styles.benefitIconContainer}>
-                  <Icon name="shield" size={20} color={theme.historyColor} />
-                </View>
-                <Text style={styles.benefitText}>Enhanced account security</Text>
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconWrapper}>
+                <Ionicons name="checkmark-done" size={18} color={theme.accent} />
               </View>
-
-              <View style={styles.benefitItem}>
-                <View style={styles.benefitIconContainer}>
-                  <Icon name="star" size={20} color={theme.historyColor} />
-                </View>
-                <Text style={styles.benefitText}>Build trust with buyers & sellers</Text>
-              </View>
+              <Text style={[styles.sectionTitle, { fontFamily: fontFamily.bold }]}>
+                What to Do Next
+              </Text>
             </View>
 
-            {/* Action Buttons */}
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => navigation.navigate('GetVerified')}
-              activeOpacity={0.85}
-            >
-              <Icon name="shield" size={18} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.primaryButtonText}>Get Verified Now</Text>
-              <Icon name="arrow-right" size={16} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.stepsList}>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={[styles.stepNumberText, { fontFamily: fontFamily.bold }]}>1</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={[styles.stepTitle, { fontFamily: fontFamily.semiBold }]}>
+                    Review Requirements
+                  </Text>
+                  <Text style={[styles.stepDescription, { fontFamily: fontFamily.regular }]}>
+                    Make sure your documents meet all requirements
+                  </Text>
+                </View>
+              </View>
 
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.85}
-            >
-              <Icon name="arrow-left" size={16} color={theme.text} style={styles.buttonIcon} />
-              <Text style={styles.secondaryButtonText}>Go Back</Text>
-            </TouchableOpacity>
-          </Animated.View>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={[styles.stepNumberText, { fontFamily: fontFamily.bold }]}>2</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={[styles.stepTitle, { fontFamily: fontFamily.semiBold }]}>
+                    Prepare Documents
+                  </Text>
+                  <Text style={[styles.stepDescription, { fontFamily: fontFamily.regular }]}>
+                    Take clear, well-lit photos of your Student ID and COR
+                  </Text>
+                </View>
+              </View>
 
-          {/* Footer Info */}
-          <View style={styles.footer}>
-            <Icon name="lock" size={14} color={theme.textSecondary} />
-            <Text style={styles.footerText}> Your data is secure and protected</Text>
+              <View style={styles.stepItem}>
+                <View style={styles.stepNumber}>
+                  <Text style={[styles.stepNumberText, { fontFamily: fontFamily.bold }]}>3</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={[styles.stepTitle, { fontFamily: fontFamily.semiBold }]}>
+                    Submit Again
+                  </Text>
+                  <Text style={[styles.stepDescription, { fontFamily: fontFamily.regular }]}>
+                    Complete the verification form with accurate information
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
-        </View>
-      </SafeAreaView>
-    </>
+
+          <View style={styles.tipsCard}>
+            <View style={styles.tipsHeader}>
+              <Ionicons name="bulb" size={20} color={theme.accent} />
+              <Text style={[styles.tipsTitle, { fontFamily: fontFamily.bold }]}>
+                Tips for Success
+              </Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={14} color={theme.success} />
+              <Text style={[styles.tipText, { fontFamily: fontFamily.regular }]}>
+                Ensure all text in documents is clearly readable
+              </Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={14} color={theme.success} />
+              <Text style={[styles.tipText, { fontFamily: fontFamily.regular }]}>
+                Use good lighting without glare or shadows
+              </Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={14} color={theme.success} />
+              <Text style={[styles.tipText, { fontFamily: fontFamily.regular }]}>
+                Include all corners and edges of documents
+              </Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Ionicons name="checkmark-circle" size={14} color={theme.success} />
+              <Text style={[styles.tipText, { fontFamily: fontFamily.regular }]}>
+                Double-check that information matches your account
+              </Text>
+            </View>
+          </View>
+
+          {canResubmit && (
+            <TouchableOpacity
+              style={styles.resubmitButton}
+              onPress={handleResubmit}
+              activeOpacity={0.85}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="refresh" size={20} color="#fff" />
+                <Text style={[styles.resubmitButtonText, { fontFamily: fontFamily.bold }]}>
+                  Submit New Verification
+                </Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleGoBack}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.secondaryButtonText, { fontFamily: fontFamily.semiBold }]}>
+              Back to Home
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-// Dark theme colors 
-const darkTheme = {
-  background: '#0f0f2e',
-  gradientBackground: '#1b1b41',
-  text: '#fff',
-  textSecondary: '#bbb',
-  textTertiary: '#ccc',
-  cardBackground: '#1e1e3f',
-  cardBackgroundAlt: '#252550',
-  accent: '#FDAD00',
-  accentSecondary: '#e8ecf1',
-  historyColor: '#4CAF50',
-  error: '#d32f2f',
-  shadowColor: '#000',
-  borderColor: '#2a2a4a',
-  iconBackground: '#2a2a55',
-};
-
-// Light theme colors 
-const lightTheme = {
-  background: '#f5f7fa',
-  gradientBackground: '#e8ecf1',
-  text: '#1a1a2e',
-  textSecondary: '#4a4a6a',
-  textTertiary: '#2c2c44',
-  cardBackground: '#ffffff',
-  cardBackgroundAlt: '#f9f9fc',
-  accent: '#f39c12',
-  accentSecondary: '#e67e22',
-  historyColor: '#27ae60',
-  error: '#e74c3c',
-  shadowColor: '#000',
-  borderColor: '#e0e0ea',
-  iconBackground: '#fffbf0',
-};
-
 const createStyles = (theme) => StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.5,
-    backgroundColor: theme.gradientBackground,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    zIndex: 0,
-  },
-  brandedLogoContainer: {
-    position: 'absolute',
-    top: 60, 
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  brandedLogoImage: {
-    width: 32,
-    height: 32,
-    marginRight: 8,
-  },
-  brandedLogoText: {
-    fontSize: 18,
-    fontWeight: '800', 
-    color: theme.accentSecondary,
-    letterSpacing: -0.5,
-  },
-  contentContainer: {
-    width: '100%',
-    maxWidth: 440,
-    paddingHorizontal: Math.max(width * 0.06, 24),
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  iconContainer: {
-    marginBottom: 24,
-  },
-  iconBackground: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: theme.iconBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: theme.accent,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-  },
-  title: {
-    fontSize: Math.min(width * 0.07, 28),
-    fontWeight: '800', 
-    color: theme.text,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: theme.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-    fontWeight: '600', 
-  },
-  messageCard: {
-    backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    shadowColor: theme.shadowColor,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  messageIconContainer: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  message: {
-    flex: 1,
-    fontSize: 15,
-    color: theme.textSecondary,
-    lineHeight: 22,
-    textAlign: 'left',
-    fontWeight: '500', 
-  },
-  benefitsContainer: {
-    width: '100%',
-    backgroundColor: theme.cardBackground,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: theme.borderColor,
-    shadowColor: theme.shadowColor,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  benefitsTitle: {
-    fontSize: 18,
-    fontWeight: '800', 
-    color: theme.text,
-    marginBottom: 16,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  benefitIconContainer: {
-    marginRight: 12,
-  },
-  benefitText: {
-    flex: 1,
-    fontSize: 15,
-    color: theme.textSecondary,
-    fontWeight: '500', 
-  },
-  primaryButton: {
-    backgroundColor: theme.accent,
-    paddingVertical: 18, 
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    shadowColor: theme.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-  },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700', 
-    marginRight: 8,
-  },
-  secondaryButton: {
-    backgroundColor: theme.cardBackground,
-    paddingVertical: 16, 
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: theme.borderColor,
-    shadowColor: theme.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  secondaryButtonText: {
-    color: theme.text,
-    fontSize: 16,
-    fontWeight: '600', 
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 40, 
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  footerText: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    fontWeight: '400', 
-  },
-  loadingOverlay: {
+  safeArea: { flex: 1, backgroundColor: theme.background },
+  loadingContainer: {
     flex: 1,
     backgroundColor: theme.background,
     justifyContent: 'center',
@@ -430,7 +430,258 @@ const createStyles = (theme) => StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.textSecondary,
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    zIndex: 1,
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '100%',
+    backgroundColor: theme.gradientBackground,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+  },
+  gradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.08,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.cardBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  logoImage: {
+    width: 32,
+    height: 32,
+  },
+  logoText: {
+    fontSize: 18,
+    color: theme.accent,
+    letterSpacing: -0.4,
+    lineHeight: 22,
+  },
+  logoSubtext: {
+    fontSize: 10,
+    color: theme.textSecondary,
+    letterSpacing: 0.2,
+    marginTop: -1,
+  },
+  scrollView: { flex: 1 },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  contentContainer: {
+    gap: 16,
+  },
+  heroSection: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  iconContainer: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: `${theme.error}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  statusTitle: {
+    fontSize: 28,
+    color: theme.text,
+    textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: -0.5,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    backgroundColor: `${theme.error}20`,
+    marginBottom: 16,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  statusBadgeText: {
+    fontSize: 16,
+  },
+  statusDescription: {
+    fontSize: 15,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  card: {
+    backgroundColor: theme.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.borderColor || theme.border,
+    shadowColor: theme.shadowColor || '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: `${theme.accent}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    color: theme.text,
+    letterSpacing: -0.3,
+  },
+  reasonContainer: {
+    backgroundColor: theme.cardBackgroundAlt || `${theme.error}08`,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: `${theme.error}30`,
+  },
+  reasonText: {
+    fontSize: 15,
+    color: theme.text,
+    lineHeight: 22,
+  },
+  stepsList: {
+    gap: 16,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepNumberText: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  stepContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  stepTitle: {
+    fontSize: 16,
+    color: theme.text,
+    marginBottom: 4,
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    lineHeight: 20,
+  },
+  tipsCard: {
+    backgroundColor: theme.cardBackgroundAlt || `${theme.accent}08`,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: theme.borderColor || theme.border,
+  },
+  tipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 10,
+  },
+  tipsTitle: {
+    fontSize: 16,
+    color: theme.text,
+  },
+  tipItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.textSecondary,
+    lineHeight: 20,
+  },
+  resubmitButton: {
+    backgroundColor: theme.accent,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: theme.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+  },
+  resubmitButtonText: {
+    color: '#fff',
+    fontSize: 17,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  secondaryButton: {
+    backgroundColor: theme.cardBackgroundAlt || `${theme.borderColor}30`,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: theme.borderColor || theme.border,
+  },
+  secondaryButtonText: {
+    color: theme.text,
+    fontSize: 16,
   },
 });

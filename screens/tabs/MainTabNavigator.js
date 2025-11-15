@@ -15,7 +15,6 @@ import AddLostItemScreen from './AddLostItemScreen';
 import AddProductScreen from './AddProductScreen';
 import AddRentalScreen from './AddRentalScreen';
 import AddScreen from './AddScreen';
-import AdminPanel from './AdminPanel';
 import CartScreen from './CartScreen';
 import EditProductScreen from './EditProductScreen';
 import EditRentalScreen from './EditRentalScreen';
@@ -34,11 +33,35 @@ import ReportScreen from './ReportScreen';
 import SoldHistoryScreen from './SoldHistoryScreen';
 import VerificationStatusScreen from './VerificationStatusScreen';
 
-
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-const TAB_BAR_HEIGHT = 85
+const TAB_BAR_HEIGHT = 85;
+
+async function getVerificationStatus() {
+  try {
+    const user = auth.currentUser;
+    if (!user?.email) return 'not_requested';
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('status')
+      .eq('email', user.email)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching verification status:', error);
+      return 'not_requested';
+    }
+
+    if (!data || !data.status) return 'not_requested';
+    
+    return data.status;
+  } catch (err) {
+    console.error('Error in getVerificationStatus:', err);
+    return 'not_requested';
+  }
+}
 
 function AnimatedTabIcon({ name, color, size, focused, theme }) {
   const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
@@ -233,18 +256,19 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
     letterSpacing: 0.2,
   };
 
-  const handleTabPress = (e, navigation, tabName) => {
+  const handleTabPress = async (e, navigation, tabName) => {
     if (tabName === 'Home' || userStatus === 'approved') return;
 
     e.preventDefault();
-    const parent = navigation.getParent ? navigation.getParent() : null;
 
-    if (userStatus === 'pending') {
-      if (parent && parent.navigate) parent.navigate('VerificationStatus');
-      else navigation.navigate('VerificationStatus');
+    const currentStatus = await getVerificationStatus();
+
+    if (currentStatus === 'pending') {
+      navigation.navigate('VerificationStatus');
+    } else if (currentStatus === 'rejected') {
+      navigation.navigate('NotVerified');
     } else {
-      if (parent && parent.navigate) parent.navigate('GetVerified');
-      else navigation.navigate('GetVerified'); 
+      navigation.navigate('GetVerified');
     }
   };
 
@@ -339,7 +363,6 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
         options={{ tabBarLabel: 'Home' }}
       />
 
-
       <Tab.Screen
         name="Cart"
         component={CartScreen}
@@ -379,7 +402,7 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
       {showAdmin && (
         <Tab.Screen
           name="Admin"
-          component={wrapScreen(AdminPanel)}
+          component={wrapScreen(require('./AdminPanel').default)}
           options={{ tabBarLabel: 'Admin' }}
         />
       )}
@@ -388,44 +411,53 @@ function Tabs({ showAdmin, userStatus, theme, insets }) {
 }
 
 export default function MainTabNavigator({ route }) {
-  const role = route?.params?.role ?? 'user';
-  const showAdmin = role === 'admin';
-
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
 
   const [userStatus, setUserStatus] = useState(null);
+  const [isReady, setIsReady] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user?.email) {
-          setUserStatus('not_requested');
-          return;
+    const initializeStatus = async () => {
+      const status = await getVerificationStatus();
+      setUserStatus(status);
+      
+      const user = auth.currentUser;
+      if (user?.email) {
+        try {
+          const { data, error } = await supabase
+            .from('admin')
+            .select('id')
+            .eq('email', user.email)
+            .maybeSingle();
+          
+          if (!error && data) {
+            setShowAdmin(true);
+          }
+        } catch (err) {
+          console.error('Error checking admin status:', err);
         }
-
-        const { data, error } = await supabase
-          .from('users')
-          .select('status')
-          .eq('email', user.email)
-          .maybeSingle();
-
-        if (error || !data?.status) {
-          setUserStatus('not_requested');
-        } else {
-          setUserStatus(data.status);
-        }
-      } catch (err) {
-        console.error('Error fetching verification status:', err);
-        setUserStatus('not_requested');
       }
+      
+      setIsReady(true);
     };
 
-    fetchStatus();
+    initializeStatus();
+
+    const statusCheckInterval = setInterval(async () => {
+      const status = await getVerificationStatus();
+      setUserStatus(status);
+    }, 10000);
+
+    return () => clearInterval(statusCheckInterval);
   }, []);
+
+  if (!isReady) {
+    return null;
+  }
 
   return (
     <Stack.Navigator
@@ -476,6 +508,7 @@ export default function MainTabNavigator({ route }) {
         name="Tabs"
         children={() => <Tabs showAdmin={showAdmin} userStatus={userStatus} theme={theme} insets={insets} />}
       />
+
       <Stack.Screen
         name="Notifications"
         component={require('./NotificationScreen').default}
@@ -509,43 +542,7 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen name="Messaging" component={MessagingScreen} />
-      <Stack.Screen name="EditProduct" component={EditProductScreen} />
-      <Stack.Screen name="EditRental"  component={EditRentalScreen} options={{ headerShown: false }}/>
-      <Stack.Screen name="LostAndFound" component={LostAndFoundScreen} />
-      <Stack.Screen name="AddLostItem" component={AddLostItemScreen} />
-      <Stack.Screen name="LostAndFoundDetails" component={LostAndFoundDetailsScreen} />
-      <Stack.Screen
-        name="ReportScreen"
-        component={ReportScreen}
-        options={{
-          presentation: 'modal',
-          gestureEnabled: true,
-          gestureDirection: 'vertical',
-          cardStyleInterpolator: ({ current }) => ({
-            cardStyle: {
-              transform: [
-                {
-                  translateY: current.progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1000, 0],
-                  }),
-                },
-              ],
-            },
-            overlayStyle: {
-              opacity: current.progress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 0.4],
-              }),
-            },
-          }),
-        }}
-      />
-      <Stack.Screen name="Rental" component={RentalScreen} />
-      <Stack.Screen name="AddRentalScreen" component={AddRentalScreen} />
-      <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
-      <Stack.Screen name="RentalDetails" component={require('./RentalDetailsScreen').default} />
+
       <Stack.Screen
         name="GetVerified"
         component={GetVerifiedScreen}
@@ -583,10 +580,13 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
-      <Stack.Screen name="VerificationStatus" component={VerificationStatusScreen} />
-      <Stack.Screen name="UserProfile" component={ProfileScreen} />
-      <Stack.Screen name="AddProductScreen" component={AddProductScreen} />
-      <Stack.Screen name="ProductScreen" component={ProductScreen} />
+
+      <Stack.Screen 
+        name="VerificationStatus" 
+        component={VerificationStatusScreen}
+        options={{ headerShown: false }}
+      />
+
       <Stack.Screen
         name="NotVerified"
         component={NotVerifiedScreen}
@@ -614,8 +614,53 @@ export default function MainTabNavigator({ route }) {
           }),
         }}
       />
+
+      <Stack.Screen name="AddProductScreen" component={AddProductScreen} />
+      <Stack.Screen name="EditProduct" component={EditProductScreen} />
+      <Stack.Screen name="ProductScreen" component={ProductScreen} />
+      <Stack.Screen name="ProductDetails" component={require('./ProductDetailsScreen').default} />
       
-      {/* History Screens */}
+      <Stack.Screen name="AddRentalScreen" component={AddRentalScreen} />
+      <Stack.Screen name="EditRental" component={EditRentalScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Rental" component={RentalScreen} />
+      <Stack.Screen name="RentalDetails" component={require('./RentalDetailsScreen').default} />
+
+      <Stack.Screen name="LostAndFound" component={LostAndFoundScreen} />
+      <Stack.Screen name="AddLostItem" component={AddLostItemScreen} />
+      <Stack.Screen name="LostAndFoundDetails" component={LostAndFoundDetailsScreen} />
+
+      <Stack.Screen name="Messaging" component={MessagingScreen} />
+      
+      <Stack.Screen
+        name="ReportScreen"
+        component={ReportScreen}
+        options={{
+          presentation: 'modal',
+          gestureEnabled: true,
+          gestureDirection: 'vertical',
+          cardStyleInterpolator: ({ current }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1000, 0],
+                  }),
+                },
+              ],
+            },
+            overlayStyle: {
+              opacity: current.progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.4],
+              }),
+            },
+          }),
+        }}
+      />
+
+      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+      <Stack.Screen name="UserProfile" component={ProfileScreen} />
       <Stack.Screen 
         name="PurchasedHistory" 
         component={PurchasedHistoryScreen} 
@@ -627,7 +672,11 @@ export default function MainTabNavigator({ route }) {
         options={{ headerShown: false }}
       />
       
-      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+      <Stack.Screen 
+        name="AdminPanel" 
+        component={require('./AdminPanel').default} 
+        options={{ headerShown: false }} 
+      />
     </Stack.Navigator>
   );
 }

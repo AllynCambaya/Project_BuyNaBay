@@ -21,6 +21,7 @@ import { auth } from '../../firebase/firebaseConfig';
 import { supabase } from '../../supabase/supabaseClient';
 import { darkTheme, lightTheme } from '../../theme/theme';
 import { fontFamily } from '../../theme/typography';
+import { getVerificationStatus } from '../../utils/verificationHelpers';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +34,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const [sellerAvatar, setSellerAvatar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [messaging, setMessaging] = useState(false);
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -114,6 +116,18 @@ export default function ProductDetailsScreen({ route, navigation }) {
           }),
         ]).start();
       }
+      // Fetch user status
+      if (user?.email && mounted) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', user.email)
+          .single();
+        
+        if (!userError && userData) {
+          setUserStatus(userData.status || 'not_requested');
+        }
+      }
     };
     
     fetchSellerInfo();
@@ -130,13 +144,8 @@ export default function ProductDetailsScreen({ route, navigation }) {
           setUserStatus('not_requested');
           return;
         }
-        const { data, error } = await supabase
-          .from('users')
-          .select('status')
-          .eq('email', user.email)
-          .single();
-        if (error || !data) setUserStatus('not_requested');
-        else setUserStatus(data.status || 'not_requested');
+        const { status } = await getVerificationStatus(user.email);
+        setUserStatus(status || 'not_requested');
       } catch (_) {
         setUserStatus('not_requested');
       }
@@ -144,23 +153,33 @@ export default function ProductDetailsScreen({ route, navigation }) {
     fetchStatus();
   }, [user]);
 
-  const handleMessageSeller = () => {
-    if (!user) {
-      Alert.alert('Login Required', 'Please login to message the seller.');
-      navigation.navigate('Login');
-      return;
-    }
+ const handleMessageSeller = async () => {
+  if (!user) {
+    Alert.alert('Login Required', 'Please login to message the seller.');
+    navigation.navigate('Login');
+    return;
+  }
 
-    if (user.email === product.email) {
-      Alert.alert('Not Allowed', 'You cannot message yourself.');
-      return;
-    }
+  if (user.email === product.email) {
+    Alert.alert('Not Allowed', 'You cannot message yourself.');
+    return;
+  }
 
-    navigation.navigate('Messaging', {
-      receiverId: product.email,
-      receiverName: sellerName,
-      productToSend: product,
-    });
+  // ✅ CHECK VERIFICATION STATUS
+  if (userStatus !== 'approved') {
+    navigation.navigate('GetVerified');
+    return;
+  }
+
+  setMessaging(true);
+  
+  navigation.navigate('Messaging', {
+    receiverId: product.email,
+    receiverName: sellerName,
+    productToSend: product,
+  });
+
+  setTimeout(() => setMessaging(false), 500);
   };
 
   const handleAddToCart = async () => {
@@ -533,13 +552,18 @@ export default function ProductDetailsScreen({ route, navigation }) {
               <TouchableOpacity
                 style={styles.iconActionButton}
                 onPress={handleMessageSeller}
+                disabled={messaging}
                 activeOpacity={0.7}
               >
                 <LinearGradient
-                  colors={isDarkMode ? ['rgba(253, 173, 0, 0.2)', 'rgba(253, 173, 0, 0.1)'] : ['rgba(253, 173, 0, 0.15)', 'rgba(253, 173, 0, 0.08)']}
+                  colors={messaging ? ['rgba(156, 163, 175, 0.3)', 'rgba(107, 114, 128, 0.2)'] : isDarkMode ? ['rgba(253, 173, 0, 0.2)', 'rgba(253, 173, 0, 0.1)'] : ['rgba(253, 173, 0, 0.15)', 'rgba(253, 173, 0, 0.08)']}
                   style={styles.iconButtonGradient}
                 >
-                  <Ionicons name="chatbubble-ellipses" size={20} color={theme.accent} />
+                  {messaging ? (
+                    <ActivityIndicator color={theme.accent} size="small" />
+                  ) : (
+                    <Ionicons name="chatbubble-ellipses" size={20} color={theme.accent} />
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>

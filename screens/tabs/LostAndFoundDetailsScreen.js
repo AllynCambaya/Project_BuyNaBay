@@ -42,12 +42,12 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
   const user = auth.currentUser;
   const insets = useSafeAreaInsets(); 
   
+  const [userStatus, setUserStatus] = useState('not_requested');
   const [reporterName, setReporterName] = useState('');
   const [reporterAvatar, setReporterAvatar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [contacting, setContacting] = useState(false);
-  const [reporting, setReporting] = useState(false);
 
   const systemColorScheme = useColorScheme();
   const isDarkMode = systemColorScheme === 'dark';
@@ -84,6 +84,18 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
       if (!item?.user_email) {
         setLoading(false);
         return;
+      }
+
+      if (user?.email && mounted) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', user.email)
+          .single();
+        
+        if (!userError && userData) {
+          setUserStatus(userData.status || 'not_requested');
+        }
       }
 
       const { data, error } = await supabase
@@ -128,26 +140,58 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
     return () => { mounted = false; };
   }, [item]);
 
-  const handleContactReporter = () => {
-    if (!user) {
-      Alert.alert('Login Required', 'Please login to contact the reporter.');
-      navigation.navigate('Login');
-      return;
-    }
+  // For ProductDetailsScreen.js
+const handleMessageSeller = async () => {
+  if (!user) {
+    Alert.alert('Login Required', 'Please login to message the seller.');
+    navigation.navigate('Login');
+    return;
+  }
 
-    if (user.email === item.user_email) {
-      Alert.alert('Not Allowed', 'You cannot message yourself.');
-      return;
-    }
+  if (user.email === product.email) {
+    Alert.alert('Not Allowed', 'You cannot message yourself.');
+    return;
+  }
 
-    setContacting(true);
+  // ✅ BYPASS VERIFICATION - Go directly to messaging
+  setMessaging(true);
+  
+  navigation.navigate('Messaging', {
+    receiverId: product.email,
+    receiverName: sellerName,
+    productToSend: product,
+  });
 
-    navigation.navigate('Messaging', {
-      receiverId: item.user_email,
-      receiverName: reporterName,
-    });
+  setTimeout(() => setMessaging(false), 500);
+};
 
-    setTimeout(() => setContacting(false), 500);
+// For LostAndFoundDetailsScreen.js
+const handleContactReporter = async () => {
+  if (!user) {
+    Alert.alert('Login Required', 'Please login to contact the reporter.');
+    navigation.navigate('Login');
+    return;
+  }
+
+  if (user.email === item.user_email) {
+    Alert.alert('Not Allowed', 'You cannot message yourself.');
+    return;
+  }
+
+  // ✅ CHECK VERIFICATION STATUS
+  if (userStatus !== 'approved') {
+    navigation.navigate('GetVerified');
+    return;
+  }
+
+  setContacting(true);
+  
+  navigation.navigate('Messaging', {
+    receiverId: item.user_email,
+    receiverName: reporterName,
+  });
+
+  setTimeout(() => setContacting(false), 500);
   };
 
   const styles = createStyles(theme, isDarkMode);
@@ -487,7 +531,7 @@ export default function LostAndFoundDetailsScreen({ route, navigation }) {
                     <>
                       <ActivityIndicator color="#fff" size="small" />
                       <Text style={[styles.contactButtonText, { fontFamily: fontFamily.bold, marginLeft: 10 }]}>
-                        Opening...
+                        Checking...
                       </Text>
                     </>
                   ) : (

@@ -110,6 +110,30 @@ export default function AddScreen() {
     return isDarkMode ? theme.notificationColor : '#4CAF50';
   };
 
+  const checkVerificationStatus = async () => {
+  const user = auth.currentUser;
+  const { data } = await supabase
+    .from('users')
+    .select('status')
+    .eq('email', user.email)
+    .single();
+
+  if (data?.status === 'pending') {
+    navigation.navigate('VerificationStatus');
+    return false;
+  } else if (data?.status !== 'approved') {
+    navigation.navigate('GetVerified');
+    return false;
+  }
+  return true;
+};
+
+const handleAddProduct = async () => {
+  const isVerified = await checkVerificationStatus();
+  if (isVerified) {
+    navigation.navigate('AddProductScreen');
+  }
+};
   const styles = createStyles(theme, insets);
 
   return (
